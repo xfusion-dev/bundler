@@ -1,36 +1,12 @@
-use candid::Principal;
-use ic_cdk::api::{msg_caller, time};
+use ic_cdk::api::time;
 use ic_cdk_macros::*;
 use crate::types::*;
 use crate::memory::*;
-
-fn is_admin(caller: Principal) -> bool {
-    ADMIN_PRINCIPAL.with(|admin| {
-        admin.borrow().map_or(false, |admin_principal| admin_principal == caller)
-    })
-}
-
-#[query]
-pub fn get_admin() -> Option<Principal> {
-    ADMIN_PRINCIPAL.with(|admin| *admin.borrow())
-}
-
-#[update]
-pub fn set_admin(new_admin: Principal) -> Result<(), String> {
-    let caller = msg_caller();
-    if !is_admin(caller) {
-        return Err("Only admin can set new admin".to_string());
-    }
-    ADMIN_PRINCIPAL.with(|admin| *admin.borrow_mut() = Some(new_admin));
-    Ok(())
-}
+use crate::admin::require_admin;
 
 #[update]
 pub fn add_asset(mut asset_info: AssetInfo) -> Result<(), String> {
-    let caller = msg_caller();
-    if !is_admin(caller) {
-        return Err("Only admin can add assets".to_string());
-    }
+    let _admin = require_admin()?;
 
     asset_info.added_at = time();
 
@@ -46,10 +22,7 @@ pub fn add_asset(mut asset_info: AssetInfo) -> Result<(), String> {
 
 #[update]
 pub fn update_asset(asset_id: AssetId, updates: AssetInfoUpdate) -> Result<(), String> {
-    let caller = msg_caller();
-    if !is_admin(caller) {
-        return Err("Only admin can update assets".to_string());
-    }
+    let _admin = require_admin()?;
 
     ASSET_REGISTRY.with(|registry| {
         let mut registry = registry.borrow_mut();
@@ -125,10 +98,7 @@ pub fn list_assets(filter: Option<AssetFilter>) -> Vec<AssetInfo> {
 
 #[update]
 pub fn deactivate_asset(asset_id: AssetId) -> Result<(), String> {
-    let caller = msg_caller();
-    if !is_admin(caller) {
-        return Err("Only admin can deactivate assets".to_string());
-    }
+    let _admin = require_admin()?;
 
     ASSET_REGISTRY.with(|registry| {
         let mut registry = registry.borrow_mut();

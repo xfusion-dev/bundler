@@ -199,3 +199,19 @@ pub struct UserPortfolio {
     pub total_bundles_created: u32,
     pub total_nav_tokens_held: u64,
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct CanisterStatus {
+    pub is_admin_set: bool,
+    pub total_assets: u64,
+    pub total_bundles: u64,
+    pub total_nav_tokens: u64,
+    pub memory_usage: MemoryUsage,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct MemoryUsage {
+    pub asset_registry_entries: u64,
+    pub bundle_storage_entries: u64,
+    pub nav_token_storage_entries: u64,
+}

@@ -8,6 +8,7 @@ mod asset_registry;
 mod bundle_manager;
 mod nav_token;
 mod query_api;
+mod admin;
 
 use types::*;
 use memory::*;
