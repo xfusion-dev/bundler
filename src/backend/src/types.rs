@@ -1,4 +1,4 @@
-use candid::{CandidType, Deserialize, Principal};
+use candid::{CandidType, Deserialize, Principal, encode_one, decode_one};
 use serde::Serialize;
 use ic_stable_structures::{Storable, storable::Bound};
 use std::borrow::Cow;
@@ -89,4 +89,37 @@ pub struct AssetFilter {
     pub active_only: bool,
     pub category: Option<AssetCategory>,
     pub standard: Option<AssetStandard>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct AssetAllocation {
+    pub asset_id: AssetId,
+    pub percentage: u8,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct BundleConfig {
+    pub id: u64,
+    pub name: String,
+    pub description: Option<String>,
+    pub creator: Principal,
+    pub allocations: Vec<AssetAllocation>,
+    pub created_at: u64,
+    pub is_active: bool,
+}
+
+impl Storable for BundleConfig {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize BundleConfig");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize BundleConfig")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 4096,
+        is_fixed_size: false,
+    };
 }

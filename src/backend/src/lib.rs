@@ -29,11 +29,13 @@ thread_local! {
         )
     );
 
-    static BUNDLE_STORAGE: RefCell<StableBTreeMap<u64, Vec<u8>, Memory>> = RefCell::new(
+    static BUNDLE_STORAGE: RefCell<StableBTreeMap<u64, BundleConfig, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(BUNDLE_STORAGE_MEMORY_ID))
         )
     );
+
+    static BUNDLE_COUNTER: RefCell<u64> = RefCell::new(0);
 
     static NAV_TOKEN_STORAGE: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> = RefCell::new(
         StableBTreeMap::init(
@@ -197,6 +199,80 @@ fn deactivate_asset(asset_id: AssetId) -> Result<(), String> {
             }
             None => Err(format!("Asset {} not found", asset_id.0))
         }
+    })
+}
+
+#[update]
+fn create_bundle(mut config: BundleConfig) -> Result<u64, String> {
+    let total_percentage: u32 = config.allocations.iter()
+        .map(|a| a.percentage as u32)
+        .sum();
+
+    if total_percentage != 100 {
+        return Err(format!("Allocations must sum to 100%, got {}%", total_percentage));
+    }
+
+    for allocation in &config.allocations {
+        ASSET_REGISTRY.with(|registry| {
+            let registry = registry.borrow();
+            match registry.get(&allocation.asset_id) {
+                Some(asset_info) if !asset_info.is_active => {
+                    return Err(format!("Asset {} is not active", allocation.asset_id.0));
+                }
+                None => {
+                    return Err(format!("Asset {} not found", allocation.asset_id.0));
+                }
+                _ => Ok(())
+            }
+        })?;
+    }
+
+    let bundle_id = BUNDLE_COUNTER.with(|counter| {
+        let mut counter = counter.borrow_mut();
+        *counter += 1;
+        *counter
+    });
+
+    config.id = bundle_id;
+    config.creator = msg_caller();
+    config.created_at = time();
+    config.is_active = true;
+
+    BUNDLE_STORAGE.with(|storage| {
+        storage.borrow_mut().insert(bundle_id, config)
+    });
+
+    Ok(bundle_id)
+}
+
+#[query]
+fn get_bundle(bundle_id: u64) -> Result<BundleConfig, String> {
+    BUNDLE_STORAGE.with(|storage| {
+        storage.borrow()
+            .get(&bundle_id)
+            .ok_or_else(|| format!("Bundle {} not found", bundle_id))
+    })
+}
+
+#[query]
+fn get_user_bundles(user: Principal) -> Vec<BundleConfig> {
+    BUNDLE_STORAGE.with(|storage| {
+        let storage = storage.borrow();
+        storage.iter()
+            .map(|(_, bundle)| bundle)
+            .filter(|bundle| bundle.creator == user)
+            .collect()
+    })
+}
+
+#[query]
+fn list_active_bundles() -> Vec<BundleConfig> {
+    BUNDLE_STORAGE.with(|storage| {
+        let storage = storage.borrow();
+        storage.iter()
+            .map(|(_, bundle)| bundle)
+            .filter(|bundle| bundle.is_active)
+            .collect()
     })
 }
 
