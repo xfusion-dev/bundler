@@ -151,3 +151,51 @@ impl Storable for XFusionNAVToken {
 pub fn nav_token_key(user: Principal, bundle_id: u64) -> String {
     format!("{}:{}", user.to_text(), bundle_id)
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct CanisterInfo {
+    pub version: String,
+    pub total_assets: u64,
+    pub total_bundles: u64,
+    pub total_nav_tokens: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct AssetSummary {
+    pub id: AssetId,
+    pub symbol: String,
+    pub name: String,
+    pub category: AssetCategory,
+    pub standard: AssetStandard,
+    pub is_active: bool,
+    pub bundles_using: u32,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct BundleSummary {
+    pub id: u64,
+    pub name: String,
+    pub creator: Principal,
+    pub created_at: u64,
+    pub allocations: Vec<AssetAllocation>,
+    pub total_nav_tokens: u64,
+    pub holder_count: u32,
+    pub is_active: bool,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct NAVTokenHolding {
+    pub bundle_id: u64,
+    pub bundle_name: String,
+    pub amount: u64,
+    pub last_updated: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct UserPortfolio {
+    pub user: Principal,
+    pub nav_token_holdings: Vec<NAVTokenHolding>,
+    pub created_bundles: Vec<BundleConfig>,
+    pub total_bundles_created: u32,
+    pub total_nav_tokens_held: u64,
+}

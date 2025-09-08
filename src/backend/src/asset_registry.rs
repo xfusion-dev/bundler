@@ -142,3 +142,9 @@ pub fn deactivate_asset(asset_id: AssetId) -> Result<(), String> {
         }
     })
 }
+
+pub fn get_asset_count() -> u64 {
+    ASSET_REGISTRY.with(|registry| {
+        registry.borrow().len()
+    })
+}

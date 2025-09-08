@@ -107,3 +107,23 @@ pub fn get_total_tokens_for_bundle(bundle_id: u64) -> u64 {
             .sum()
     })
 }
+
+pub fn get_total_nav_token_supply() -> u64 {
+    NAV_TOKEN_STORAGE.with(|tokens| {
+        let tokens = tokens.borrow();
+        tokens.iter()
+            .map(|(_, token)| token.amount)
+            .sum()
+    })
+}
+
+pub fn get_bundle_holder_count(bundle_id: u64) -> u32 {
+    let bundle_suffix = format!(":{}", bundle_id);
+
+    NAV_TOKEN_STORAGE.with(|tokens| {
+        let tokens = tokens.borrow();
+        tokens.iter()
+            .filter(|(key, _)| key.ends_with(&bundle_suffix))
+            .count() as u32
+    })
+}

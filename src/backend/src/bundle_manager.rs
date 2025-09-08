@@ -77,3 +77,24 @@ pub fn list_active_bundles() -> Vec<BundleConfig> {
             .collect()
     })
 }
+
+pub fn get_bundle_count() -> u64 {
+    BUNDLE_STORAGE.with(|storage| {
+        storage.borrow().len()
+    })
+}
+
+pub fn get_bundles_using_asset(asset_id: &AssetId) -> Vec<u64> {
+    BUNDLE_STORAGE.with(|storage| {
+        let storage = storage.borrow();
+        storage.iter()
+            .filter_map(|(bundle_id, bundle)| {
+                if bundle.allocations.iter().any(|alloc| &alloc.asset_id == asset_id) {
+                    Some(bundle_id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    })
+}
