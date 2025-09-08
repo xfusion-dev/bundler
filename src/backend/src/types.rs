@@ -123,3 +123,31 @@ impl Storable for BundleConfig {
         is_fixed_size: false,
     };
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct XFusionNAVToken {
+    pub bundle_id: u64,
+    pub owner: Principal,
+    pub amount: u64,
+    pub last_updated: u64,
+}
+
+impl Storable for XFusionNAVToken {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize XFusionNAVToken");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize XFusionNAVToken")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256,
+        is_fixed_size: false,
+    };
+}
+
+pub fn nav_token_key(user: Principal, bundle_id: u64) -> String {
+    format!("{}:{}", user.to_text(), bundle_id)
+}
