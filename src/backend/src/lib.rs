@@ -1,11 +1,12 @@
 use candid::{CandidType, Deserialize, Principal};
-use ic_cdk::api::msg_caller;
+use ic_cdk::api::{msg_caller, time};
 use ic_cdk_macros::*;
-use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, Storable};
+use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap};
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use std::cell::RefCell;
-use serde::Serialize;
-use std::borrow::Cow;
+
+mod types;
+use types::*;
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 
@@ -17,30 +18,12 @@ const TRANSACTION_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(4);
 const QUOTE_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(5);
 const RESOLVER_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(6);
 
-#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct AssetId(pub String);
-
-impl Storable for AssetId {
-    fn to_bytes(&self) -> Cow<[u8]> {
-        Cow::Owned(self.0.as_bytes().to_vec())
-    }
-
-    fn from_bytes(bytes: Cow<[u8]>) -> Self {
-        Self(String::from_utf8(bytes.to_vec()).expect("Invalid UTF-8"))
-    }
-
-    const BOUND: ic_stable_structures::storable::Bound = ic_stable_structures::storable::Bound::Bounded {
-        max_size: 100,
-        is_fixed_size: false,
-    };
-}
-
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
         MemoryManager::init(DefaultMemoryImpl::default())
     );
 
-    static ASSET_REGISTRY: RefCell<StableBTreeMap<AssetId, Vec<u8>, Memory>> = RefCell::new(
+    static ASSET_REGISTRY: RefCell<StableBTreeMap<AssetId, AssetInfo, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(ASSET_REGISTRY_MEMORY_ID))
         )
@@ -97,6 +80,124 @@ fn set_admin(new_admin: Principal) -> Result<(), String> {
     }
     ADMIN_PRINCIPAL.with(|admin| *admin.borrow_mut() = Some(new_admin));
     Ok(())
+}
+
+#[update]
+fn add_asset(mut asset_info: AssetInfo) -> Result<(), String> {
+    let caller = msg_caller();
+    if !is_admin(caller) {
+        return Err("Only admin can add assets".to_string());
+    }
+
+    asset_info.added_at = time();
+
+    ASSET_REGISTRY.with(|registry| {
+        let mut registry = registry.borrow_mut();
+        if registry.contains_key(&asset_info.id) {
+            return Err(format!("Asset {} already exists", asset_info.id.0));
+        }
+        registry.insert(asset_info.id.clone(), asset_info);
+        Ok(())
+    })
+}
+
+#[update]
+fn update_asset(asset_id: AssetId, updates: AssetInfoUpdate) -> Result<(), String> {
+    let caller = msg_caller();
+    if !is_admin(caller) {
+        return Err("Only admin can update assets".to_string());
+    }
+
+    ASSET_REGISTRY.with(|registry| {
+        let mut registry = registry.borrow_mut();
+        match registry.get(&asset_id) {
+            Some(mut asset_info) => {
+                if let Some(name) = updates.name {
+                    asset_info.name = name;
+                }
+                if let Some(oracle_ticker) = updates.oracle_ticker {
+                    asset_info.oracle_ticker = Some(oracle_ticker);
+                }
+                if let Some(minter_canister) = updates.minter_canister {
+                    asset_info.minter_canister = Some(minter_canister);
+                }
+                if let Some(is_active) = updates.is_active {
+                    asset_info.is_active = is_active;
+                }
+                if let Some(metadata) = updates.metadata {
+                    asset_info.metadata = metadata;
+                }
+                registry.insert(asset_id, asset_info);
+                Ok(())
+            }
+            None => Err(format!("Asset {} not found", asset_id.0))
+        }
+    })
+}
+
+#[query]
+fn get_asset(asset_id: AssetId) -> Result<AssetInfo, String> {
+    ASSET_REGISTRY.with(|registry| {
+        registry.borrow()
+            .get(&asset_id)
+            .ok_or_else(|| format!("Asset {} not found", asset_id.0))
+    })
+}
+
+#[query]
+fn list_assets(filter: Option<AssetFilter>) -> Vec<AssetInfo> {
+    ASSET_REGISTRY.with(|registry| {
+        let registry = registry.borrow();
+        let mut assets: Vec<AssetInfo> = Vec::new();
+
+        for (_, asset_info) in registry.iter() {
+            let mut include = true;
+
+            if let Some(ref filter) = filter {
+                if filter.active_only && !asset_info.is_active {
+                    include = false;
+                }
+
+                if let Some(ref category) = filter.category {
+                    if std::mem::discriminant(&asset_info.metadata.category) != std::mem::discriminant(category) {
+                        include = false;
+                    }
+                }
+
+                if let Some(ref standard) = filter.standard {
+                    if std::mem::discriminant(&asset_info.standard) != std::mem::discriminant(standard) {
+                        include = false;
+                    }
+                }
+            }
+
+            if include {
+                assets.push(asset_info);
+            }
+        }
+
+        assets
+    })
+}
+
+#[update]
+fn deactivate_asset(asset_id: AssetId) -> Result<(), String> {
+    let caller = msg_caller();
+    if !is_admin(caller) {
+        return Err("Only admin can deactivate assets".to_string());
+    }
+
+    ASSET_REGISTRY.with(|registry| {
+        let mut registry = registry.borrow_mut();
+        match registry.get(&asset_id) {
+            Some(mut asset_info) => {
+                asset_info.is_active = false;
+                registry.insert(asset_id, asset_info);
+                Ok(())
+            }
+            None => Err(format!("Asset {} not found", asset_id.0))
+        }
+    })
 }
 
 #[query]
