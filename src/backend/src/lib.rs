@@ -11,6 +11,7 @@ mod query_api;
 mod admin;
 mod oracle;
 mod nav_calculator;
+mod holdings_tracker;
 
 use types::*;
 use memory::*;

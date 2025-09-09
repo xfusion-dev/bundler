@@ -276,3 +276,64 @@ pub struct CacheStatistics {
     pub oldest_entry_age_seconds: u64,
     pub cache_duration_seconds: u64,
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct BundleHolding {
+    pub bundle_id: u64,
+    pub asset_id: AssetId,
+    pub amount: u64,
+    pub last_updated: u64,
+}
+
+impl Storable for BundleHolding {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize BundleHolding");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize BundleHolding")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256,
+        is_fixed_size: false,
+    };
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct AssetWithdrawal {
+    pub asset_id: AssetId,
+    pub amount: u64,
+    pub remaining_in_bundle: u64,
+    pub withdrawal_percentage: f64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct WithdrawalAssetBreakdown {
+    pub asset_id: AssetId,
+    pub amount: u64,
+    pub estimated_usd_value: u64,
+    pub price_per_unit: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct WithdrawalSimulation {
+    pub bundle_id: u64,
+    pub nav_tokens_to_redeem: u64,
+    pub withdrawal_percentage: f64,
+    pub estimated_total_usd_value: u64,
+    pub asset_withdrawals: Vec<AssetWithdrawal>,
+    pub asset_breakdown: Vec<WithdrawalAssetBreakdown>,
+    pub calculated_at: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct HoldingDrift {
+    pub asset_id: AssetId,
+    pub target_percentage: f64,
+    pub actual_percentage: f64,
+    pub drift_percentage: f64,
+    pub holding_amount: u64,
+    pub usd_value: u64,
+}
