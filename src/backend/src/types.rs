@@ -337,3 +337,25 @@ pub struct HoldingDrift {
     pub holding_amount: u64,
     pub usd_value: u64,
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct SupplyValidationResult {
+    pub bundle_id: u64,
+    pub recorded_total_supply: u64,
+    pub calculated_total_supply: u64,
+    pub is_consistent: bool,
+    pub discrepancy: u64,
+    pub validation_timestamp: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct NAVPrecisionReport {
+    pub bundle_id: u64,
+    pub total_usd_value: u64,
+    pub total_tokens: u64,
+    pub nav_per_token_8_decimals: u64,
+    pub nav_per_token_18_decimals: u64,
+    pub formatted_nav_display: String,
+    pub precision_loss_amount: u64,
+    pub calculation_timestamp: u64,
+}

@@ -179,16 +179,155 @@ pub fn normalize_amount_to_usd(amount: u64, asset_decimals: u8, price_per_unit: 
 }
 
 pub fn calculate_precise_nav_per_token(total_usd_value: u64, total_tokens: u64, precision_decimals: u8) -> u64 {
+    calculate_nav_per_token_with_supply_validation(total_usd_value, total_tokens, precision_decimals)
+        .unwrap_or(0)
+}
+
+pub fn calculate_nav_per_token_with_supply_validation(
+    total_usd_value: u64,
+    total_tokens: u64,
+    precision_decimals: u8,
+) -> Result<u64, String> {
     if total_tokens == 0 {
-        return 0;
+        return Ok(0);
+    }
+
+    if precision_decimals > 18 {
+        return Err("Precision decimals cannot exceed 18".to_string());
+    }
+
+    // Ensure we don't overflow during calculation
+    let precision_factor = 10u64.pow(precision_decimals as u32);
+
+    // Check for potential overflow before multiplication
+    if total_usd_value > u64::MAX / precision_factor {
+        return Err("USD value too large for precision calculation".to_string());
+    }
+
+    let precise_value = total_usd_value.checked_mul(precision_factor)
+        .ok_or("Overflow during precision multiplication")?
+        .checked_div(total_tokens)
+        .ok_or("Division by zero in NAV calculation")?;
+
+    Ok(precise_value)
+}
+
+pub fn format_nav_with_precision(nav_value: u64, precision_decimals: u8) -> String {
+    if precision_decimals == 0 {
+        return nav_value.to_string();
     }
 
     let precision_factor = 10u64.pow(precision_decimals as u32);
-    let precise_value = total_usd_value.checked_mul(precision_factor)
-        .and_then(|v| v.checked_div(total_tokens))
-        .unwrap_or(0);
+    let whole_part = nav_value / precision_factor;
+    let decimal_part = nav_value % precision_factor;
 
-    precise_value
+    if decimal_part == 0 {
+        format!("{}.{:0width$}", whole_part, 0, width = precision_decimals as usize)
+    } else {
+        let decimal_str = format!("{:0width$}", decimal_part, width = precision_decimals as usize);
+        let trimmed = decimal_str.trim_end_matches('0');
+        if trimmed.is_empty() {
+            format!("{}.0", whole_part)
+        } else {
+            format!("{}.{}", whole_part, trimmed)
+        }
+    }
+}
+
+pub fn validate_total_supply_consistency(bundle_id: u64) -> Result<SupplyValidationResult, String> {
+    let recorded_total = crate::nav_token::get_total_tokens_for_bundle(bundle_id);
+    let calculated_total = calculate_total_supply_from_holders(bundle_id);
+
+    let is_consistent = recorded_total == calculated_total;
+    let discrepancy = if recorded_total > calculated_total {
+        recorded_total - calculated_total
+    } else {
+        calculated_total - recorded_total
+    };
+
+    Ok(SupplyValidationResult {
+        bundle_id,
+        recorded_total_supply: recorded_total,
+        calculated_total_supply: calculated_total,
+        is_consistent,
+        discrepancy,
+        validation_timestamp: time(),
+    })
+}
+
+fn calculate_total_supply_from_holders(bundle_id: u64) -> u64 {
+    let bundle_suffix = format!(":{}", bundle_id);
+
+    crate::memory::NAV_TOKEN_STORAGE.with(|tokens| {
+        let tokens = tokens.borrow();
+        tokens.iter()
+            .filter_map(|(key, token)| {
+                if key.ends_with(&bundle_suffix) {
+                    Some(token.amount)
+                } else {
+                    None
+                }
+            })
+            .sum()
+    })
+}
+
+pub async fn calculate_nav_with_full_precision_report(bundle_id: u64) -> Result<NAVPrecisionReport, String> {
+    let bundle = crate::bundle_manager::get_bundle(bundle_id)?;
+    let total_tokens = crate::nav_token::get_total_tokens_for_bundle(bundle_id);
+
+    if total_tokens == 0 {
+        return Ok(NAVPrecisionReport {
+            bundle_id,
+            total_usd_value: 0,
+            total_tokens: 0,
+            nav_per_token_8_decimals: 0,
+            nav_per_token_18_decimals: 0,
+            formatted_nav_display: "0.00000000".to_string(),
+            precision_loss_amount: 0,
+            calculation_timestamp: time(),
+        });
+    }
+
+    // Calculate total USD value with high precision
+    let mut total_usd_value = 0u64;
+    for allocation in &bundle.allocations {
+        if let Ok(asset_price) = crate::oracle::get_latest_price(&allocation.asset_id).await {
+            if let Ok(asset_info) = crate::asset_registry::get_asset(allocation.asset_id.clone()) {
+                if let Ok(allocation_value) = calculate_allocation_value_with_decimals(
+                    total_tokens,
+                    allocation.percentage,
+                    asset_price.price_usd,
+                    asset_info.decimals,
+                ) {
+                    total_usd_value = total_usd_value.saturating_add(allocation_value.value_usd);
+                }
+            }
+        }
+    }
+
+    // Calculate NAV with different precisions
+    let nav_8_decimals = calculate_nav_per_token_with_supply_validation(total_usd_value, total_tokens, 8)?;
+    let nav_18_decimals = calculate_nav_per_token_with_supply_validation(total_usd_value, total_tokens, 18)?;
+
+    // Calculate precision loss
+    let scaled_nav_8 = nav_8_decimals.saturating_mul(10u64.pow(10)); // Scale to 18 decimals
+    let precision_loss = if nav_18_decimals > scaled_nav_8 {
+        nav_18_decimals - scaled_nav_8
+    } else {
+        0
+    };
+
+    Ok(NAVPrecisionReport {
+        bundle_id,
+        total_usd_value,
+        total_tokens,
+        nav_per_token_8_decimals: nav_8_decimals,
+        nav_per_token_18_decimals: nav_18_decimals,
+        formatted_nav_display: format_nav_with_precision(nav_8_decimals, 8),
+        precision_loss_amount: precision_loss,
+        calculation_timestamp: time(),
+    })
 }
 
 pub async fn calculate_multiple_bundle_navs(bundle_ids: Vec<u64>) -> Vec<(u64, Result<BundleNAV, String>)> {
