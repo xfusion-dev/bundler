@@ -38,5 +38,13 @@ thread_local! {
 
     pub static BUNDLE_COUNTER: RefCell<u64> = RefCell::new(0);
 
+    pub static PRICE_STORAGE: RefCell<StableBTreeMap<AssetId, AssetPrice, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(PRICE_STORAGE_MEMORY_ID))
+        )
+    );
+
     pub static ADMIN_PRINCIPAL: RefCell<Option<candid::Principal>> = RefCell::new(None);
+
+    pub static ORACLE_CONFIG: RefCell<Option<OracleConfig>> = RefCell::new(None);
 }

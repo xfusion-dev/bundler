@@ -215,3 +215,54 @@ pub struct MemoryUsage {
     pub bundle_storage_entries: u64,
     pub nav_token_storage_entries: u64,
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct AssetPrice {
+    pub asset_id: AssetId,
+    pub price_usd: u64,
+    pub timestamp: u64,
+    pub source: String,
+    pub confidence: u8,
+}
+
+impl Storable for AssetPrice {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize AssetPrice");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize AssetPrice")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 512,
+        is_fixed_size: false,
+    };
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct BundleNAV {
+    pub bundle_id: u64,
+    pub nav_per_token: u64,
+    pub total_nav_usd: u64,
+    pub total_tokens: u64,
+    pub asset_values: Vec<AssetValue>,
+    pub calculated_at: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct AssetValue {
+    pub asset_id: AssetId,
+    pub amount: u64,
+    pub value_usd: u64,
+    pub percentage: f64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct OracleConfig {
+    pub oracle_canister: Principal,
+    pub cache_duration_ns: u64,
+    pub max_staleness_ns: u64,
+    pub fallback_enabled: bool,
+}

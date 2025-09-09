@@ -9,6 +9,8 @@ mod bundle_manager;
 mod nav_token;
 mod query_api;
 mod admin;
+mod oracle;
+mod nav_calculator;
 
 use types::*;
 use memory::*;
@@ -39,6 +41,17 @@ fn greet(name: String) -> String {
 fn whoami() -> String {
     let caller_principal: Principal = msg_caller();
     caller_principal.to_text()
+}
+
+#[update]
+async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
+    nav_calculator::calculate_bundle_nav(bundle_id).await
+}
+
+#[update]
+async fn get_portfolio_value(user: Option<Principal>) -> Result<u64, String> {
+    let user_principal = user.unwrap_or_else(|| msg_caller());
+    nav_calculator::get_portfolio_value(user_principal).await
 }
 
 ic_cdk::export_candid!();
