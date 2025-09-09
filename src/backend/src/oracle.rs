@@ -27,11 +27,8 @@ pub fn get_oracle_config() -> Option<OracleConfig> {
 }
 
 pub async fn get_latest_price(asset_id: &AssetId) -> Result<AssetPrice, String> {
-    if let Some(cached_price) = PRICE_STORAGE.with(|p| p.borrow().get(asset_id)) {
-        let age = time() - cached_price.timestamp;
-        if age < DEFAULT_CACHE_DURATION_NS {
-            return Ok(cached_price);
-        }
+    if let Some(cached_price) = get_cached_price_if_valid(asset_id) {
+        return Ok(cached_price);
     }
 
     let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
@@ -72,10 +69,114 @@ pub fn get_cached_price(asset_id: AssetId) -> Option<AssetPrice> {
     PRICE_STORAGE.with(|p| p.borrow().get(&asset_id))
 }
 
+pub fn get_cached_price_if_valid(asset_id: &AssetId) -> Option<AssetPrice> {
+    PRICE_STORAGE.with(|p| {
+        let storage = p.borrow();
+        if let Some(cached_price) = storage.get(asset_id) {
+            let age = time() - cached_price.timestamp;
+            if age < DEFAULT_CACHE_DURATION_NS {
+                Some(cached_price)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    })
+}
+
+pub fn is_price_stale(asset_id: &AssetId, max_staleness: Option<u64>) -> bool {
+    let max_staleness = max_staleness.unwrap_or(DEFAULT_MAX_STALENESS_NS);
+
+    PRICE_STORAGE.with(|p| {
+        let storage = p.borrow();
+        if let Some(cached_price) = storage.get(asset_id) {
+            let age = time() - cached_price.timestamp;
+            age > max_staleness
+        } else {
+            true
+        }
+    })
+}
+
+pub fn refresh_expired_prices() -> Vec<AssetId> {
+    let mut expired_assets = Vec::new();
+
+    PRICE_STORAGE.with(|p| {
+        let storage = p.borrow();
+        for (asset_id, price) in storage.iter() {
+            let age = time() - price.timestamp;
+            if age > DEFAULT_CACHE_DURATION_NS {
+                expired_assets.push(asset_id);
+            }
+        }
+    });
+
+    expired_assets
+}
+
+#[query]
+pub fn get_cache_statistics() -> CacheStatistics {
+    let current_time = time();
+    let mut total_entries = 0;
+    let mut valid_entries = 0;
+    let mut expired_entries = 0;
+    let mut oldest_entry_age = 0u64;
+
+    PRICE_STORAGE.with(|p| {
+        let storage = p.borrow();
+        total_entries = storage.len() as u32;
+
+        for (_, price) in storage.iter() {
+            let age = current_time - price.timestamp;
+
+            if age < DEFAULT_CACHE_DURATION_NS {
+                valid_entries += 1;
+            } else {
+                expired_entries += 1;
+            }
+
+            if age > oldest_entry_age {
+                oldest_entry_age = age;
+            }
+        }
+    });
+
+    CacheStatistics {
+        total_entries,
+        valid_entries,
+        expired_entries,
+        cache_hit_rate: if total_entries > 0 {
+            (valid_entries as f64 / total_entries as f64) * 100.0
+        } else {
+            0.0
+        },
+        oldest_entry_age_seconds: oldest_entry_age / 1_000_000_000,
+        cache_duration_seconds: DEFAULT_CACHE_DURATION_NS / 1_000_000_000,
+    }
+}
+
 #[query]
 pub fn list_cached_prices() -> Vec<AssetPrice> {
     PRICE_STORAGE.with(|p| {
         p.borrow().iter().map(|(_, price)| price).collect()
+    })
+}
+
+#[query]
+pub fn list_valid_cached_prices() -> Vec<AssetPrice> {
+    let current_time = time();
+    PRICE_STORAGE.with(|p| {
+        p.borrow().iter()
+            .filter_map(|(_, price)| {
+                let age = current_time - price.timestamp;
+                if age < DEFAULT_CACHE_DURATION_NS {
+                    Some(price)
+                } else {
+                    None
+                }
+            })
+            .collect()
     })
 }
 

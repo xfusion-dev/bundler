@@ -266,3 +266,13 @@ pub struct OracleConfig {
     pub max_staleness_ns: u64,
     pub fallback_enabled: bool,
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct CacheStatistics {
+    pub total_entries: u32,
+    pub valid_entries: u32,
+    pub expired_entries: u32,
+    pub cache_hit_rate: f64,
+    pub oldest_entry_age_seconds: u64,
+    pub cache_duration_seconds: u64,
+}
