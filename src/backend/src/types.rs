@@ -544,3 +544,12 @@ pub struct UserTransactionSummary {
     pub current_locked_funds: u64,
     pub last_transaction_at: Option<u64>,
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct QuoteStatistics {
+    pub total_requests: u32,
+    pub pending_requests: u32,
+    pub assigned_requests: u32,
+    pub expired_requests: u32,
+    pub expired_assignments: u32,
+}

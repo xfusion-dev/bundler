@@ -103,6 +103,163 @@ pub fn cleanup_expired_quotes() -> u32 {
     cleaned_count
 }
 
+pub fn cleanup_expired_assignments() -> u32 {
+    let current_time = time();
+    let mut cleaned_count = 0;
+
+    let expired_assignment_ids: Vec<u64> = QUOTE_ASSIGNMENTS.with(|assignments| {
+        assignments.borrow()
+            .iter()
+            .filter_map(|(request_id, assignment)| {
+                if assignment.valid_until <= current_time {
+                    Some(request_id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    });
+
+    for request_id in expired_assignment_ids {
+        QUOTE_ASSIGNMENTS.with(|assignments| {
+            assignments.borrow_mut().remove(&request_id)
+        });
+        cleaned_count += 1;
+    }
+
+    cleaned_count
+}
+
+pub fn get_quotes_expiring_soon(threshold_seconds: u64) -> Vec<QuoteRequest> {
+    let current_time = time();
+    let threshold_ns = threshold_seconds * 1_000_000_000;
+    let expiry_threshold = current_time + threshold_ns;
+
+    QUOTE_REQUESTS.with(|quotes| {
+        quotes.borrow()
+            .iter()
+            .filter_map(|(_, request)| {
+                if request.expires_at <= expiry_threshold && request.expires_at > current_time {
+                    Some(request)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    })
+}
+
+pub fn get_assignments_expiring_soon(threshold_seconds: u64) -> Vec<QuoteAssignment> {
+    let current_time = time();
+    let threshold_ns = threshold_seconds * 1_000_000_000;
+    let expiry_threshold = current_time + threshold_ns;
+
+    QUOTE_ASSIGNMENTS.with(|assignments| {
+        assignments.borrow()
+            .iter()
+            .filter_map(|(_, assignment)| {
+                if assignment.valid_until <= expiry_threshold && assignment.valid_until > current_time {
+                    Some(assignment)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    })
+}
+
+pub fn is_quote_request_expired(request_id: u64) -> Result<bool, String> {
+    let request = get_quote_request(request_id)?;
+    Ok(request.expires_at <= time())
+}
+
+pub fn is_quote_assignment_expired(request_id: u64) -> Result<bool, String> {
+    let assignment = get_quote_assignment(request_id)?
+        .ok_or_else(|| "No quote assignment found".to_string())?;
+    Ok(assignment.valid_until <= time())
+}
+
+pub fn extend_quote_expiration(request_id: u64, additional_seconds: u64) -> Result<(), String> {
+    if !is_admin(msg_caller()) {
+        return Err("Only admin can extend quote expiration".to_string());
+    }
+
+    let additional_ns = additional_seconds * 1_000_000_000;
+
+    QUOTE_REQUESTS.with(|quotes| {
+        let mut quotes = quotes.borrow_mut();
+        if let Some(mut request) = quotes.get(&request_id) {
+            request.expires_at += additional_ns;
+            quotes.insert(request_id, request);
+            Ok(())
+        } else {
+            Err("Quote request not found".to_string())
+        }
+    })
+}
+
+pub fn extend_assignment_validity(request_id: u64, additional_seconds: u64) -> Result<(), String> {
+    if !is_admin(msg_caller()) {
+        return Err("Only admin can extend assignment validity".to_string());
+    }
+
+    let additional_ns = additional_seconds * 1_000_000_000;
+
+    QUOTE_ASSIGNMENTS.with(|assignments| {
+        let mut assignments = assignments.borrow_mut();
+        if let Some(mut assignment) = assignments.get(&request_id) {
+            assignment.valid_until += additional_ns;
+            assignments.insert(request_id, assignment);
+            Ok(())
+        } else {
+            Err("Quote assignment not found".to_string())
+        }
+    })
+}
+
+pub fn get_quote_statistics() -> QuoteStatistics {
+    let current_time = time();
+    let mut stats = QuoteStatistics {
+        total_requests: 0,
+        pending_requests: 0,
+        assigned_requests: 0,
+        expired_requests: 0,
+        expired_assignments: 0,
+    };
+
+    QUOTE_REQUESTS.with(|quotes| {
+        for (request_id, request) in quotes.borrow().iter() {
+            stats.total_requests += 1;
+
+            if request.expires_at <= current_time {
+                stats.expired_requests += 1;
+            } else if quote_assignment_exists(request_id) {
+                stats.assigned_requests += 1;
+            } else {
+                stats.pending_requests += 1;
+            }
+        }
+    });
+
+    QUOTE_ASSIGNMENTS.with(|assignments| {
+        for (_, assignment) in assignments.borrow().iter() {
+            if assignment.valid_until <= current_time {
+                stats.expired_assignments += 1;
+            }
+        }
+    });
+
+    stats
+}
+
+pub fn cleanup_all_expired() -> (u32, u32, u32) {
+    let expired_quotes = cleanup_expired_quotes();
+    let expired_assignments = cleanup_expired_assignments();
+    let expired_locks = crate::transaction_manager::cleanup_expired_locks();
+
+    (expired_quotes, expired_assignments, expired_locks)
+}
+
 pub fn set_quote_api_principal(api_principal: candid::Principal) -> Result<(), String> {
     if !is_admin(msg_caller()) {
         return Err("Only admin can set quote API principal".to_string());

@@ -103,6 +103,51 @@ fn cleanup_expired_quotes() -> u32 {
 }
 
 #[update]
+fn cleanup_expired_assignments() -> u32 {
+    quote_manager::cleanup_expired_assignments()
+}
+
+#[query]
+fn get_quotes_expiring_soon(threshold_seconds: u64) -> Vec<QuoteRequest> {
+    quote_manager::get_quotes_expiring_soon(threshold_seconds)
+}
+
+#[query]
+fn get_assignments_expiring_soon(threshold_seconds: u64) -> Vec<QuoteAssignment> {
+    quote_manager::get_assignments_expiring_soon(threshold_seconds)
+}
+
+#[query]
+fn is_quote_request_expired(request_id: u64) -> Result<bool, String> {
+    quote_manager::is_quote_request_expired(request_id)
+}
+
+#[query]
+fn is_quote_assignment_expired(request_id: u64) -> Result<bool, String> {
+    quote_manager::is_quote_assignment_expired(request_id)
+}
+
+#[update]
+fn extend_quote_expiration(request_id: u64, additional_seconds: u64) -> Result<(), String> {
+    quote_manager::extend_quote_expiration(request_id, additional_seconds)
+}
+
+#[update]
+fn extend_assignment_validity(request_id: u64, additional_seconds: u64) -> Result<(), String> {
+    quote_manager::extend_assignment_validity(request_id, additional_seconds)
+}
+
+#[query]
+fn get_quote_statistics() -> QuoteStatistics {
+    quote_manager::get_quote_statistics()
+}
+
+#[update]
+fn cleanup_all_expired() -> (u32, u32, u32) {
+    quote_manager::cleanup_all_expired()
+}
+
+#[update]
 fn set_quote_api_principal(api_principal: Principal) -> Result<(), String> {
     quote_manager::set_quote_api_principal(api_principal)
 }
