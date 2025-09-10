@@ -182,4 +182,44 @@ fn monitor_transaction_health() -> Result<(), String> {
     transaction_manager::monitor_transaction_health()
 }
 
+#[query]
+fn validate_sufficient_balance(user: Principal, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
+    transaction_manager::validate_sufficient_balance(user, &fund_type, amount)
+}
+
+#[query]
+fn get_user_total_locked_amount(user: Principal, fund_type: LockedFundType) -> u64 {
+    transaction_manager::get_user_total_locked_amount(user, &fund_type)
+}
+
+#[update]
+fn lock_user_funds_with_validation(transaction_id: u64, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
+    transaction_manager::lock_user_funds_with_validation(transaction_id, fund_type, amount)
+}
+
+#[update]
+fn unlock_all_transaction_funds(transaction_id: u64) -> Result<Vec<(LockedFundType, u64)>, String> {
+    transaction_manager::unlock_all_transaction_funds(transaction_id)
+}
+
+#[query]
+fn is_fund_already_locked(transaction_id: u64, fund_type: LockedFundType) -> bool {
+    transaction_manager::is_fund_already_locked(transaction_id, &fund_type)
+}
+
+#[query]
+fn get_lock_expiration_time(transaction_id: u64, fund_type: LockedFundType) -> Result<u64, String> {
+    transaction_manager::get_lock_expiration_time(transaction_id, &fund_type)
+}
+
+#[update]
+fn extend_lock_expiration(transaction_id: u64, fund_type: LockedFundType, new_expiration: u64) -> Result<(), String> {
+    transaction_manager::extend_lock_expiration(transaction_id, &fund_type, new_expiration)
+}
+
+#[update]
+fn cleanup_expired_locks() -> u32 {
+    transaction_manager::cleanup_expired_locks()
+}
+
 ic_cdk::export_candid!();

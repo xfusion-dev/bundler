@@ -127,6 +127,135 @@ pub fn get_user_locked_funds(user: Principal) -> Vec<LockedFunds> {
     })
 }
 
+pub fn validate_sufficient_balance(user: Principal, fund_type: &LockedFundType, amount: u64) -> Result<(), String> {
+    match fund_type {
+        LockedFundType::CkUSDC => {
+            let user_balance = crate::nav_token::get_user_ckusdc_balance(user)?;
+            let locked_amount = get_user_total_locked_amount(user, fund_type);
+            let available_balance = user_balance.saturating_sub(locked_amount);
+
+            if available_balance < amount {
+                return Err(format!("Insufficient ckUSDC balance: {} required, {} available", amount, available_balance));
+            }
+        }
+        LockedFundType::NAVTokens { bundle_id } => {
+            let user_balance = crate::nav_token::get_user_nav_token_balance(user, *bundle_id)?;
+            let locked_amount = get_user_total_locked_amount(user, fund_type);
+            let available_balance = user_balance.saturating_sub(locked_amount);
+
+            if available_balance < amount {
+                return Err(format!("Insufficient NAV token balance for bundle {}: {} required, {} available", bundle_id, amount, available_balance));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn get_user_total_locked_amount(user: Principal, fund_type: &LockedFundType) -> u64 {
+    let user_locked_funds = get_user_locked_funds(user);
+    user_locked_funds
+        .iter()
+        .filter(|locked| std::mem::discriminant(&locked.fund_type) == std::mem::discriminant(fund_type))
+        .map(|locked| locked.amount)
+        .sum()
+}
+
+pub fn lock_user_funds_with_validation(transaction_id: u64, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
+    let transaction = get_transaction(transaction_id)?;
+
+    validate_sufficient_balance(transaction.user, &fund_type, amount)?;
+
+    if is_fund_already_locked(transaction_id, &fund_type) {
+        return Err("Funds already locked for this transaction".to_string());
+    }
+
+    lock_user_funds(transaction_id, fund_type, amount)
+}
+
+pub fn unlock_all_transaction_funds(transaction_id: u64) -> Result<Vec<(LockedFundType, u64)>, String> {
+    let transaction = get_transaction(transaction_id)?;
+    let mut unlocked_funds = Vec::new();
+
+    let user_locked_funds = get_user_locked_funds(transaction.user);
+    for locked_fund in user_locked_funds {
+        if locked_fund.transaction_id == transaction_id {
+            let amount = unlock_user_funds(transaction_id, &locked_fund.fund_type)?;
+            unlocked_funds.push((locked_fund.fund_type, amount));
+        }
+    }
+
+    Ok(unlocked_funds)
+}
+
+pub fn is_fund_already_locked(transaction_id: u64, fund_type: &LockedFundType) -> bool {
+    let transaction = match get_transaction(transaction_id) {
+        Ok(tx) => tx,
+        Err(_) => return false,
+    };
+
+    let lock_key = generate_lock_key(&transaction.user, transaction_id, fund_type);
+
+    LOCKED_FUNDS.with(|locks| {
+        locks.borrow().contains_key(&lock_key)
+    })
+}
+
+pub fn get_lock_expiration_time(transaction_id: u64, fund_type: &LockedFundType) -> Result<u64, String> {
+    let transaction = get_transaction(transaction_id)?;
+    let lock_key = generate_lock_key(&transaction.user, transaction_id, fund_type);
+
+    LOCKED_FUNDS.with(|locks| {
+        locks.borrow()
+            .get(&lock_key)
+            .map(|locked_fund| locked_fund.expires_at)
+            .ok_or_else(|| "No locked funds found".to_string())
+    })
+}
+
+pub fn extend_lock_expiration(transaction_id: u64, fund_type: &LockedFundType, new_expiration: u64) -> Result<(), String> {
+    let transaction = get_transaction(transaction_id)?;
+    let lock_key = generate_lock_key(&transaction.user, transaction_id, fund_type);
+
+    LOCKED_FUNDS.with(|locks| {
+        let mut locks = locks.borrow_mut();
+
+        if let Some(mut locked_fund) = locks.get(&lock_key) {
+            locked_fund.expires_at = new_expiration;
+            locks.insert(lock_key, locked_fund);
+            Ok(())
+        } else {
+            Err("No locked funds found to extend".to_string())
+        }
+    })
+}
+
+pub fn cleanup_expired_locks() -> u32 {
+    let current_time = time();
+    let mut cleaned_count = 0;
+
+    let expired_lock_keys: Vec<String> = LOCKED_FUNDS.with(|locks| {
+        locks.borrow()
+            .iter()
+            .filter_map(|(key, locked_fund)| {
+                if locked_fund.expires_at <= current_time {
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    });
+
+    for lock_key in expired_lock_keys {
+        LOCKED_FUNDS.with(|locks| {
+            locks.borrow_mut().remove(&lock_key)
+        });
+        cleaned_count += 1;
+    }
+
+    cleaned_count
+}
+
 pub fn cleanup_expired_transactions() -> u32 {
     let current_time = time();
     let mut cleaned_count = 0;

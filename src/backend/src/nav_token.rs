@@ -127,3 +127,18 @@ pub fn get_bundle_holder_count(bundle_id: u64) -> u32 {
             .count() as u32
     })
 }
+
+pub fn get_user_nav_token_balance(user: Principal, bundle_id: u64) -> Result<u64, String> {
+    let key = nav_token_key(user, bundle_id);
+
+    NAV_TOKEN_STORAGE.with(|tokens| {
+        Ok(tokens.borrow()
+            .get(&key)
+            .map(|token| token.amount)
+            .unwrap_or(0))
+    })
+}
+
+pub fn get_user_ckusdc_balance(_user: Principal) -> Result<u64, String> {
+    Err("ckUSDC balance checking not implemented yet".to_string())
+}
