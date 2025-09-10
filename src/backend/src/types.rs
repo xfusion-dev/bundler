@@ -497,3 +497,50 @@ impl Storable for LockedFunds {
         is_fixed_size: false,
     };
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct TransactionSummary {
+    pub id: u64,
+    pub user: Principal,
+    pub bundle_id: u64,
+    pub operation: OperationType,
+    pub status: TransactionStatus,
+    pub nav_tokens: u64,
+    pub ckusdc_amount: u64,
+    pub created_at: u64,
+    pub duration_ms: Option<u64>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct TransactionStats {
+    pub total_transactions: u64,
+    pub completed_transactions: u64,
+    pub failed_transactions: u64,
+    pub pending_transactions: u64,
+    pub total_volume_ckusdc: u64,
+    pub total_nav_tokens_minted: u64,
+    pub total_nav_tokens_burned: u64,
+    pub average_completion_time_ms: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct BundleTransactionHistory {
+    pub bundle_id: u64,
+    pub total_buy_transactions: u64,
+    pub total_sell_transactions: u64,
+    pub total_volume_bought: u64,
+    pub total_volume_sold: u64,
+    pub last_transaction_at: Option<u64>,
+    pub active_transactions: u32,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct UserTransactionSummary {
+    pub user: Principal,
+    pub total_transactions: u64,
+    pub buy_transactions: u64,
+    pub sell_transactions: u64,
+    pub total_volume_ckusdc: u64,
+    pub current_locked_funds: u64,
+    pub last_transaction_at: Option<u64>,
+}

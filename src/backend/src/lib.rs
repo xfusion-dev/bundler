@@ -147,4 +147,39 @@ fn confirm_ckusdc_payment(request_id: u64, ckusdc_amount: u64) -> Result<(), Str
     quote_manager::confirm_ckusdc_payment(request_id, ckusdc_amount)
 }
 
+#[query]
+fn get_transaction_summary(transaction_id: u64) -> Result<TransactionSummary, String> {
+    transaction_manager::get_transaction_summary(transaction_id)
+}
+
+#[query]
+fn get_transaction_stats() -> TransactionStats {
+    transaction_manager::get_transaction_stats()
+}
+
+#[query]
+fn get_bundle_transaction_history(bundle_id: u64) -> BundleTransactionHistory {
+    transaction_manager::get_bundle_transaction_history(bundle_id)
+}
+
+#[query]
+fn get_user_transaction_summary(user: Principal) -> UserTransactionSummary {
+    transaction_manager::get_user_transaction_summary(user)
+}
+
+#[query]
+fn get_transactions_by_status(status: TransactionStatus) -> Vec<Transaction> {
+    transaction_manager::get_transactions_by_status(status)
+}
+
+#[query]
+fn get_recent_transactions(limit: usize) -> Vec<TransactionSummary> {
+    transaction_manager::get_recent_transactions(limit)
+}
+
+#[update]
+fn monitor_transaction_health() -> Result<(), String> {
+    transaction_manager::monitor_transaction_health()
+}
+
 ic_cdk::export_candid!();

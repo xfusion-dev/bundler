@@ -240,3 +240,259 @@ pub fn get_transaction_by_request(request_id: u64) -> Result<Transaction, String
             .ok_or_else(|| "Transaction not found for request".to_string())
     })
 }
+
+pub fn get_transaction_summary(transaction_id: u64) -> Result<TransactionSummary, String> {
+    let transaction = get_transaction(transaction_id)?;
+    let duration_ms = if let Some(completed_at) = transaction.completed_at {
+        Some((completed_at - transaction.created_at) / 1_000_000) // Convert ns to ms
+    } else {
+        None
+    };
+
+    Ok(TransactionSummary {
+        id: transaction.id,
+        user: transaction.user,
+        bundle_id: transaction.bundle_id,
+        operation: transaction.operation,
+        status: transaction.status,
+        nav_tokens: transaction.nav_tokens,
+        ckusdc_amount: transaction.ckusdc_amount,
+        created_at: transaction.created_at,
+        duration_ms,
+    })
+}
+
+pub fn get_transaction_stats() -> TransactionStats {
+    let mut stats = TransactionStats {
+        total_transactions: 0,
+        completed_transactions: 0,
+        failed_transactions: 0,
+        pending_transactions: 0,
+        total_volume_ckusdc: 0,
+        total_nav_tokens_minted: 0,
+        total_nav_tokens_burned: 0,
+        average_completion_time_ms: 0,
+    };
+
+    let mut total_completion_time = 0u64;
+    let mut completion_count = 0u64;
+
+    TRANSACTIONS.with(|transactions| {
+        for (_, transaction) in transactions.borrow().iter() {
+            stats.total_transactions += 1;
+            stats.total_volume_ckusdc += transaction.ckusdc_amount;
+
+            match transaction.operation {
+                OperationType::Buy => {
+                    stats.total_nav_tokens_minted += transaction.nav_tokens;
+                }
+                OperationType::Sell => {
+                    stats.total_nav_tokens_burned += transaction.nav_tokens;
+                }
+            }
+
+            match transaction.status {
+                TransactionStatus::Completed => {
+                    stats.completed_transactions += 1;
+                    if let Some(completed_at) = transaction.completed_at {
+                        total_completion_time += (completed_at - transaction.created_at) / 1_000_000;
+                        completion_count += 1;
+                    }
+                }
+                TransactionStatus::Failed | TransactionStatus::TimedOut => {
+                    stats.failed_transactions += 1;
+                }
+                _ => {
+                    stats.pending_transactions += 1;
+                }
+            }
+        }
+    });
+
+    if completion_count > 0 {
+        stats.average_completion_time_ms = total_completion_time / completion_count;
+    }
+
+    stats
+}
+
+pub fn get_bundle_transaction_history(bundle_id: u64) -> BundleTransactionHistory {
+    let mut history = BundleTransactionHistory {
+        bundle_id,
+        total_buy_transactions: 0,
+        total_sell_transactions: 0,
+        total_volume_bought: 0,
+        total_volume_sold: 0,
+        last_transaction_at: None,
+        active_transactions: 0,
+    };
+
+    TRANSACTIONS.with(|transactions| {
+        for (_, transaction) in transactions.borrow().iter() {
+            if transaction.bundle_id != bundle_id {
+                continue;
+            }
+
+            match transaction.operation {
+                OperationType::Buy => {
+                    history.total_buy_transactions += 1;
+                    if matches!(transaction.status, TransactionStatus::Completed) {
+                        history.total_volume_bought += transaction.ckusdc_amount;
+                    }
+                }
+                OperationType::Sell => {
+                    history.total_sell_transactions += 1;
+                    if matches!(transaction.status, TransactionStatus::Completed) {
+                        history.total_volume_sold += transaction.ckusdc_amount;
+                    }
+                }
+            }
+
+            if !matches!(transaction.status, TransactionStatus::Completed | TransactionStatus::Failed | TransactionStatus::TimedOut) {
+                history.active_transactions += 1;
+            }
+
+            if history.last_transaction_at.is_none() || Some(transaction.created_at) > history.last_transaction_at {
+                history.last_transaction_at = Some(transaction.created_at);
+            }
+        }
+    });
+
+    history
+}
+
+pub fn get_user_transaction_summary(user: Principal) -> UserTransactionSummary {
+    let mut summary = UserTransactionSummary {
+        user,
+        total_transactions: 0,
+        buy_transactions: 0,
+        sell_transactions: 0,
+        total_volume_ckusdc: 0,
+        current_locked_funds: 0,
+        last_transaction_at: None,
+    };
+
+    TRANSACTIONS.with(|transactions| {
+        for (_, transaction) in transactions.borrow().iter() {
+            if transaction.user != user {
+                continue;
+            }
+
+            summary.total_transactions += 1;
+
+            match transaction.operation {
+                OperationType::Buy => {
+                    summary.buy_transactions += 1;
+                }
+                OperationType::Sell => {
+                    summary.sell_transactions += 1;
+                }
+            }
+
+            if matches!(transaction.status, TransactionStatus::Completed) {
+                summary.total_volume_ckusdc += transaction.ckusdc_amount;
+            }
+
+            if summary.last_transaction_at.is_none() || Some(transaction.created_at) > summary.last_transaction_at {
+                summary.last_transaction_at = Some(transaction.created_at);
+            }
+        }
+    });
+
+    // Calculate current locked funds
+    let locked_funds = get_user_locked_funds(user);
+    for locked_fund in locked_funds {
+        match locked_fund.fund_type {
+            LockedFundType::CkUSDC => {
+                summary.current_locked_funds += locked_fund.amount;
+            }
+            LockedFundType::NAVTokens { .. } => {
+                // For NAV tokens, we could convert to USD value, but for now just count the amount
+                summary.current_locked_funds += locked_fund.amount;
+            }
+        }
+    }
+
+    summary
+}
+
+pub fn get_transactions_by_status(status: TransactionStatus) -> Vec<Transaction> {
+    TRANSACTIONS.with(|transactions| {
+        transactions.borrow()
+            .iter()
+            .filter_map(|(_, transaction)| {
+                if std::mem::discriminant(&transaction.status) == std::mem::discriminant(&status) {
+                    Some(transaction)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    })
+}
+
+pub fn get_recent_transactions(limit: usize) -> Vec<TransactionSummary> {
+    let mut recent_transactions: Vec<Transaction> = TRANSACTIONS.with(|transactions| {
+        transactions.borrow()
+            .iter()
+            .map(|(_, transaction)| transaction)
+            .collect()
+    });
+
+    // Sort by creation time, most recent first
+    recent_transactions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+    recent_transactions
+        .into_iter()
+        .take(limit)
+        .map(|transaction| {
+            let duration_ms = if let Some(completed_at) = transaction.completed_at {
+                Some((completed_at - transaction.created_at) / 1_000_000)
+            } else {
+                None
+            };
+
+            TransactionSummary {
+                id: transaction.id,
+                user: transaction.user,
+                bundle_id: transaction.bundle_id,
+                operation: transaction.operation,
+                status: transaction.status,
+                nav_tokens: transaction.nav_tokens,
+                ckusdc_amount: transaction.ckusdc_amount,
+                created_at: transaction.created_at,
+                duration_ms,
+            }
+        })
+        .collect()
+}
+
+pub fn monitor_transaction_health() -> Result<(), String> {
+    let current_time = time();
+    let warning_threshold = TRANSACTION_TIMEOUT_NS / 2; // Warn at 15 minutes
+
+    let mut warnings = Vec::new();
+
+    TRANSACTIONS.with(|transactions| {
+        for (_, transaction) in transactions.borrow().iter() {
+            if matches!(transaction.status, TransactionStatus::Completed | TransactionStatus::Failed | TransactionStatus::TimedOut) {
+                continue;
+            }
+
+            let age = current_time - transaction.created_at;
+            if age > warning_threshold {
+                warnings.push(format!(
+                    "Transaction {} is taking longer than expected ({}ms)",
+                    transaction.id,
+                    age / 1_000_000
+                ));
+            }
+        }
+    });
+
+    if !warnings.is_empty() {
+        ic_cdk::println!("Transaction health warnings: {:?}", warnings);
+    }
+
+    Ok(())
+}
