@@ -13,6 +13,7 @@ mod oracle;
 mod nav_calculator;
 mod holdings_tracker;
 mod quote_manager;
+mod transaction_manager;
 
 use types::*;
 use memory::*;
@@ -104,6 +105,31 @@ fn cleanup_expired_quotes() -> u32 {
 #[update]
 fn set_quote_api_principal(api_principal: Principal) -> Result<(), String> {
     quote_manager::set_quote_api_principal(api_principal)
+}
+
+#[update]
+fn create_transaction(request_id: u64) -> Result<u64, String> {
+    transaction_manager::create_transaction(request_id)
+}
+
+#[query]
+fn get_transaction(transaction_id: u64) -> Result<Transaction, String> {
+    transaction_manager::get_transaction(transaction_id)
+}
+
+#[query]
+fn get_user_transactions(user: Principal) -> Vec<Transaction> {
+    transaction_manager::get_user_transactions(user)
+}
+
+#[query]
+fn get_user_locked_funds(user: Principal) -> Vec<LockedFunds> {
+    transaction_manager::get_user_locked_funds(user)
+}
+
+#[update]
+fn cleanup_expired_transactions() -> u32 {
+    transaction_manager::cleanup_expired_transactions()
 }
 
 ic_cdk::export_candid!();

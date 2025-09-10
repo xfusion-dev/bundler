@@ -71,4 +71,18 @@ thread_local! {
     pub static QUOTE_COUNTER: RefCell<u64> = RefCell::new(0);
 
     pub static QUOTE_API_PRINCIPAL: RefCell<Option<Principal>> = RefCell::new(None);
+
+    pub static TRANSACTIONS: RefCell<StableBTreeMap<u64, Transaction, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(TRANSACTION_STORAGE_MEMORY_ID))
+        )
+    );
+
+    pub static LOCKED_FUNDS: RefCell<StableBTreeMap<String, LockedFunds, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(BUNDLE_HOLDINGS_MEMORY_ID))
+        )
+    );
+
+    pub static TRANSACTION_COUNTER: RefCell<u64> = RefCell::new(0);
 }

@@ -421,3 +421,79 @@ impl Storable for QuoteAssignment {
         is_fixed_size: false,
     };
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct Transaction {
+    pub id: u64,
+    pub request_id: u64,
+    pub user: Principal,
+    pub resolver: Principal,
+    pub bundle_id: u64,
+    pub operation: OperationType,
+    pub status: TransactionStatus,
+    pub nav_tokens: u64,
+    pub ckusdc_amount: u64,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub completed_at: Option<u64>,
+    pub timeout_at: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub enum TransactionStatus {
+    Pending,
+    FundsLocked,
+    WaitingForResolver,
+    InProgress,
+    Completed,
+    Failed,
+    TimedOut,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct LockedFunds {
+    pub user: Principal,
+    pub transaction_id: u64,
+    pub fund_type: LockedFundType,
+    pub amount: u64,
+    pub locked_at: u64,
+    pub expires_at: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub enum LockedFundType {
+    CkUSDC,
+    NAVTokens { bundle_id: u64 },
+}
+
+impl Storable for Transaction {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize Transaction");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize Transaction")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 512,
+        is_fixed_size: false,
+    };
+}
+
+impl Storable for LockedFunds {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize LockedFunds");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize LockedFunds")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256,
+        is_fixed_size: false,
+    };
+}
