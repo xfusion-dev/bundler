@@ -12,6 +12,7 @@ mod admin;
 mod oracle;
 mod nav_calculator;
 mod holdings_tracker;
+mod quote_manager;
 
 use types::*;
 use memory::*;
@@ -68,6 +69,41 @@ async fn get_nav_precision_report(bundle_id: u64) -> Result<NAVPrecisionReport, 
 #[query]
 fn format_nav_display(nav_value: u64, precision_decimals: u8) -> String {
     nav_calculator::format_nav_with_precision(nav_value, precision_decimals)
+}
+
+#[update]
+fn request_quote(request: QuoteRequest) -> Result<u64, String> {
+    quote_manager::request_quote(request)
+}
+
+#[update]
+fn submit_quote_assignment(assignment: QuoteAssignment) -> Result<(), String> {
+    quote_manager::submit_quote_assignment(assignment)
+}
+
+#[query]
+fn get_quote_request(request_id: u64) -> Result<QuoteRequest, String> {
+    quote_manager::get_quote_request(request_id)
+}
+
+#[query]
+fn get_quote_assignment(request_id: u64) -> Result<Option<QuoteAssignment>, String> {
+    quote_manager::get_quote_assignment(request_id)
+}
+
+#[query]
+fn get_pending_quote_requests() -> Vec<QuoteRequest> {
+    quote_manager::get_pending_quote_requests()
+}
+
+#[update]
+fn cleanup_expired_quotes() -> u32 {
+    quote_manager::cleanup_expired_quotes()
+}
+
+#[update]
+fn set_quote_api_principal(api_principal: Principal) -> Result<(), String> {
+    quote_manager::set_quote_api_principal(api_principal)
 }
 
 ic_cdk::export_candid!();

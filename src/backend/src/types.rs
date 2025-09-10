@@ -359,3 +359,65 @@ pub struct NAVPrecisionReport {
     pub precision_loss_amount: u64,
     pub calculation_timestamp: u64,
 }
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct QuoteRequest {
+    pub request_id: u64,
+    pub user: Principal,
+    pub bundle_id: u64,
+    pub operation: OperationType,
+    pub amount: u64,
+    pub max_slippage: u8,
+    pub expires_at: u64,
+    pub created_at: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub enum OperationType {
+    Buy,
+    Sell,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct QuoteAssignment {
+    pub request_id: u64,
+    pub resolver: Principal,
+    pub nav_tokens: u64,
+    pub ckusdc_amount: u64,
+    pub estimated_nav: u64,
+    pub fees: u64,
+    pub valid_until: u64,
+    pub assigned_at: u64,
+}
+
+impl Storable for QuoteRequest {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize QuoteRequest");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize QuoteRequest")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 512,
+        is_fixed_size: false,
+    };
+}
+
+impl Storable for QuoteAssignment {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize QuoteAssignment");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize QuoteAssignment")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 512,
+        is_fixed_size: false,
+    };
+}

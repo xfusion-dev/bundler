@@ -1,6 +1,7 @@
 use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap};
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use std::cell::RefCell;
+use candid::Principal;
 use crate::types::*;
 
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
@@ -54,4 +55,20 @@ thread_local! {
     pub static ADMIN_PRINCIPAL: RefCell<Option<candid::Principal>> = RefCell::new(None);
 
     pub static ORACLE_CONFIG: RefCell<Option<OracleConfig>> = RefCell::new(None);
+
+    pub static QUOTE_REQUESTS: RefCell<StableBTreeMap<u64, QuoteRequest, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(QUOTE_STORAGE_MEMORY_ID))
+        )
+    );
+
+    pub static QUOTE_ASSIGNMENTS: RefCell<StableBTreeMap<u64, QuoteAssignment, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(RESOLVER_STORAGE_MEMORY_ID))
+        )
+    );
+
+    pub static QUOTE_COUNTER: RefCell<u64> = RefCell::new(0);
+
+    pub static QUOTE_API_PRINCIPAL: RefCell<Option<Principal>> = RefCell::new(None);
 }
