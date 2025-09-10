@@ -132,4 +132,19 @@ fn cleanup_expired_transactions() -> u32 {
     transaction_manager::cleanup_expired_transactions()
 }
 
+#[update]
+fn execute_quote(request_id: u64) -> Result<u64, String> {
+    quote_manager::execute_quote(request_id)
+}
+
+#[update]
+fn confirm_asset_deposit(request_id: u64, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
+    quote_manager::confirm_asset_deposit(request_id, deposits)
+}
+
+#[update]
+fn confirm_ckusdc_payment(request_id: u64, ckusdc_amount: u64) -> Result<(), String> {
+    quote_manager::confirm_ckusdc_payment(request_id, ckusdc_amount)
+}
+
 ic_cdk::export_candid!();

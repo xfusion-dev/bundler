@@ -185,3 +185,170 @@ fn validate_quote_assignment(assignment: &QuoteAssignment) -> Result<(), String>
 
     Ok(())
 }
+
+pub fn execute_quote(request_id: u64) -> Result<u64, String> {
+    let caller = msg_caller();
+    let request = get_quote_request(request_id)?;
+    let assignment = get_quote_assignment(request_id)?
+        .ok_or_else(|| "No quote assignment found".to_string())?;
+
+    if request.user != caller {
+        return Err("Only the quote requester can execute".to_string());
+    }
+
+    if assignment.valid_until <= time() {
+        return Err("Quote assignment expired".to_string());
+    }
+
+    validate_assignment_against_request(&request, &assignment)?;
+
+    let transaction_id = crate::transaction_manager::create_transaction(request_id)?;
+
+    match request.operation {
+        OperationType::Buy => execute_buy_quote(transaction_id, &assignment),
+        OperationType::Sell => execute_sell_quote(transaction_id, &assignment),
+    }
+}
+
+pub fn confirm_asset_deposit(request_id: u64, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
+    let caller = msg_caller();
+    let assignment = get_quote_assignment(request_id)?
+        .ok_or_else(|| "No quote assignment found".to_string())?;
+
+    if assignment.resolver != caller {
+        return Err("Only assigned resolver can confirm deposits".to_string());
+    }
+
+    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
+    crate::transaction_manager::validate_resolver_for_transaction(transaction.id)?;
+
+    validate_asset_deposits(&assignment, &deposits)?;
+
+    complete_buy_transaction(transaction.id, &assignment, deposits)
+}
+
+pub fn confirm_ckusdc_payment(request_id: u64, ckusdc_amount: u64) -> Result<(), String> {
+    let caller = msg_caller();
+    let assignment = get_quote_assignment(request_id)?
+        .ok_or_else(|| "No quote assignment found".to_string())?;
+
+    if assignment.resolver != caller {
+        return Err("Only assigned resolver can confirm payment".to_string());
+    }
+
+    if ckusdc_amount != assignment.ckusdc_amount {
+        return Err("ckUSDC amount mismatch".to_string());
+    }
+
+    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
+    crate::transaction_manager::validate_resolver_for_transaction(transaction.id)?;
+
+    complete_sell_transaction(transaction.id, &assignment)
+}
+
+fn execute_buy_quote(transaction_id: u64, assignment: &QuoteAssignment) -> Result<u64, String> {
+    let fund_type = LockedFundType::CkUSDC;
+    crate::transaction_manager::lock_user_funds(transaction_id, fund_type, assignment.ckusdc_amount)?;
+
+    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::WaitingForResolver)?;
+
+    Ok(transaction_id)
+}
+
+fn execute_sell_quote(transaction_id: u64, assignment: &QuoteAssignment) -> Result<u64, String> {
+    let transaction = crate::transaction_manager::get_transaction(transaction_id)?;
+    let fund_type = LockedFundType::NAVTokens { bundle_id: transaction.bundle_id };
+
+    crate::transaction_manager::lock_user_funds(transaction_id, fund_type, assignment.nav_tokens)?;
+
+    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::WaitingForResolver)?;
+
+    Ok(transaction_id)
+}
+
+fn complete_buy_transaction(transaction_id: u64, assignment: &QuoteAssignment, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
+    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::InProgress)?;
+
+    let transaction = crate::transaction_manager::get_transaction(transaction_id)?;
+
+    for (asset_id, amount) in deposits {
+        crate::holdings_tracker::update_bundle_holdings(transaction.bundle_id, &asset_id, amount as i64)?;
+    }
+
+    crate::nav_token::mint_nav_tokens(transaction.user, transaction.bundle_id, assignment.nav_tokens)?;
+
+    let _ckusdc_amount = crate::transaction_manager::unlock_user_funds(transaction_id, &LockedFundType::CkUSDC)?;
+
+    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::Completed)?;
+
+    Ok(())
+}
+
+fn complete_sell_transaction(transaction_id: u64, assignment: &QuoteAssignment) -> Result<(), String> {
+    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::InProgress)?;
+
+    let transaction = crate::transaction_manager::get_transaction(transaction_id)?;
+    let withdrawals = crate::holdings_tracker::calculate_proportional_withdrawal(
+        transaction.bundle_id,
+        assignment.nav_tokens
+    )?;
+
+    for withdrawal in withdrawals {
+        crate::holdings_tracker::update_bundle_holdings(
+            transaction.bundle_id,
+            &withdrawal.asset_id,
+            -(withdrawal.amount as i64)
+        )?;
+    }
+
+    crate::nav_token::burn_nav_tokens(transaction.user, transaction.bundle_id, assignment.nav_tokens)?;
+
+    let _nav_tokens = crate::transaction_manager::unlock_user_funds(
+        transaction_id,
+        &LockedFundType::NAVTokens { bundle_id: transaction.bundle_id }
+    )?;
+
+    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::Completed)?;
+
+    Ok(())
+}
+
+fn validate_assignment_against_request(request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<(), String> {
+    if request.request_id != assignment.request_id {
+        return Err("Request ID mismatch".to_string());
+    }
+
+    match request.operation {
+        OperationType::Buy => {
+            if request.amount != assignment.ckusdc_amount {
+                return Err("Buy amount mismatch".to_string());
+            }
+        }
+        OperationType::Sell => {
+            if request.amount != assignment.nav_tokens {
+                return Err("Sell amount mismatch".to_string());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_asset_deposits(_assignment: &QuoteAssignment, deposits: &[(AssetId, u64)]) -> Result<(), String> {
+    if deposits.is_empty() {
+        return Err("No asset deposits provided".to_string());
+    }
+
+    for (asset_id, deposited_amount) in deposits {
+        if *deposited_amount == 0 {
+            return Err(format!("Zero deposit amount for asset {}", asset_id.0));
+        }
+
+        let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
+        if !asset_info.is_active {
+            return Err(format!("Asset {} is not active", asset_id.0));
+        }
+    }
+
+    Ok(())
+}

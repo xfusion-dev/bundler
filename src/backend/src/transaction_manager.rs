@@ -225,3 +225,18 @@ fn get_quote_assignment_internal(request_id: u64) -> Result<QuoteAssignment, Str
 fn get_quote_request_internal(request_id: u64) -> Result<QuoteRequest, String> {
     crate::quote_manager::get_quote_request(request_id)
 }
+
+pub fn get_transaction_by_request(request_id: u64) -> Result<Transaction, String> {
+    TRANSACTIONS.with(|transactions| {
+        transactions.borrow()
+            .iter()
+            .find_map(|(_, transaction)| {
+                if transaction.request_id == request_id {
+                    Some(transaction)
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| "Transaction not found for request".to_string())
+    })
+}
