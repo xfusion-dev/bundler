@@ -14,6 +14,7 @@ mod nav_calculator;
 mod holdings_tracker;
 mod quote_manager;
 mod transaction_manager;
+mod icrc_client;
 
 use types::*;
 use memory::*;
@@ -178,8 +179,8 @@ fn cleanup_expired_transactions() -> u32 {
 }
 
 #[update]
-fn execute_quote(request_id: u64) -> Result<u64, String> {
-    quote_manager::execute_quote(request_id)
+async fn execute_quote(request_id: u64) -> Result<u64, String> {
+    quote_manager::execute_quote(request_id).await
 }
 
 #[update]

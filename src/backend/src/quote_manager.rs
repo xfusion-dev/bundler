@@ -343,7 +343,7 @@ fn validate_quote_assignment(assignment: &QuoteAssignment) -> Result<(), String>
     Ok(())
 }
 
-pub fn execute_quote(request_id: u64) -> Result<u64, String> {
+pub async fn execute_quote(request_id: u64) -> Result<u64, String> {
     let caller = msg_caller();
     let request = get_quote_request(request_id)?;
     let assignment = get_quote_assignment(request_id)?
@@ -358,8 +358,8 @@ pub fn execute_quote(request_id: u64) -> Result<u64, String> {
     let transaction_id = crate::transaction_manager::create_transaction(request_id)?;
 
     match request.operation {
-        OperationType::Buy => initiate_buy_transaction(transaction_id, &request, &assignment),
-        OperationType::Sell => initiate_sell_transaction(transaction_id, &request, &assignment),
+        OperationType::Buy => initiate_buy_transaction(transaction_id, &request, &assignment).await,
+        OperationType::Sell => Ok(initiate_sell_transaction(transaction_id, &request, &assignment)?),
     }
 }
 
@@ -381,10 +381,7 @@ fn validate_buy_transaction_preconditions(request: &QuoteRequest, assignment: &Q
                 return Err("Buy amount mismatch".to_string());
             }
 
-            let user_balance = crate::nav_token::get_user_ckusdc_balance(request.user)?;
-            if user_balance < assignment.ckusdc_amount {
-                return Err("Insufficient ckUSDC balance".to_string());
-            }
+            // Balance validation will be done during the actual transfer
         }
         OperationType::Sell => {
             if request.amount != assignment.nav_tokens {
@@ -401,16 +398,19 @@ fn validate_buy_transaction_preconditions(request: &QuoteRequest, assignment: &Q
     Ok(())
 }
 
-fn initiate_buy_transaction(transaction_id: u64, request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<u64, String> {
+async fn initiate_buy_transaction(transaction_id: u64, request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<u64, String> {
     validate_buy_transaction_safety(request, assignment)?;
 
-    let fund_type = LockedFundType::CkUSDC;
-    crate::transaction_manager::lock_user_funds_with_validation(transaction_id, fund_type, assignment.ckusdc_amount)?;
+    let block_index = crate::transaction_manager::lock_and_transfer_ckusdc(
+        transaction_id,
+        request.user,
+        assignment.ckusdc_amount
+    ).await?;
 
     crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::FundsLocked)?;
 
-    ic_cdk::println!("Buy transaction initiated: transaction_id={}, user={}, bundle_id={}, ckusdc_amount={}, nav_tokens={}",
-        transaction_id, request.user.to_text(), request.bundle_id, assignment.ckusdc_amount, assignment.nav_tokens);
+    ic_cdk::println!("Buy transaction initiated: transaction_id={}, user={}, bundle_id={}, ckusdc_amount={}, nav_tokens={}, block_index={}",
+        transaction_id, request.user.to_text(), request.bundle_id, assignment.ckusdc_amount, assignment.nav_tokens, block_index);
 
     Ok(transaction_id)
 }

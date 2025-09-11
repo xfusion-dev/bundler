@@ -5,7 +5,7 @@ use std::borrow::Cow;
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum AssetStandard {
-    ICRC2,
+    ICRC2, // Includes ICP, ckBTC, ckUSDC, GLDT, etc. - all use ICRC-1 interface
     MTLS { asset_id: u64 },
 }
 

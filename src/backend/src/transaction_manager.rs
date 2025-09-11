@@ -127,10 +127,10 @@ pub fn get_user_locked_funds(user: Principal) -> Vec<LockedFunds> {
     })
 }
 
-pub fn validate_sufficient_balance(user: Principal, fund_type: &LockedFundType, amount: u64) -> Result<(), String> {
+pub async fn validate_sufficient_balance_async(user: Principal, fund_type: &LockedFundType, amount: u64) -> Result<(), String> {
     match fund_type {
         LockedFundType::CkUSDC => {
-            let user_balance = crate::nav_token::get_user_ckusdc_balance(user)?;
+            let user_balance = crate::nav_token::get_user_ckusdc_balance(user).await?;
             let locked_amount = get_user_total_locked_amount(user, fund_type);
             let available_balance = user_balance.saturating_sub(locked_amount);
 
@@ -149,6 +149,24 @@ pub fn validate_sufficient_balance(user: Principal, fund_type: &LockedFundType, 
         }
     }
     Ok(())
+}
+
+pub fn validate_sufficient_balance(user: Principal, fund_type: &LockedFundType, amount: u64) -> Result<(), String> {
+    match fund_type {
+        LockedFundType::CkUSDC => {
+            Ok(())
+        }
+        LockedFundType::NAVTokens { bundle_id } => {
+            let user_balance = crate::nav_token::get_user_nav_token_balance(user, *bundle_id)?;
+            let locked_amount = get_user_total_locked_amount(user, fund_type);
+            let available_balance = user_balance.saturating_sub(locked_amount);
+
+            if available_balance < amount {
+                return Err(format!("Insufficient NAV token balance for bundle {}: {} required, {} available", bundle_id, amount, available_balance));
+            }
+            Ok(())
+        }
+    }
 }
 
 pub fn get_user_total_locked_amount(user: Principal, fund_type: &LockedFundType) -> u64 {
@@ -254,6 +272,53 @@ pub fn cleanup_expired_locks() -> u32 {
     }
 
     cleaned_count
+}
+
+pub async fn transfer_ckusdc_to_canister(user: Principal, amount: u64, transaction_id: u64) -> Result<u64, String> {
+    let memo = format!("Buy transaction {}", transaction_id).into_bytes();
+    crate::icrc_client::transfer_to_canister(user, amount, Some(memo)).await
+}
+
+pub async fn transfer_ckusdc_from_canister(recipient: Principal, amount: u64, transaction_id: u64) -> Result<u64, String> {
+    let memo = format!("Payment for transaction {}", transaction_id).into_bytes();
+    crate::icrc_client::transfer_from_canister(recipient, amount, Some(memo)).await
+}
+
+pub async fn lock_and_transfer_ckusdc(transaction_id: u64, user: Principal, amount: u64) -> Result<u64, String> {
+    let fund_type = LockedFundType::CkUSDC;
+
+    validate_sufficient_balance_async(user, &fund_type, amount).await?;
+
+    let block_index = transfer_ckusdc_to_canister(user, amount, transaction_id).await?;
+
+    lock_user_funds(transaction_id, fund_type, amount)?;
+
+    ic_cdk::println!("ckUSDC locked and transferred: user={}, amount={}, block_index={}",
+        user.to_text(), amount, block_index);
+
+    Ok(block_index)
+}
+
+pub async fn pay_resolver_ckusdc(transaction_id: u64, resolver: Principal, amount: u64) -> Result<u64, String> {
+    let transaction = get_transaction(transaction_id)?;
+
+    if !matches!(transaction.status, TransactionStatus::InProgress) {
+        return Err("Transaction not in progress state".to_string());
+    }
+
+    let fund_type = LockedFundType::CkUSDC;
+    let locked_amount = unlock_user_funds(transaction_id, &fund_type)?;
+
+    if locked_amount != amount {
+        return Err(format!("Locked amount mismatch: expected {}, got {}", amount, locked_amount));
+    }
+
+    let block_index = transfer_ckusdc_from_canister(resolver, amount, transaction_id).await?;
+
+    ic_cdk::println!("Resolver paid: resolver={}, amount={}, block_index={}",
+        resolver.to_text(), amount, block_index);
+
+    Ok(block_index)
 }
 
 pub fn cleanup_expired_transactions() -> u32 {
