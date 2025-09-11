@@ -353,18 +353,121 @@ pub fn execute_quote(request_id: u64) -> Result<u64, String> {
         return Err("Only the quote requester can execute".to_string());
     }
 
-    if assignment.valid_until <= time() {
-        return Err("Quote assignment expired".to_string());
-    }
-
-    validate_assignment_against_request(&request, &assignment)?;
+    validate_buy_transaction_preconditions(&request, &assignment)?;
 
     let transaction_id = crate::transaction_manager::create_transaction(request_id)?;
 
     match request.operation {
-        OperationType::Buy => execute_buy_quote(transaction_id, &assignment),
-        OperationType::Sell => execute_sell_quote(transaction_id, &assignment),
+        OperationType::Buy => initiate_buy_transaction(transaction_id, &request, &assignment),
+        OperationType::Sell => initiate_sell_transaction(transaction_id, &request, &assignment),
     }
+}
+
+fn validate_buy_transaction_preconditions(request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<(), String> {
+    if assignment.valid_until <= time() {
+        return Err("Quote assignment expired".to_string());
+    }
+
+    validate_assignment_against_request(request, assignment)?;
+
+    let bundle = crate::bundle_manager::get_bundle(request.bundle_id)?;
+    if !bundle.is_active {
+        return Err("Bundle is not active".to_string());
+    }
+
+    match request.operation {
+        OperationType::Buy => {
+            if request.amount != assignment.ckusdc_amount {
+                return Err("Buy amount mismatch".to_string());
+            }
+
+            let user_balance = crate::nav_token::get_user_ckusdc_balance(request.user)?;
+            if user_balance < assignment.ckusdc_amount {
+                return Err("Insufficient ckUSDC balance".to_string());
+            }
+        }
+        OperationType::Sell => {
+            if request.amount != assignment.nav_tokens {
+                return Err("Sell amount mismatch".to_string());
+            }
+
+            let user_nav_balance = crate::nav_token::get_user_nav_token_balance(request.user, request.bundle_id)?;
+            if user_nav_balance < assignment.nav_tokens {
+                return Err("Insufficient NAV token balance".to_string());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn initiate_buy_transaction(transaction_id: u64, request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<u64, String> {
+    validate_buy_transaction_safety(request, assignment)?;
+
+    let fund_type = LockedFundType::CkUSDC;
+    crate::transaction_manager::lock_user_funds_with_validation(transaction_id, fund_type, assignment.ckusdc_amount)?;
+
+    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::FundsLocked)?;
+
+    ic_cdk::println!("Buy transaction initiated: transaction_id={}, user={}, bundle_id={}, ckusdc_amount={}, nav_tokens={}",
+        transaction_id, request.user.to_text(), request.bundle_id, assignment.ckusdc_amount, assignment.nav_tokens);
+
+    Ok(transaction_id)
+}
+
+fn initiate_sell_transaction(transaction_id: u64, request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<u64, String> {
+    validate_sell_transaction_safety(request, assignment)?;
+
+    let fund_type = LockedFundType::NAVTokens { bundle_id: request.bundle_id };
+    crate::transaction_manager::lock_user_funds_with_validation(transaction_id, fund_type, assignment.nav_tokens)?;
+
+    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::FundsLocked)?;
+
+    ic_cdk::println!("Sell transaction initiated: transaction_id={}, user={}, bundle_id={}, nav_tokens={}, ckusdc_amount={}",
+        transaction_id, request.user.to_text(), request.bundle_id, assignment.nav_tokens, assignment.ckusdc_amount);
+
+    Ok(transaction_id)
+}
+
+fn validate_buy_transaction_safety(request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<(), String> {
+    if assignment.nav_tokens == 0 {
+        return Err("NAV tokens amount must be greater than zero".to_string());
+    }
+
+    if assignment.ckusdc_amount == 0 {
+        return Err("ckUSDC amount must be greater than zero".to_string());
+    }
+
+    if assignment.estimated_nav == 0 {
+        return Err("Estimated NAV must be greater than zero".to_string());
+    }
+
+    let max_slippage_amount = (assignment.estimated_nav * request.max_slippage as u64) / 100;
+    let actual_nav_per_token = (assignment.ckusdc_amount * 100_000_000) / assignment.nav_tokens;
+
+    if actual_nav_per_token > assignment.estimated_nav + max_slippage_amount {
+        return Err("Price exceeds maximum slippage tolerance".to_string());
+    }
+
+    Ok(())
+}
+
+fn validate_sell_transaction_safety(request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<(), String> {
+    if assignment.nav_tokens == 0 {
+        return Err("NAV tokens amount must be greater than zero".to_string());
+    }
+
+    if assignment.ckusdc_amount == 0 {
+        return Err("ckUSDC amount must be greater than zero".to_string());
+    }
+
+    let min_expected_ckusdc = (assignment.nav_tokens * assignment.estimated_nav * (100 - request.max_slippage as u64)) / (100 * 100_000_000);
+
+    if assignment.ckusdc_amount < min_expected_ckusdc {
+        return Err("Sell price below minimum slippage tolerance".to_string());
+    }
+
+    Ok(())
 }
 
 pub fn confirm_asset_deposit(request_id: u64, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
@@ -403,25 +506,6 @@ pub fn confirm_ckusdc_payment(request_id: u64, ckusdc_amount: u64) -> Result<(),
     complete_sell_transaction(transaction.id, &assignment)
 }
 
-fn execute_buy_quote(transaction_id: u64, assignment: &QuoteAssignment) -> Result<u64, String> {
-    let fund_type = LockedFundType::CkUSDC;
-    crate::transaction_manager::lock_user_funds(transaction_id, fund_type, assignment.ckusdc_amount)?;
-
-    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::WaitingForResolver)?;
-
-    Ok(transaction_id)
-}
-
-fn execute_sell_quote(transaction_id: u64, assignment: &QuoteAssignment) -> Result<u64, String> {
-    let transaction = crate::transaction_manager::get_transaction(transaction_id)?;
-    let fund_type = LockedFundType::NAVTokens { bundle_id: transaction.bundle_id };
-
-    crate::transaction_manager::lock_user_funds(transaction_id, fund_type, assignment.nav_tokens)?;
-
-    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::WaitingForResolver)?;
-
-    Ok(transaction_id)
-}
 
 fn complete_buy_transaction(transaction_id: u64, assignment: &QuoteAssignment, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
     crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::InProgress)?;
