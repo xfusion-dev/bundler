@@ -15,6 +15,7 @@ mod holdings_tracker;
 mod quote_manager;
 mod transaction_manager;
 mod icrc_client;
+mod tests;
 
 use types::*;
 use memory::*;

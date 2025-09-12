@@ -76,7 +76,7 @@ struct AllocationValue {
     value_usd: u64,
 }
 
-fn calculate_holding_value_usd(
+pub fn calculate_holding_value_usd(
     holding_amount: u64,
     asset_price_usd: u64,
     asset_decimals: u8,
