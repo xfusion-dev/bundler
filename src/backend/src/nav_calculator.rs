@@ -27,28 +27,36 @@ pub async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
     let mut asset_values = Vec::new();
     let mut total_value_usd = 0u64;
 
-    for allocation in &bundle.allocations {
-        let asset_price = get_latest_price(&allocation.asset_id).await?;
-        let asset_info = crate::asset_registry::get_asset(allocation.asset_id.clone())?;
+    let holdings = crate::holdings_tracker::get_all_bundle_holdings(bundle_id);
 
-        let allocation_value = calculate_allocation_value_with_decimals(
-            total_nav_tokens,
-            allocation.percentage,
+    for holding in holdings {
+        let asset_price = get_latest_price(&holding.asset_id).await?;
+        let asset_info = crate::asset_registry::get_asset(holding.asset_id.clone())?;
+
+        let holding_value_usd = calculate_holding_value_usd(
+            holding.amount,
             asset_price.price_usd,
             asset_info.decimals,
         )?;
 
-        let percentage = allocation.percentage as f64;
-
         asset_values.push(AssetValue {
-            asset_id: allocation.asset_id.clone(),
-            amount: allocation_value.amount,
-            value_usd: allocation_value.value_usd,
-            percentage,
+            asset_id: holding.asset_id.clone(),
+            amount: holding.amount,
+            value_usd: holding_value_usd,
+            percentage: 0.0, // Will be calculated after total is known
         });
 
-        total_value_usd = total_value_usd.checked_add(allocation_value.value_usd)
+        total_value_usd = total_value_usd.checked_add(holding_value_usd)
             .ok_or("Total value overflow")?;
+    }
+
+    // Calculate actual percentages based on holdings
+    for asset_value in &mut asset_values {
+        asset_value.percentage = if total_value_usd > 0 {
+            (asset_value.value_usd as f64 / total_value_usd as f64) * 100.0
+        } else {
+            0.0
+        };
     }
 
     let nav_per_token = calculate_precise_nav_per_token(total_value_usd, total_nav_tokens, 8);
@@ -66,6 +74,26 @@ pub async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
 struct AllocationValue {
     amount: u64,
     value_usd: u64,
+}
+
+fn calculate_holding_value_usd(
+    holding_amount: u64,
+    asset_price_usd: u64,
+    asset_decimals: u8,
+) -> Result<u64, String> {
+    if asset_decimals > 18 {
+        return Err("Asset decimals cannot exceed 18".to_string());
+    }
+
+    let amount_factor = 10_u64.pow(asset_decimals as u32);
+
+    let value_usd = (holding_amount as u128 * asset_price_usd as u128) / amount_factor as u128;
+
+    if value_usd > u64::MAX as u128 {
+        return Err("Value overflow".to_string());
+    }
+
+    Ok(value_usd as u64)
 }
 
 fn calculate_allocation_value(
