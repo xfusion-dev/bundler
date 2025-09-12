@@ -174,8 +174,8 @@ fn get_user_locked_funds(user: Principal) -> Vec<LockedFunds> {
 }
 
 #[update]
-fn cleanup_expired_transactions() -> u32 {
-    transaction_manager::cleanup_expired_transactions()
+async fn cleanup_expired_transactions() -> u32 {
+    transaction_manager::cleanup_expired_transactions().await
 }
 
 #[update]

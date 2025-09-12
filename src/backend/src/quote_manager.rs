@@ -484,7 +484,14 @@ pub fn confirm_asset_deposit(request_id: u64, deposits: Vec<(AssetId, u64)>) -> 
 
     validate_asset_deposits(&assignment, &deposits)?;
 
-    complete_buy_transaction(transaction.id, &assignment, deposits)
+    ic_cdk::spawn(async move {
+        if let Err(e) = complete_buy_transaction(transaction.id, &assignment, deposits).await {
+            ic_cdk::println!("Failed to complete buy transaction {}: {}", transaction.id, e);
+            let _ = crate::transaction_manager::update_transaction_status(transaction.id, TransactionStatus::Failed);
+        }
+    });
+
+    Ok(())
 }
 
 pub fn confirm_ckusdc_payment(request_id: u64, ckusdc_amount: u64) -> Result<(), String> {
@@ -507,7 +514,7 @@ pub fn confirm_ckusdc_payment(request_id: u64, ckusdc_amount: u64) -> Result<(),
 }
 
 
-fn complete_buy_transaction(transaction_id: u64, assignment: &QuoteAssignment, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
+async fn complete_buy_transaction(transaction_id: u64, assignment: &QuoteAssignment, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
     crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::InProgress)?;
 
     let transaction = crate::transaction_manager::get_transaction(transaction_id)?;
@@ -518,7 +525,7 @@ fn complete_buy_transaction(transaction_id: u64, assignment: &QuoteAssignment, d
 
     crate::nav_token::mint_nav_tokens(transaction.user, transaction.bundle_id, assignment.nav_tokens)?;
 
-    let _ckusdc_amount = crate::transaction_manager::unlock_user_funds(transaction_id, &LockedFundType::CkUSDC)?;
+    crate::transaction_manager::pay_resolver_ckusdc(transaction_id, assignment.resolver, assignment.ckusdc_amount).await?;
 
     crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::Completed)?;
 

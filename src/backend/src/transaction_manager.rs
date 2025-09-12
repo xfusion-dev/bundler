@@ -321,7 +321,7 @@ pub async fn pay_resolver_ckusdc(transaction_id: u64, resolver: Principal, amoun
     Ok(block_index)
 }
 
-pub fn cleanup_expired_transactions() -> u32 {
+pub async fn cleanup_expired_transactions() -> u32 {
     let current_time = time();
     let mut cleaned_count = 0;
 
@@ -341,10 +341,19 @@ pub fn cleanup_expired_transactions() -> u32 {
 
     for transaction_id in expired_transaction_ids {
         if let Ok(transaction) = get_transaction(transaction_id) {
-            // Unlock any locked funds
+            // Refund locked funds to users
             match transaction.operation {
                 OperationType::Buy => {
-                    let _ = unlock_user_funds(transaction_id, &LockedFundType::CkUSDC);
+                    if let Ok(locked_amount) = unlock_user_funds(transaction_id, &LockedFundType::CkUSDC) {
+                        if locked_amount > 0 {
+                            if let Err(e) = transfer_ckusdc_from_canister(transaction.user, locked_amount, transaction_id).await {
+                                ic_cdk::println!("Failed to refund ckUSDC for expired transaction {}: {}", transaction_id, e);
+                                continue;
+                            }
+                            ic_cdk::println!("Refunded {} ckUSDC to user {} for expired transaction {}",
+                                locked_amount, transaction.user.to_text(), transaction_id);
+                        }
+                    }
                 }
                 OperationType::Sell => {
                     let _ = unlock_user_funds(transaction_id, &LockedFundType::NAVTokens {
