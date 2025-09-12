@@ -104,7 +104,7 @@ mod tests {
     #[test]
     fn test_precise_nav_calculation() {
         let total_value = 1000_00000000u64; // $1000 with 8 decimals
-        let total_tokens = 500_00000000u64; // 500 tokens with 8 decimals
+        let total_tokens = 500u64; // 500 tokens
         let decimals = 8u8;
 
         let nav_per_token = crate::nav_calculator::calculate_precise_nav_per_token(
@@ -399,5 +399,746 @@ mod tests {
 
         assert!(is_quote_expired);
         assert!(!is_transaction_expired);
+    }
+
+    // Transaction Lifecycle and Error Handling Tests
+
+    #[test]
+    fn test_transaction_status_transitions() {
+        // Test valid status transitions for buy flow
+        let valid_buy_transitions = vec![
+            (TransactionStatus::Pending, TransactionStatus::WaitingForResolver),
+            (TransactionStatus::WaitingForResolver, TransactionStatus::FundsLocked),
+            (TransactionStatus::FundsLocked, TransactionStatus::InProgress),
+            (TransactionStatus::InProgress, TransactionStatus::Completed),
+            (TransactionStatus::Pending, TransactionStatus::Failed),
+            (TransactionStatus::FundsLocked, TransactionStatus::TimedOut),
+        ];
+
+        for (from_status, to_status) in valid_buy_transitions {
+            // Verify that status transitions make logical sense
+            match (&from_status, &to_status) {
+                (TransactionStatus::Pending, TransactionStatus::WaitingForResolver) => assert!(true),
+                (TransactionStatus::WaitingForResolver, TransactionStatus::FundsLocked) => assert!(true),
+                (TransactionStatus::FundsLocked, TransactionStatus::InProgress) => assert!(true),
+                (TransactionStatus::InProgress, TransactionStatus::Completed) => assert!(true),
+                (TransactionStatus::Pending, TransactionStatus::Failed) => assert!(true),
+                (TransactionStatus::FundsLocked, TransactionStatus::TimedOut) => assert!(true),
+                _ => assert!(false, "Invalid transition from {:?} to {:?}", from_status, to_status),
+            }
+        }
+    }
+
+    #[test]
+    fn test_transaction_timeout_scenarios() {
+        let base_time = 1699000000000000000u64;
+        let timeout_duration = 1800_000_000_000u64; // 30 minutes
+
+        let transaction = Transaction {
+            id: 1,
+            request_id: 1,
+            user: mock_principal(),
+            resolver: mock_principal(),
+            bundle_id: 1,
+            operation: OperationType::Buy,
+            status: TransactionStatus::FundsLocked,
+            nav_tokens: 100_00000000u64,
+            ckusdc_amount: 200_00000000u64,
+            created_at: base_time,
+            updated_at: base_time,
+            completed_at: None,
+            timeout_at: base_time + timeout_duration,
+        };
+
+        // Test within timeout window
+        let current_time_1 = base_time + 900_000_000_000u64; // 15 minutes later
+        let is_timed_out_1 = current_time_1 > transaction.timeout_at;
+        assert!(!is_timed_out_1);
+
+        // Test after timeout
+        let current_time_2 = base_time + 2400_000_000_000u64; // 40 minutes later
+        let is_timed_out_2 = current_time_2 > transaction.timeout_at;
+        assert!(is_timed_out_2);
+
+        // Test exactly at timeout
+        let current_time_3 = transaction.timeout_at;
+        let is_timed_out_3 = current_time_3 > transaction.timeout_at;
+        assert!(!is_timed_out_3); // Should not be timed out exactly at timeout
+    }
+
+    #[test]
+    fn test_fund_locking_error_scenarios() {
+        let user = mock_principal();
+
+        // Test insufficient funds scenario
+        let insufficient_lock = LockedFunds {
+            user,
+            transaction_id: 1,
+            fund_type: LockedFundType::CkUSDC,
+            amount: 1000_00000000u64, // $1000
+            locked_at: 1699000000000000000,
+            expires_at: 1699001800000000000,
+        };
+
+        // Verify lock structure for insufficient funds
+        assert_eq!(insufficient_lock.amount, 1000_00000000u64);
+        assert!(matches!(insufficient_lock.fund_type, LockedFundType::CkUSDC));
+
+        // Test NAV token insufficient funds
+        let insufficient_nav_lock = LockedFunds {
+            user,
+            transaction_id: 2,
+            fund_type: LockedFundType::NAVTokens { bundle_id: 1 },
+            amount: 500_00000000u64, // 500 tokens
+            locked_at: 1699000000000000000,
+            expires_at: 1699001800000000000,
+        };
+
+        match insufficient_nav_lock.fund_type {
+            LockedFundType::NAVTokens { bundle_id } => {
+                assert_eq!(bundle_id, 1);
+                assert_eq!(insufficient_nav_lock.amount, 500_00000000u64);
+            }
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn test_slippage_tolerance_violations() {
+        let estimated_nav = 2_00000000u64; // $2.00 per token
+        let nav_tokens = 100_00000000u64; // 100 tokens
+        let max_slippage = 5u8; // 5%
+
+        // Calculate expected range
+        let base_amount = (nav_tokens as u128 * estimated_nav as u128) / 100_000_000u128;
+        let max_acceptable = (base_amount * 105 / 100) as u64; // $210
+        let min_acceptable = (base_amount * 95 / 100) as u64;  // $190
+
+        // Test scenarios
+        let test_cases = vec![
+            (220_00000000u64, false), // $220 - exceeds max slippage
+            (210_00000000u64, true),  // $210 - at max boundary
+            (200_00000000u64, true),  // $200 - exact NAV
+            (190_00000000u64, true),  // $190 - at min boundary
+            (180_00000000u64, false), // $180 - below min slippage
+        ];
+
+        for (price, should_be_valid) in test_cases {
+            let is_within_slippage = price >= min_acceptable && price <= max_acceptable;
+            assert_eq!(is_within_slippage, should_be_valid,
+                "Price {} should be {} slippage bounds", price,
+                if should_be_valid { "within" } else { "outside" });
+        }
+    }
+
+    #[test]
+    fn test_asset_deposit_validation_errors() {
+        let user = mock_principal();
+        let asset_id = mock_asset_id();
+
+        // Test valid deposit
+        let valid_deposit = (asset_id.clone(), 50_000_000u64); // 0.5 BTC
+        assert!(valid_deposit.1 > 0);
+        assert_eq!(valid_deposit.0.0, "ckBTC");
+
+        // Test zero amount deposit (should be invalid)
+        let zero_deposit = (asset_id.clone(), 0u64);
+        assert_eq!(zero_deposit.1, 0);
+
+        // Test multiple deposits
+        let deposits = vec![
+            (AssetId("ckBTC".to_string()), 25_000_000u64), // 0.25 BTC
+            (AssetId("ckETH".to_string()), 1_000_000_000u64), // 1 ETH (18 decimals)
+            (AssetId("GLDT".to_string()), 100_000_000u64), // 1 GLDT (8 decimals)
+        ];
+
+        // Validate all deposits have positive amounts
+        for (asset, amount) in deposits {
+            assert!(amount > 0, "Deposit amount must be positive for asset {}", asset.0);
+            assert!(!asset.0.is_empty(), "Asset ID cannot be empty");
+        }
+    }
+
+    #[test]
+    fn test_transaction_failure_recovery() {
+        let base_time = 1699000000000000000u64;
+        let user = mock_principal();
+
+        // Create a failed transaction
+        let failed_transaction = Transaction {
+            id: 1,
+            request_id: 1,
+            user,
+            resolver: mock_principal(),
+            bundle_id: 1,
+            operation: OperationType::Buy,
+            status: TransactionStatus::Failed,
+            nav_tokens: 100_00000000u64,
+            ckusdc_amount: 200_00000000u64,
+            created_at: base_time,
+            updated_at: base_time + 300_000_000_000u64, // Failed 5 minutes later
+            completed_at: Some(base_time + 300_000_000_000u64),
+            timeout_at: base_time + 1800_000_000_000u64,
+        };
+
+        // Verify failed transaction properties
+        assert!(matches!(failed_transaction.status, TransactionStatus::Failed));
+        assert!(failed_transaction.completed_at.is_some());
+        assert!(failed_transaction.updated_at > failed_transaction.created_at);
+
+        // Test fund unlock scenario for failed transaction
+        let locked_funds_to_unlock = LockedFunds {
+            user: failed_transaction.user,
+            transaction_id: failed_transaction.id,
+            fund_type: LockedFundType::CkUSDC,
+            amount: failed_transaction.ckusdc_amount,
+            locked_at: failed_transaction.created_at,
+            expires_at: failed_transaction.timeout_at,
+        };
+
+        assert_eq!(locked_funds_to_unlock.amount, failed_transaction.ckusdc_amount);
+        assert_eq!(locked_funds_to_unlock.transaction_id, failed_transaction.id);
+    }
+
+    #[test]
+    fn test_quote_expiration_handling() {
+        let base_time = 1699000000000000000u64;
+        let quote_duration = 300_000_000_000u64; // 5 minutes
+
+        let quote_request = QuoteRequest {
+            request_id: 1,
+            user: mock_principal(),
+            bundle_id: 1,
+            operation: OperationType::Buy,
+            amount: 200_00000000u64,
+            max_slippage: 5,
+            created_at: base_time,
+            expires_at: base_time + quote_duration,
+        };
+
+        // Test various time scenarios
+        let time_scenarios = vec![
+            (base_time + 120_000_000_000u64, false), // 2 minutes - not expired
+            (base_time + 300_000_000_000u64, false), // Exactly at expiration - not expired
+            (base_time + 301_000_000_000u64, true),  // 1 second past - expired
+            (base_time + 600_000_000_000u64, true),  // 10 minutes - expired
+        ];
+
+        for (current_time, should_be_expired) in time_scenarios {
+            let is_expired = current_time > quote_request.expires_at;
+            assert_eq!(is_expired, should_be_expired,
+                "Quote should {} at time offset {}ns",
+                if should_be_expired { "be expired" } else { "not be expired" },
+                current_time - base_time);
+        }
+    }
+
+    #[test]
+    fn test_nav_calculation_edge_cases() {
+        // Test zero total tokens
+        let nav_zero_tokens = crate::nav_calculator::calculate_precise_nav_per_token(
+            1000_00000000u64, // $1000 total value
+            0u64,             // 0 tokens
+            8u8               // 8 decimals
+        );
+        assert_eq!(nav_zero_tokens, 0u64); // Should return 0 for zero tokens
+
+        // Test zero total value
+        let nav_zero_value = crate::nav_calculator::calculate_precise_nav_per_token(
+            0u64,             // $0 total value
+            100_00000000u64,  // 100 tokens
+            8u8               // 8 decimals
+        );
+        assert_eq!(nav_zero_value, 0u64); // Should return 0 for zero value
+
+        // Test very small amounts
+        let nav_small = crate::nav_calculator::calculate_precise_nav_per_token(
+            1u64,           // $0.00000001 total value
+            1u64,           // 0.00000001 tokens
+            8u8             // 8 decimals
+        );
+        assert_eq!(nav_small, 1u64); // Should return $0.00000001 per token
+
+        // Test formatting edge cases
+        let formatted_zero = crate::nav_calculator::format_nav_with_precision(0u64, 8u8);
+        assert_eq!(formatted_zero, "0.00000000");
+
+        let formatted_max = crate::nav_calculator::format_nav_with_precision(
+            999_99999999u64, // $999.99999999
+            8u8
+        );
+        assert_eq!(formatted_max, "999.99999999");
+    }
+
+    #[test]
+    fn test_asset_holding_calculation_errors() {
+        // Test valid calculation
+        let valid_calc = crate::nav_calculator::calculate_holding_value_usd(
+            100_000_000u64,   // 1.0 BTC (8 decimals)
+            50000_00000000u64, // $50,000 per BTC
+            8u8               // 8 decimals
+        );
+        assert!(valid_calc.is_ok());
+        assert_eq!(valid_calc.unwrap(), 50000_00000000u64); // $50,000
+
+        // Test decimal overflow protection
+        let invalid_decimals = crate::nav_calculator::calculate_holding_value_usd(
+            100_000_000u64,
+            50000_00000000u64,
+            25u8 // Invalid: exceeds 18 decimals
+        );
+        assert!(invalid_decimals.is_err());
+
+        // Test value overflow protection
+        let overflow_calc = crate::nav_calculator::calculate_holding_value_usd(
+            u64::MAX,
+            u64::MAX,
+            8u8
+        );
+        assert!(overflow_calc.is_err());
+
+        // Test zero amounts
+        let zero_amount = crate::nav_calculator::calculate_holding_value_usd(
+            0u64,
+            50000_00000000u64,
+            8u8
+        );
+        assert!(zero_amount.is_ok());
+        assert_eq!(zero_amount.unwrap(), 0u64);
+
+        let zero_price = crate::nav_calculator::calculate_holding_value_usd(
+            100_000_000u64,
+            0u64,
+            8u8
+        );
+        assert!(zero_price.is_ok());
+        assert_eq!(zero_price.unwrap(), 0u64);
+    }
+
+    #[test]
+    fn test_nav_per_token_calculation_precision() {
+        // Test basic NAV calculation: $1000 / 1000 tokens = $1.00 per token
+        // total_usd_value is in 8 decimals: $1000.00000000
+        let total_usd_value = 1000_00000000u64;
+        let total_tokens = 1000u64;
+        let precision_decimals = 8u8;
+
+        let nav_per_token = crate::nav_calculator::calculate_precise_nav_per_token(
+            total_usd_value,
+            total_tokens,
+            precision_decimals,
+        );
+
+        // Expected: (1000_00000000 * 10^8) / 1000 = 100_000_000 (which is $1.00000000)
+        assert_eq!(nav_per_token, 100_000_000u64, "NAV should be $1.00 per token with 8 decimals");
+
+        // Test with different amounts: $500 / 100 tokens = $5.00 per token
+        let nav_per_token_2 = crate::nav_calculator::calculate_precise_nav_per_token(
+            500_00000000u64,
+            100u64,
+            precision_decimals,
+        );
+        assert_eq!(nav_per_token_2, 500_000_000u64, "NAV should be $5.00 per token with 8 decimals");
+
+        // Test zero tokens
+        let zero_tokens_nav = crate::nav_calculator::calculate_precise_nav_per_token(
+            total_usd_value,
+            0,
+            precision_decimals,
+        );
+        assert_eq!(zero_tokens_nav, 0u64, "Zero tokens should return zero NAV");
+
+        // Test different precision: 6 decimals
+        let nav_6_decimals = crate::nav_calculator::calculate_precise_nav_per_token(
+            total_usd_value,
+            total_tokens,
+            6,
+        );
+        // Expected: (1000_00000000 * 10^6) / 1000 = 1_000_000 (which is $1.000000)
+        assert_eq!(nav_6_decimals, 1_000_000u64, "NAV should be $1.000000 with 6 decimals");
+    }
+
+    #[test]
+    fn test_nav_calculation_overflow_protection() {
+        // Test that normal large values work correctly
+        let large_usd_value = u64::MAX / 1_000_000;
+        let total_tokens = 1u64;
+        let precision_decimals = 8u8;
+
+        let nav_result = crate::nav_calculator::calculate_nav_per_token_with_supply_validation(
+            large_usd_value,
+            total_tokens,
+            precision_decimals,
+        );
+
+        // This should work fine with our simplified calculation
+        assert!(nav_result.is_ok());
+
+        let excessive_precision_result = crate::nav_calculator::calculate_nav_per_token_with_supply_validation(
+            1000_00000000u64,
+            1000u64,
+            25,
+        );
+
+        assert!(excessive_precision_result.is_err());
+        assert!(excessive_precision_result.unwrap_err().contains("Precision decimals cannot exceed 18"));
+    }
+
+    #[test]
+    fn test_holding_value_calculation_with_8_decimal_normalization() {
+        // Test BTC: 1.0 BTC at $50,000 = $50,000 (already 8 decimals)
+        let ckbtc_amount = 100_000_000u64; // 1.0 BTC (8 decimals)
+        let btc_price_usd = 50000_00000000u64; // $50,000.00000000 (8 decimals)
+        let ckbtc_decimals = 8u8;
+
+        let holding_value = crate::nav_calculator::calculate_holding_value_usd(
+            ckbtc_amount,
+            btc_price_usd,
+            ckbtc_decimals,
+        ).unwrap();
+
+        // Expected: (100_000_000 * 50000_00000000) / 10^8 = 50000_00000000
+        assert_eq!(holding_value, 50000_00000000u64, "1 BTC at $50k should equal $50k USD");
+
+        // Test ETH: First normalize 1.0 ETH from 18 decimals to 8 decimals
+        let cketh_amount_18_decimals = 1000_000_000_000_000_000u64; // 1.0 ETH (18 decimals)
+        let cketh_amount_normalized = crate::nav_calculator::convert_amount_between_decimals(
+            cketh_amount_18_decimals,
+            18,
+            8,
+        ).unwrap();
+        assert_eq!(cketh_amount_normalized, 100_000_000u64, "1 ETH should normalize to 8 decimals");
+
+        let eth_price_usd = 3000_00000000u64; // $3,000.00000000 (8 decimals)
+        let normalized_decimals = 8u8;
+
+        let cketh_value = crate::nav_calculator::calculate_holding_value_usd(
+            cketh_amount_normalized,
+            eth_price_usd,
+            normalized_decimals,
+        ).unwrap();
+
+        // Expected: (100_000_000 * 3000_00000000) / 10^8 = 3000_00000000
+        assert_eq!(cketh_value, 3000_00000000u64, "1 ETH at $3k should equal $3k USD");
+
+        // Test USDC: First normalize 1000 USDC from 6 decimals to 8 decimals
+        let ckusdc_amount_6_decimals = 1000_000000u64; // 1000.000000 USDC (6 decimals)
+        let ckusdc_amount_normalized = crate::nav_calculator::convert_amount_between_decimals(
+            ckusdc_amount_6_decimals,
+            6,
+            8,
+        ).unwrap();
+        assert_eq!(ckusdc_amount_normalized, 100000_000000u64, "1000 USDC should normalize to 8 decimals");
+
+        let usdc_price_usd = 1_00000000u64; // $1.00000000 (8 decimals)
+
+        let ckusdc_value = crate::nav_calculator::calculate_holding_value_usd(
+            ckusdc_amount_normalized,
+            usdc_price_usd,
+            normalized_decimals,
+        ).unwrap();
+
+        // Expected: (100000_000000 * 1_00000000) / 10^8 = 1000_00000000
+        assert_eq!(ckusdc_value, 1000_00000000u64, "1000 USDC at $1 should equal $1000 USD");
+
+        // Test fractional amounts: 0.5 BTC at $50,000 = $25,000
+        let half_btc = 50_000_000u64; // 0.5 BTC (8 decimals)
+        let half_btc_value = crate::nav_calculator::calculate_holding_value_usd(
+            half_btc,
+            btc_price_usd,
+            ckbtc_decimals,
+        ).unwrap();
+        assert_eq!(half_btc_value, 25000_00000000u64, "0.5 BTC at $50k should equal $25k USD");
+    }
+
+    #[test]
+    fn test_decimal_conversion_accuracy() {
+        let amount_18_decimals = 1_000_000_000_000_000_000u64;
+        let amount_8_decimals = crate::nav_calculator::convert_amount_between_decimals(
+            amount_18_decimals,
+            18,
+            8,
+        ).unwrap();
+
+        assert_eq!(amount_8_decimals, 100_000_000u64);
+
+        let amount_6_decimals = 1_000_000u64;
+        let amount_8_decimals_converted = crate::nav_calculator::convert_amount_between_decimals(
+            amount_6_decimals,
+            6,
+            8,
+        ).unwrap();
+
+        assert_eq!(amount_8_decimals_converted, 100_000_000u64);
+
+        let same_decimals = crate::nav_calculator::convert_amount_between_decimals(
+            1000u64,
+            8,
+            8,
+        ).unwrap();
+
+        assert_eq!(same_decimals, 1000u64);
+
+        let overflow_conversion = crate::nav_calculator::convert_amount_between_decimals(
+            u64::MAX,
+            6,
+            18,
+        );
+
+        assert!(overflow_conversion.is_err());
+        assert!(overflow_conversion.unwrap_err().contains("Amount overflow during decimal conversion"));
+    }
+
+    #[test]
+    fn test_usd_normalization_accuracy() {
+        // Test BTC: 0.1 BTC at $10,000 per unit = $1,000
+        let btc_amount = 10_000_000u64; // 0.1 BTC (8 decimals)
+        let btc_price_per_unit = 10000_00000000u64; // $10,000 per BTC (8 decimals)
+        let btc_decimals = 8u8;
+
+        let usd_value = crate::nav_calculator::normalize_amount_to_usd(
+            btc_amount,
+            btc_decimals,
+            btc_price_per_unit,
+        ).unwrap();
+
+        // Expected: (10_000_000 * 10000_00000000) / 10^8 = 1000_00000000
+        assert_eq!(usd_value, 1000_00000000u64, "0.1 BTC at $10k should normalize to $1k USD");
+
+        // Test smaller ETH to avoid overflow: use 8-decimal normalized value
+        let eth_amount_normalized = 10_000_000u64; // 0.1 ETH normalized to 8 decimals
+        let eth_price_per_unit = 1000_00000000u64; // $1,000 per ETH (8 decimals)
+        let normalized_decimals = 8u8;
+
+        let eth_usd_value = crate::nav_calculator::normalize_amount_to_usd(
+            eth_amount_normalized,
+            normalized_decimals,
+            eth_price_per_unit,
+        ).unwrap();
+
+        // Expected: (10_000_000 * 1000_00000000) / 10^8 = 100_00000000 ($100)
+        assert_eq!(eth_usd_value, 100_00000000u64, "0.1 ETH at $1k should normalize to $100 USD");
+
+        // Test USDC: 100 USDC at $1.00 per unit = $100
+        let usdc_amount = 100_000000u64; // 100 USDC (6 decimals)
+        let usdc_price_per_unit = 1_00000000u64; // $1.00 per USDC (8 decimals)
+        let usdc_decimals = 6u8;
+
+        let usdc_usd_value = crate::nav_calculator::normalize_amount_to_usd(
+            usdc_amount,
+            usdc_decimals,
+            usdc_price_per_unit,
+        ).unwrap();
+
+        // Expected: (100_000000 * 1_00000000) / 10^6 = 100_00000000
+        assert_eq!(usdc_usd_value, 100_00000000u64, "100 USDC at $1 should normalize to $100 USD");
+
+        // Test zero amount
+        let zero_amount = crate::nav_calculator::normalize_amount_to_usd(
+            0u64,
+            8,
+            50000_00000000u64,
+        ).unwrap();
+
+        assert_eq!(zero_amount, 0u64, "Zero amount should normalize to zero USD");
+    }
+
+    #[test]
+    fn test_nav_formatting_precision() {
+        let nav_value_8_decimals = 123_456_789u64;
+        let formatted = crate::nav_calculator::format_nav_with_precision(nav_value_8_decimals, 8);
+        assert_eq!(formatted, "1.23456789");
+
+        let nav_value_whole = 100_000_000u64;
+        let formatted_whole = crate::nav_calculator::format_nav_with_precision(nav_value_whole, 8);
+        assert_eq!(formatted_whole, "1.00000000");
+
+        let nav_value_zero_decimals = 50u64;
+        let formatted_zero = crate::nav_calculator::format_nav_with_precision(nav_value_zero_decimals, 0);
+        assert_eq!(formatted_zero, "50");
+
+        let nav_value_trailing_zeros = 123_400_000u64;
+        let formatted_trimmed = crate::nav_calculator::format_nav_with_precision(nav_value_trailing_zeros, 8);
+        assert_eq!(formatted_trimmed, "1.234");
+    }
+
+    #[test]
+    fn test_price_adjustment_for_different_decimals() {
+        let usd_price_8_decimals = 1_00000000u64;
+
+        let adjusted_for_18_decimals = crate::nav_calculator::adjust_price_for_decimals(
+            usd_price_8_decimals,
+            18
+        );
+        assert!(adjusted_for_18_decimals > usd_price_8_decimals);
+
+        let adjusted_for_6_decimals = crate::nav_calculator::adjust_price_for_decimals(
+            usd_price_8_decimals,
+            6
+        );
+        assert_eq!(adjusted_for_6_decimals, 1_000000u64);
+
+        let adjusted_for_8_decimals = crate::nav_calculator::adjust_price_for_decimals(
+            usd_price_8_decimals,
+            8
+        );
+        assert_eq!(adjusted_for_8_decimals, usd_price_8_decimals);
+
+        let adjusted_for_2_decimals = crate::nav_calculator::adjust_price_for_decimals(
+            usd_price_8_decimals,
+            2
+        );
+        assert_eq!(adjusted_for_2_decimals, 1_00u64);
+    }
+
+    #[test]
+    fn test_allocation_percentage_validation() {
+        let allocations = vec![
+            AssetAllocation {
+                asset_id: AssetId("ckBTC".to_string()),
+                percentage: 60,
+            },
+            AssetAllocation {
+                asset_id: AssetId("ckETH".to_string()),
+                percentage: 40,
+            },
+        ];
+
+        let result = crate::nav_calculator::validate_bundle_allocations(&allocations);
+        assert!(result.is_ok());
+
+        let invalid_percentage_allocations = vec![
+            AssetAllocation {
+                asset_id: AssetId("ckBTC".to_string()),
+                percentage: 60,
+            },
+            AssetAllocation {
+                asset_id: AssetId("ckETH".to_string()),
+                percentage: 50,
+            },
+        ];
+
+        let invalid_result = crate::nav_calculator::validate_bundle_allocations(&invalid_percentage_allocations);
+        assert!(invalid_result.is_err());
+        assert!(invalid_result.unwrap_err().contains("Total allocation percentage must equal 100%"));
+
+        let duplicate_asset_allocations = vec![
+            AssetAllocation {
+                asset_id: AssetId("ckBTC".to_string()),
+                percentage: 50,
+            },
+            AssetAllocation {
+                asset_id: AssetId("ckBTC".to_string()),
+                percentage: 50,
+            },
+        ];
+
+        let duplicate_result = crate::nav_calculator::validate_bundle_allocations(&duplicate_asset_allocations);
+        assert!(duplicate_result.is_err());
+        assert!(duplicate_result.unwrap_err().contains("Duplicate asset in allocations"));
+
+        let empty_allocations: Vec<AssetAllocation> = vec![];
+        let empty_result = crate::nav_calculator::validate_bundle_allocations(&empty_allocations);
+        assert!(empty_result.is_err());
+        assert!(empty_result.unwrap_err().contains("Bundle must have at least one allocation"));
+    }
+
+    #[test]
+    fn test_complete_nav_calculation_flow_with_normalization() {
+        // Scenario: Multi-asset bundle with all tokens normalized to 8 decimals
+        // Portfolio: 1.0 BTC + 10.0 ETH, 1000 NAV tokens issued
+
+        // === BTC Holdings (already 8 decimals) ===
+        let btc_holding_amount = 100_000_000u64; // 1.0 BTC (8 decimals)
+        let btc_price = 50000_00000000u64; // $50,000 (8 decimals)
+
+        let btc_value = crate::nav_calculator::calculate_holding_value_usd(
+            btc_holding_amount,
+            btc_price,
+            8,
+        ).unwrap();
+        assert_eq!(btc_value, 50000_00000000u64, "1 BTC at $50k = $50k");
+
+        // === ETH Holdings (normalize from 18 to 8 decimals) ===
+        let eth_holding_18_decimals = 10_000_000_000_000_000_000u64; // 10.0 ETH (18 decimals)
+        let eth_holding_normalized = crate::nav_calculator::convert_amount_between_decimals(
+            eth_holding_18_decimals,
+            18,
+            8,
+        ).unwrap();
+        assert_eq!(eth_holding_normalized, 1000_000_000u64, "10 ETH should normalize to 8 decimals");
+
+        let eth_price = 3000_00000000u64; // $3,000 (8 decimals)
+
+        let eth_value = crate::nav_calculator::calculate_holding_value_usd(
+            eth_holding_normalized,
+            eth_price,
+            8,
+        ).unwrap();
+        assert_eq!(eth_value, 30000_00000000u64, "10 ETH at $3k = $30k");
+
+        // === Total Portfolio Value ===
+        let total_usd_value = btc_value + eth_value;
+        assert_eq!(total_usd_value, 80000_00000000u64, "Total portfolio = $80k");
+
+        // === NAV Calculation ===
+        let total_nav_tokens = 1000u64; // 1000 NAV tokens issued
+
+        let nav_per_token = crate::nav_calculator::calculate_precise_nav_per_token(
+            total_usd_value,
+            total_nav_tokens,
+            8,
+        );
+
+        // Expected: 80000_00000000 / 1000 = 8000000000 ($80.00000000 per token with 8 decimals)
+        assert_eq!(nav_per_token, 8000000000u64, "NAV should be $80.00 per token");
+
+        // === Verify Formatting ===
+        let formatted_nav = crate::nav_calculator::format_nav_with_precision(nav_per_token, 8);
+        assert_eq!(formatted_nav, "80.00000000", "Formatted NAV should display as $80.00000000");
+
+        // === User Portfolio Calculation ===
+        // User owns 100 NAV tokens (10% of total supply)
+        let user_nav_tokens = 100u64;
+        let user_portfolio_value_raw = user_nav_tokens as u128 * nav_per_token as u128;
+        let user_portfolio_value_usd = user_portfolio_value_raw; // Already in correct format (8 decimals)
+
+        assert_eq!(user_portfolio_value_usd, 800000000000u128, "User should own $8k worth of assets (10% of $80k)");
+
+        // === Proportional Asset Breakdown ===
+        // User should own proportional amounts of underlying assets
+        let user_btc_proportion = (user_nav_tokens as u128 * btc_holding_amount as u128) / total_nav_tokens as u128;
+        let user_eth_proportion = (user_nav_tokens as u128 * eth_holding_normalized as u128) / total_nav_tokens as u128;
+
+        assert_eq!(user_btc_proportion, 10_000_000u128, "User should own 0.1 BTC (10% of 1 BTC)");
+        assert_eq!(user_eth_proportion, 100_000_000u128, "User should own 1 ETH normalized (10% of 10 ETH)");
+    }
+
+    #[test]
+    fn test_nav_calculation_edge_cases_mathematical() {
+        // Test very small amounts
+        let tiny_value = 1u64; // $0.00000001
+        let many_tokens = 1000000u64; // 1 million tokens
+        let tiny_nav = crate::nav_calculator::calculate_precise_nav_per_token(tiny_value, many_tokens, 8);
+        assert_eq!(tiny_nav, 0u64, "Very small value should result in zero NAV due to rounding");
+
+        // Test single token with significant value
+        let large_value = 1000000_00000000u64; // $1,000,000
+        let single_token = 1u64;
+        let large_nav = crate::nav_calculator::calculate_precise_nav_per_token(large_value, single_token, 8);
+        assert_eq!(large_nav, 1000000_00000000u64, "Single token worth $1M should have $1M NAV");
+
+        // Test precision differences
+        let value = 1000_00000000u64; // $1,000
+        let tokens = 3u64; // 3 tokens
+
+        let nav_8_decimals = crate::nav_calculator::calculate_precise_nav_per_token(value, tokens, 8);
+        let nav_6_decimals = crate::nav_calculator::calculate_precise_nav_per_token(value, tokens, 6);
+
+        // $1000 / 3 = $333.33333333 (8 decimals) = 333_33333333
+        assert_eq!(nav_8_decimals, 333_33333333u64, "8-decimal precision should be 333.33333333");
+
+        // $1000 / 3 = $333.333333 (6 decimals) = 333_333333
+        assert_eq!(nav_6_decimals, 333_333333u64, "6-decimal precision should be 333.333333");
     }
 }

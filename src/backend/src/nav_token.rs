@@ -1,5 +1,5 @@
 use candid::Principal;
-use ic_cdk::api::{msg_caller, time};
+use ic_cdk::api::{time};
 use ic_cdk_macros::*;
 use crate::types::*;
 use crate::memory::*;
