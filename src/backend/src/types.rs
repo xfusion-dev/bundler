@@ -439,7 +439,7 @@ pub struct Transaction {
     pub timeout_at: u64,
 }
 
-#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum TransactionStatus {
     Pending,
     FundsLocked,
