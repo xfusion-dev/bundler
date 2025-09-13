@@ -15,8 +15,11 @@ mod holdings_tracker;
 mod quote_manager;
 mod transaction_manager;
 mod icrc_client;
+mod icrc2_client;
 mod resolver_manager;
 mod sell_transaction;
+mod sell_flow_fix;
+mod buy_flow_icrc2;
 mod tests;
 
 use types::*;
@@ -216,13 +219,13 @@ async fn execute_quote(request_id: u64) -> Result<u64, String> {
 }
 
 #[update]
-fn confirm_asset_deposit(request_id: u64, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
-    quote_manager::confirm_asset_deposit(request_id, deposits)
+async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
+    quote_manager::confirm_asset_deposit(request_id).await
 }
 
 #[update]
-fn confirm_ckusdc_payment(request_id: u64, ckusdc_amount: u64) -> Result<(), String> {
-    quote_manager::confirm_ckusdc_payment(request_id, ckusdc_amount)
+async fn confirm_ckusdc_payment(request_id: u64) -> Result<(), String> {
+    quote_manager::confirm_ckusdc_payment(request_id).await
 }
 
 #[query]
@@ -298,6 +301,21 @@ fn extend_lock_expiration(transaction_id: u64, fund_type: LockedFundType, new_ex
 #[update]
 fn cleanup_expired_locks() -> u32 {
     transaction_manager::cleanup_expired_locks()
+}
+
+#[query]
+async fn check_ckusdc_allowance(user: Principal) -> Result<u64, String> {
+    let canister_id = ic_cdk::api::id();
+    let ledger = Principal::from_text(icrc2_client::CKUSDC_LEDGER_CANISTER)
+        .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
+
+    let allowance = icrc2_client::icrc2_allowance(ledger, user, canister_id).await?;
+    Ok(allowance.allowance)
+}
+
+#[query]
+async fn check_asset_allowance(asset_id: AssetId, user: Principal) -> Result<u64, String> {
+    icrc2_client::check_user_allowance(&asset_id, user).await
 }
 
 ic_cdk::export_candid!();

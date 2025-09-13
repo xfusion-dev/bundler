@@ -470,47 +470,14 @@ fn validate_sell_transaction_safety(request: &QuoteRequest, assignment: &QuoteAs
     Ok(())
 }
 
-pub fn confirm_asset_deposit(request_id: u64, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
-    let caller = msg_caller();
-    let assignment = get_quote_assignment(request_id)?
-        .ok_or_else(|| "No quote assignment found".to_string())?;
-
-    if assignment.resolver != caller {
-        return Err("Only assigned resolver can confirm deposits".to_string());
-    }
-
-    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
-    crate::transaction_manager::validate_resolver_for_transaction(transaction.id)?;
-
-    validate_asset_deposits(&assignment, &deposits)?;
-
-    ic_cdk::spawn(async move {
-        if let Err(e) = complete_buy_transaction(transaction.id, &assignment, deposits).await {
-            ic_cdk::println!("Failed to complete buy transaction {}: {}", transaction.id, e);
-            let _ = crate::transaction_manager::update_transaction_status(transaction.id, TransactionStatus::Failed);
-        }
-    });
-
-    Ok(())
+pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
+    // Delegate to the ICRC-2 flow that pulls assets from resolver
+    crate::buy_flow_icrc2::confirm_asset_deposit_icrc2(request_id).await
 }
 
-pub fn confirm_ckusdc_payment(request_id: u64, ckusdc_amount: u64) -> Result<(), String> {
-    let caller = msg_caller();
-    let assignment = get_quote_assignment(request_id)?
-        .ok_or_else(|| "No quote assignment found".to_string())?;
-
-    if assignment.resolver != caller {
-        return Err("Only assigned resolver can confirm payment".to_string());
-    }
-
-    if ckusdc_amount != assignment.ckusdc_amount {
-        return Err("ckUSDC amount mismatch".to_string());
-    }
-
-    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
-    crate::transaction_manager::validate_resolver_for_transaction(transaction.id)?;
-
-    complete_sell_transaction(transaction.id, &assignment)
+pub async fn confirm_ckusdc_payment(request_id: u64) -> Result<(), String> {
+    // Delegate to the proper sell flow that handles payment first, then assets
+    crate::sell_flow_fix::confirm_resolver_payment_and_complete_sell(request_id).await
 }
 
 

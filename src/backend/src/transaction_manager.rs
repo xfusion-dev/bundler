@@ -276,12 +276,14 @@ pub fn cleanup_expired_locks() -> u32 {
 
 pub async fn transfer_ckusdc_to_canister(user: Principal, amount: u64, transaction_id: u64) -> Result<u64, String> {
     let memo = format!("Buy transaction {}", transaction_id).into_bytes();
-    crate::icrc_client::transfer_to_canister(user, amount, Some(memo)).await
+    // Use ICRC-2 to pull from user (requires prior approval)
+    crate::icrc2_client::pull_ckusdc_from_user(user, amount, Some(memo)).await
 }
 
 pub async fn transfer_ckusdc_from_canister(recipient: Principal, amount: u64, transaction_id: u64) -> Result<u64, String> {
     let memo = format!("Payment for transaction {}", transaction_id).into_bytes();
-    crate::icrc_client::transfer_from_canister(recipient, amount, Some(memo)).await
+    // Use ICRC-1 to send from canister
+    crate::icrc2_client::send_ckusdc_to_user(recipient, amount, Some(memo)).await
 }
 
 pub async fn lock_and_transfer_ckusdc(transaction_id: u64, user: Principal, amount: u64) -> Result<u64, String> {
