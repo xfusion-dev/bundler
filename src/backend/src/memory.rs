@@ -14,6 +14,9 @@ pub const BUNDLE_HOLDINGS_MEMORY_ID: MemoryId = MemoryId::new(4);
 pub const TRANSACTION_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(5);
 pub const QUOTE_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(6);
 pub const RESOLVER_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(7);
+pub const QUOTE_ASSIGNMENT_MEMORY_ID: MemoryId = MemoryId::new(8);
+pub const LOCKED_FUNDS_MEMORY_ID: MemoryId = MemoryId::new(9);
+pub const RESOLVER_REGISTRY_MEMORY_ID: MemoryId = MemoryId::new(10);
 
 thread_local! {
     pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
@@ -64,7 +67,7 @@ thread_local! {
 
     pub static QUOTE_ASSIGNMENTS: RefCell<StableBTreeMap<u64, QuoteAssignment, Memory>> = RefCell::new(
         StableBTreeMap::init(
-            MEMORY_MANAGER.with(|m| m.borrow().get(RESOLVER_STORAGE_MEMORY_ID))
+            MEMORY_MANAGER.with(|m| m.borrow().get(QUOTE_ASSIGNMENT_MEMORY_ID))
         )
     );
 
@@ -80,9 +83,15 @@ thread_local! {
 
     pub static LOCKED_FUNDS: RefCell<StableBTreeMap<String, LockedFunds, Memory>> = RefCell::new(
         StableBTreeMap::init(
-            MEMORY_MANAGER.with(|m| m.borrow().get(BUNDLE_HOLDINGS_MEMORY_ID))
+            MEMORY_MANAGER.with(|m| m.borrow().get(LOCKED_FUNDS_MEMORY_ID))
         )
     );
 
     pub static TRANSACTION_COUNTER: RefCell<u64> = RefCell::new(0);
+
+    pub static RESOLVER_REGISTRY: RefCell<StableBTreeMap<Principal, crate::resolver_manager::ResolverInfo, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(RESOLVER_REGISTRY_MEMORY_ID))
+        )
+    );
 }
