@@ -159,11 +159,8 @@ fn set_quote_api_principal(api_principal: Principal) -> Result<(), String> {
 fn register_resolver(
     name: String,
     fee_rate: u64,
-    supported_assets: Vec<AssetId>,
-    min_volume: u64,
-    max_volume: u64,
 ) -> Result<(), String> {
-    resolver_manager::register_resolver(name, fee_rate, supported_assets, min_volume, max_volume)
+    resolver_manager::register_resolver(name, fee_rate)
 }
 
 #[update]
@@ -181,10 +178,6 @@ fn get_active_resolvers() -> Vec<resolver_manager::ResolverInfo> {
     resolver_manager::get_active_resolvers()
 }
 
-#[query]
-fn get_resolvers_for_bundle(bundle_id: u64) -> Result<Vec<resolver_manager::ResolverInfo>, String> {
-    resolver_manager::get_resolvers_for_bundle(bundle_id)
-}
 
 #[query]
 fn get_resolver_statistics() -> resolver_manager::ResolverStatistics {

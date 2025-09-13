@@ -13,9 +13,6 @@ pub struct ResolverInfo {
     pub principal: Principal,
     pub name: String,
     pub fee_rate: u64,
-    pub supported_assets: Vec<AssetId>,
-    pub min_volume: u64,
-    pub max_volume: u64,
     pub total_volume_processed: u64,
     pub successful_transactions: u64,
     pub failed_transactions: u64,
@@ -43,9 +40,6 @@ impl Storable for ResolverInfo {
 pub fn register_resolver(
     name: String,
     fee_rate: u64,
-    supported_assets: Vec<AssetId>,
-    min_volume: u64,
-    max_volume: u64,
 ) -> Result<(), String> {
     let caller = msg_caller();
 
@@ -55,10 +49,6 @@ pub fn register_resolver(
 
     if fee_rate > 1000 {
         return Err("Fee rate too high (max 10%)".to_string());
-    }
-
-    if min_volume > max_volume {
-        return Err("Min volume cannot exceed max volume".to_string());
     }
 
     RESOLVER_REGISTRY.with(|registry| {
@@ -72,9 +62,6 @@ pub fn register_resolver(
             principal: caller,
             name,
             fee_rate,
-            supported_assets,
-            min_volume,
-            max_volume,
             total_volume_processed: 0,
             successful_transactions: 0,
             failed_transactions: 0,
@@ -149,52 +136,6 @@ pub fn get_active_resolvers() -> Vec<ResolverInfo> {
     })
 }
 
-pub fn get_resolvers_for_bundle(bundle_id: u64) -> Result<Vec<ResolverInfo>, String> {
-    let bundle = crate::bundle_manager::get_bundle(bundle_id)?;
-    let bundle_assets: Vec<AssetId> = bundle.allocations.iter()
-        .map(|a| a.asset_id.clone())
-        .collect();
-
-    let resolvers = RESOLVER_REGISTRY.with(|registry| {
-        registry.borrow().iter()
-            .map(|(_, resolver)| resolver)
-            .filter(|r| {
-                r.is_active &&
-                bundle_assets.iter().all(|asset| r.supported_assets.contains(asset))
-            })
-            .collect()
-    });
-
-    Ok(resolvers)
-}
-
-pub fn select_best_resolver_for_quote(
-    bundle_id: u64,
-    amount: u64,
-) -> Result<Principal, String> {
-    let eligible_resolvers = get_resolvers_for_bundle(bundle_id)?;
-
-    let suitable_resolvers: Vec<ResolverInfo> = eligible_resolvers.into_iter()
-        .filter(|r| amount >= r.min_volume && amount <= r.max_volume)
-        .collect();
-
-    if suitable_resolvers.is_empty() {
-        return Err("No suitable resolvers available".to_string());
-    }
-
-    let best_resolver = suitable_resolvers.into_iter()
-        .max_by_key(|r| {
-            let total_transactions = r.successful_transactions + r.failed_transactions;
-            if total_transactions > 0 {
-                (r.successful_transactions * 100) / total_transactions
-            } else {
-                50
-            }
-        })
-        .ok_or("Failed to select resolver")?;
-
-    Ok(best_resolver.principal)
-}
 
 pub fn is_resolver_registered(principal: Principal) -> bool {
     RESOLVER_REGISTRY.with(|registry| {
@@ -226,6 +167,7 @@ pub struct ResolverStatistics {
     pub total_volume_processed: u64,
     pub total_transactions: u64,
 }
+
 
 pub fn get_resolver_statistics() -> ResolverStatistics {
     RESOLVER_REGISTRY.with(|registry| {
