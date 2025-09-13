@@ -16,6 +16,7 @@ mod quote_manager;
 mod transaction_manager;
 mod icrc_client;
 mod resolver_manager;
+mod sell_transaction;
 mod tests;
 
 use types::*;

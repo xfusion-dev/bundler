@@ -38,6 +38,31 @@ pub fn update_bundle_holdings(bundle_id: u64, asset_id: &AssetId, amount_change:
     })
 }
 
+pub fn reduce_bundle_holding(bundle_id: u64, asset_id: &AssetId, amount: u64) -> Result<(), String> {
+    let key = bundle_holdings_key(bundle_id, asset_id);
+
+    BUNDLE_HOLDINGS.with(|holdings| {
+        let mut holdings = holdings.borrow_mut();
+
+        if let Some(mut holding) = holdings.get(&key) {
+            if holding.amount < amount {
+                return Err(format!("Insufficient holding: {} < {}", holding.amount, amount));
+            }
+            holding.amount -= amount;
+            holding.last_updated = time();
+
+            if holding.amount == 0 {
+                holdings.remove(&key);
+            } else {
+                holdings.insert(key, holding);
+            }
+            Ok(())
+        } else {
+            Err("Bundle holding not found".to_string())
+        }
+    })
+}
+
 pub fn get_bundle_holding(bundle_id: u64, asset_id: &AssetId) -> u64 {
     let key = bundle_holdings_key(bundle_id, asset_id);
 

@@ -445,6 +445,7 @@ pub enum TransactionStatus {
     FundsLocked,
     WaitingForResolver,
     InProgress,
+    AssetsTransferred,
     Completed,
     Failed,
     TimedOut,
