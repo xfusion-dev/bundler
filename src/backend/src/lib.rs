@@ -41,16 +41,7 @@ fn post_upgrade() {
     ic_cdk::println!("Upgrade completed");
 }
 
-#[query]
-fn greet(name: String) -> String {
-    format!("Hello, {}!", name)
-}
 
-#[update]
-fn whoami() -> String {
-    let caller_principal: Principal = msg_caller();
-    caller_principal.to_text()
-}
 
 #[update]
 async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
@@ -104,13 +95,15 @@ fn get_pending_quote_requests() -> Vec<QuoteRequest> {
 }
 
 #[update]
-fn cleanup_expired_quotes() -> u32 {
-    quote_manager::cleanup_expired_quotes()
+fn cleanup_expired_quotes() -> Result<u32, String> {
+    let _admin = admin::require_admin()?;
+    Ok(quote_manager::cleanup_expired_quotes())
 }
 
 #[update]
-fn cleanup_expired_assignments() -> u32 {
-    quote_manager::cleanup_expired_assignments()
+fn cleanup_expired_assignments() -> Result<u32, String> {
+    let _admin = admin::require_admin()?;
+    Ok(quote_manager::cleanup_expired_assignments())
 }
 
 #[query]
@@ -149,8 +142,9 @@ fn get_quote_statistics() -> QuoteStatistics {
 }
 
 #[update]
-fn cleanup_all_expired() -> (u32, u32, u32) {
-    quote_manager::cleanup_all_expired()
+fn cleanup_all_expired() -> Result<(u32, u32, u32), String> {
+    let _admin = admin::require_admin()?;
+    Ok(quote_manager::cleanup_all_expired())
 }
 
 #[update]
@@ -208,8 +202,9 @@ fn get_user_locked_funds(user: Principal) -> Vec<LockedFunds> {
 }
 
 #[update]
-async fn cleanup_expired_transactions() -> u32 {
-    transaction_manager::cleanup_expired_transactions().await
+async fn cleanup_expired_transactions() -> Result<u32, String> {
+    let _admin = admin::require_admin()?;
+    Ok(transaction_manager::cleanup_expired_transactions().await)
 }
 
 #[update]
@@ -257,10 +252,6 @@ fn get_recent_transactions(limit: usize) -> Vec<TransactionSummary> {
     transaction_manager::get_recent_transactions(limit)
 }
 
-#[update]
-fn monitor_transaction_health() -> Result<(), String> {
-    transaction_manager::monitor_transaction_health()
-}
 
 #[query]
 fn validate_sufficient_balance(user: Principal, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
@@ -298,8 +289,9 @@ fn extend_lock_expiration(transaction_id: u64, fund_type: LockedFundType, new_ex
 }
 
 #[update]
-fn cleanup_expired_locks() -> u32 {
-    transaction_manager::cleanup_expired_locks()
+fn cleanup_expired_locks() -> Result<u32, String> {
+    let _admin = admin::require_admin()?;
+    Ok(transaction_manager::cleanup_expired_locks())
 }
 
 #[query]
@@ -319,6 +311,7 @@ async fn check_asset_allowance(asset_id: AssetId, user: Principal) -> Result<u64
 
 #[update]
 async fn detect_and_recover_timeouts() -> Result<u32, String> {
+    let _admin = admin::require_admin()?;
     error_recovery::detect_and_handle_timeouts().await
 }
 
