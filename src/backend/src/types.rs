@@ -461,7 +461,7 @@ pub struct LockedFunds {
     pub expires_at: u64,
 }
 
-#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum LockedFundType {
     CkUSDC,
     NAVTokens { bundle_id: u64 },

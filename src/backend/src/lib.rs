@@ -20,6 +20,7 @@ mod resolver_manager;
 mod sell_transaction;
 mod sell_flow_fix;
 mod buy_flow_icrc2;
+mod error_recovery;
 mod tests;
 
 use types::*;
@@ -316,6 +317,27 @@ async fn check_ckusdc_allowance(user: Principal) -> Result<u64, String> {
 #[query]
 async fn check_asset_allowance(asset_id: AssetId, user: Principal) -> Result<u64, String> {
     icrc2_client::check_user_allowance(&asset_id, user).await
+}
+
+#[update]
+async fn detect_and_recover_timeouts() -> Result<u32, String> {
+    error_recovery::detect_and_handle_timeouts().await
+}
+
+#[update]
+async fn emergency_recovery(user: Option<Principal>) -> Result<error_recovery::RecoveryReport, String> {
+    let user_principal = user.unwrap_or_else(|| msg_caller());
+    error_recovery::perform_emergency_recovery(user_principal).await
+}
+
+#[query]
+fn validate_transaction_integrity(transaction_id: u64) -> Result<(), String> {
+    error_recovery::validate_transaction_integrity(transaction_id)
+}
+
+#[query]
+fn get_recovery_statistics() -> error_recovery::RecoveryStatistics {
+    error_recovery::get_recovery_statistics()
 }
 
 ic_cdk::export_candid!();

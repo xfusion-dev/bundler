@@ -289,6 +289,13 @@ pub async fn get_ckusdc_balance(account: Principal) -> Result<u64, String> {
     icrc1_balance_of(ledger, account).await
 }
 
+pub async fn get_asset_balance(asset_id: &AssetId, account: Principal) -> Result<u64, String> {
+    let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
+    let ledger = asset_info.ledger_canister;
+
+    icrc1_balance_of(ledger, account).await
+}
+
 // High-level functions for any asset
 
 pub async fn pull_asset_from_user(
