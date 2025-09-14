@@ -140,6 +140,7 @@ mod tests {
                 TransactionStatus::Completed => assert!(true),
                 TransactionStatus::Failed => assert!(true),
                 TransactionStatus::TimedOut => assert!(true),
+                TransactionStatus::AssetsTransferred => assert!(true),
             }
         }
     }
