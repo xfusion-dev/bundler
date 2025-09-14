@@ -4,7 +4,6 @@ use ic_cdk::api::{time, msg_caller};
 use ic_stable_structures::Storable;
 use std::borrow::Cow;
 
-use crate::types::*;
 use crate::memory::*;
 use crate::admin::is_admin;
 

@@ -471,13 +471,11 @@ fn validate_sell_transaction_safety(request: &QuoteRequest, assignment: &QuoteAs
 }
 
 pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
-    // Delegate to the ICRC-2 flow that pulls assets from resolver
-    crate::buy_flow_icrc2::confirm_asset_deposit_icrc2(request_id).await
+    crate::buy_flow::confirm_asset_deposit_icrc2(request_id).await
 }
 
 pub async fn confirm_ckusdc_payment(request_id: u64) -> Result<(), String> {
-    // Delegate to the proper sell flow that handles payment first, then assets
-    crate::sell_flow_fix::confirm_resolver_payment_and_complete_sell(request_id).await
+    crate::sell_flow::confirm_resolver_payment_and_complete_sell(request_id).await
 }
 
 

@@ -1,10 +1,6 @@
-use candid::Principal;
-use ic_cdk::api::{time, msg_caller};
+use ic_cdk::api::msg_caller;
 
 use crate::types::*;
-use crate::memory::*;
-
-// Improved buy flow using ICRC-2 for both ckUSDC and asset transfers
 pub async fn confirm_asset_deposit_icrc2(request_id: u64) -> Result<(), String> {
     let caller = msg_caller();
     let assignment = crate::quote_manager::get_quote_assignment(request_id)?

@@ -1,4 +1,405 @@
-service : {
-    greet: (text) -> (text) query;
-    whoami: () -> (text);
+type AssetAllocation = record { asset_id : text; percentage : nat8 };
+type AssetCategory = variant {
+  Stablecoin;
+  Stocks;
+  Cryptocurrency;
+  CommodityBacked;
+  Other : text;
+};
+type AssetFilter = record {
+  category : opt AssetCategory;
+  active_only : bool;
+  standard : opt AssetStandard;
+};
+type AssetInfo = record {
+  id : text;
+  decimals : nat8;
+  metadata : AssetMetadata;
+  name : text;
+  added_at : nat64;
+  minter_canister : opt principal;
+  ledger_canister : principal;
+  is_active : bool;
+  oracle_ticker : opt text;
+  standard : AssetStandard;
+  symbol : text;
+};
+type AssetInfoUpdate = record {
+  metadata : opt AssetMetadata;
+  name : opt text;
+  minter_canister : opt principal;
+  is_active : opt bool;
+  oracle_ticker : opt text;
+};
+type AssetMetadata = record {
+  description : opt text;
+  website : opt text;
+  logo_url : opt text;
+  category : AssetCategory;
+};
+type AssetPrice = record {
+  source : text;
+  timestamp : nat64;
+  asset_id : text;
+  confidence : nat8;
+  price_usd : nat64;
+};
+type AssetStandard = variant { MTLS : record { asset_id : nat64 }; ICRC2 };
+type AssetSummary = record {
+  id : text;
+  bundles_using : nat32;
+  name : text;
+  category : AssetCategory;
+  is_active : bool;
+  standard : AssetStandard;
+  symbol : text;
+};
+type AssetValue = record {
+  value_usd : nat64;
+  asset_id : text;
+  amount : nat64;
+  percentage : float64;
+};
+type BundleConfig = record {
+  id : nat64;
+  creator : principal;
+  name : text;
+  description : opt text;
+  created_at : nat64;
+  allocations : vec AssetAllocation;
+  is_active : bool;
+};
+type BundleNAV = record {
+  asset_values : vec AssetValue;
+  nav_per_token : nat64;
+  bundle_id : nat64;
+  total_nav_usd : nat64;
+  calculated_at : nat64;
+  total_tokens : nat64;
+};
+type BundleSummary = record {
+  id : nat64;
+  creator : principal;
+  name : text;
+  created_at : nat64;
+  holder_count : nat32;
+  allocations : vec AssetAllocation;
+  is_active : bool;
+  total_nav_tokens : nat64;
+};
+type BundleTransactionHistory = record {
+  total_sell_transactions : nat64;
+  total_buy_transactions : nat64;
+  bundle_id : nat64;
+  active_transactions : nat32;
+  total_volume_bought : nat64;
+  last_transaction_at : opt nat64;
+  total_volume_sold : nat64;
+};
+type CacheStatistics = record {
+  total_entries : nat32;
+  cache_hit_rate : float64;
+  valid_entries : nat32;
+  expired_entries : nat32;
+  oldest_entry_age_seconds : nat64;
+  cache_duration_seconds : nat64;
+};
+type CanisterInfo = record {
+  version : text;
+  total_assets : nat64;
+  total_bundles : nat64;
+  total_nav_tokens : nat64;
+};
+type CanisterStatus = record {
+  total_assets : nat64;
+  is_admin_set : bool;
+  total_bundles : nat64;
+  memory_usage : MemoryUsage;
+  total_nav_tokens : nat64;
+};
+type LockedFundType = variant {
+  NAVTokens : record { bundle_id : nat64 };
+  CkUSDC;
+};
+type LockedFunds = record {
+  transaction_id : nat64;
+  fund_type : LockedFundType;
+  locked_at : nat64;
+  user : principal;
+  amount : nat64;
+  expires_at : nat64;
+};
+type MemoryUsage = record {
+  asset_registry_entries : nat64;
+  nav_token_storage_entries : nat64;
+  bundle_storage_entries : nat64;
+};
+type NAVPrecisionReport = record {
+  nav_per_token_18_decimals : nat64;
+  bundle_id : nat64;
+  calculation_timestamp : nat64;
+  nav_per_token_8_decimals : nat64;
+  formatted_nav_display : text;
+  total_usd_value : nat64;
+  total_tokens : nat64;
+  precision_loss_amount : nat64;
+};
+type NAVTokenHolding = record {
+  bundle_name : text;
+  bundle_id : nat64;
+  last_updated : nat64;
+  amount : nat64;
+};
+type OperationType = variant { Buy; Sell };
+type OracleConfig = record {
+  oracle_canister : principal;
+  max_staleness_ns : nat64;
+  cache_duration_ns : nat64;
+  fallback_enabled : bool;
+};
+type QuoteAssignment = record {
+  request_id : nat64;
+  resolver : principal;
+  fees : nat64;
+  ckusdc_amount : nat64;
+  assigned_at : nat64;
+  valid_until : nat64;
+  estimated_nav : nat64;
+  nav_tokens : nat64;
+};
+type QuoteRequest = record {
+  request_id : nat64;
+  bundle_id : nat64;
+  max_slippage : nat8;
+  user : principal;
+  created_at : nat64;
+  operation : OperationType;
+  amount : nat64;
+  expires_at : nat64;
+};
+type QuoteStatistics = record {
+  assigned_requests : nat32;
+  total_requests : nat32;
+  expired_requests : nat32;
+  pending_requests : nat32;
+  expired_assignments : nat32;
+};
+type RecoveryReport = record {
+  recovered_assets : vec record { text; nat64 };
+  recovered_ckusdc : nat64;
+  user : principal;
+  timestamp : nat64;
+  recovered_nav_tokens : nat64;
+};
+type RecoveryStatistics = record {
+  recoveries_last_24h : nat32;
+  success_rate : float64;
+  average_recovery_time_ms : nat64;
+  total_recoveries : nat32;
+};
+type ResolverInfo = record {
+  "principal" : principal;
+  failed_transactions : nat64;
+  name : text;
+  last_active : nat64;
+  fee_rate : nat64;
+  total_volume_processed : nat64;
+  is_active : bool;
+  registered_at : nat64;
+  successful_transactions : nat64;
+};
+type ResolverStatistics = record {
+  total_resolvers : nat64;
+  active_resolvers : nat64;
+  total_volume_processed : nat64;
+  total_transactions : nat64;
+};
+type Result = variant { Ok; Err : text };
+type Result_1 = variant { Ok : BundleNAV; Err : text };
+type Result_10 = variant { Ok : QuoteRequest; Err : text };
+type Result_11 = variant { Ok : ResolverInfo; Err : text };
+type Result_12 = variant { Ok : Transaction; Err : text };
+type Result_13 = variant { Ok : TransactionSummary; Err : text };
+type Result_14 = variant { Ok : bool; Err : text };
+type Result_15 = variant {
+  Ok : vec record { LockedFundType; nat64 };
+  Err : text;
+};
+type Result_16 = variant { Ok : SupplyValidationResult; Err : text };
+type Result_2 = variant { Ok : nat64; Err : text };
+type Result_3 = variant { Ok : nat32; Err : text };
+type Result_4 = variant { Ok : RecoveryReport; Err : text };
+type Result_5 = variant { Ok : AssetInfo; Err : text };
+type Result_6 = variant { Ok : BundleConfig; Err : text };
+type Result_7 = variant { Ok : BundleSummary; Err : text };
+type Result_8 = variant { Ok : NAVPrecisionReport; Err : text };
+type Result_9 = variant { Ok : opt QuoteAssignment; Err : text };
+type SupplyValidationResult = record {
+  bundle_id : nat64;
+  recorded_total_supply : nat64;
+  validation_timestamp : nat64;
+  is_consistent : bool;
+  calculated_total_supply : nat64;
+  discrepancy : nat64;
+};
+type Transaction = record {
+  id : nat64;
+  request_id : nat64;
+  status : TransactionStatus;
+  resolver : principal;
+  updated_at : nat64;
+  bundle_id : nat64;
+  user : principal;
+  created_at : nat64;
+  timeout_at : nat64;
+  ckusdc_amount : nat64;
+  operation : OperationType;
+  completed_at : opt nat64;
+  nav_tokens : nat64;
+};
+type TransactionStats = record {
+  total_nav_tokens_burned : nat64;
+  failed_transactions : nat64;
+  total_volume_ckusdc : nat64;
+  average_completion_time_ms : nat64;
+  pending_transactions : nat64;
+  total_nav_tokens_minted : nat64;
+  total_transactions : nat64;
+  completed_transactions : nat64;
+};
+type TransactionStatus = variant {
+  Failed;
+  FundsLocked;
+  WaitingForResolver;
+  TimedOut;
+  InProgress;
+  AssetsTransferred;
+  Completed;
+  Pending;
+};
+type TransactionSummary = record {
+  id : nat64;
+  status : TransactionStatus;
+  bundle_id : nat64;
+  user : principal;
+  created_at : nat64;
+  ckusdc_amount : nat64;
+  operation : OperationType;
+  duration_ms : opt nat64;
+  nav_tokens : nat64;
+};
+type UserPortfolio = record {
+  total_bundles_created : nat32;
+  user : principal;
+  nav_token_holdings : vec NAVTokenHolding;
+  created_bundles : vec BundleConfig;
+  total_nav_tokens_held : nat64;
+};
+type UserTransactionSummary = record {
+  buy_transactions : nat64;
+  sell_transactions : nat64;
+  current_locked_funds : nat64;
+  user : principal;
+  total_volume_ckusdc : nat64;
+  last_transaction_at : opt nat64;
+  total_transactions : nat64;
+};
+type XFusionNAVToken = record {
+  bundle_id : nat64;
+  owner : principal;
+  last_updated : nat64;
+  amount : nat64;
+};
+service : () -> {
+  add_asset : (AssetInfo) -> (Result);
+  calculate_bundle_nav : (nat64) -> (Result_1);
+  check_asset_allowance : (text, principal) -> (Result_2) query;
+  check_ckusdc_allowance : (principal) -> (Result_2) query;
+  cleanup_all_expired : () -> (nat32, nat32, nat32);
+  cleanup_expired_assignments : () -> (nat32);
+  cleanup_expired_locks : () -> (nat32);
+  cleanup_expired_quotes : () -> (nat32);
+  cleanup_expired_transactions : () -> (nat32);
+  cleanup_inactive_bundles : () -> (Result_3);
+  clear_price_cache : () -> (Result_3);
+  confirm_asset_deposit : (nat64) -> (Result);
+  confirm_ckusdc_payment : (nat64) -> (Result);
+  create_bundle : (BundleConfig) -> (Result_2);
+  create_transaction : (nat64) -> (Result_2);
+  deactivate_asset : (text) -> (Result);
+  detect_and_recover_timeouts : () -> (Result_3);
+  emergency_pause_canister : () -> (Result);
+  emergency_recovery : (opt principal) -> (Result_4);
+  emergency_unpause_canister : () -> (Result);
+  execute_quote : (nat64) -> (Result_2);
+  extend_assignment_validity : (nat64, nat64) -> (Result);
+  extend_lock_expiration : (nat64, LockedFundType, nat64) -> (Result);
+  extend_quote_expiration : (nat64, nat64) -> (Result);
+  force_deactivate_bundle : (nat64, text) -> (Result);
+  format_nav_display : (nat64, nat8) -> (text) query;
+  get_active_resolvers : () -> (vec ResolverInfo) query;
+  get_admin : () -> (opt principal) query;
+  get_asset : (text) -> (Result_5) query;
+  get_asset_summary : () -> (vec AssetSummary) query;
+  get_assignments_expiring_soon : (nat64) -> (vec QuoteAssignment) query;
+  get_bundle : (nat64) -> (Result_6) query;
+  get_bundle_summary : (nat64) -> (Result_7) query;
+  get_bundle_transaction_history : (nat64) -> (BundleTransactionHistory) query;
+  get_cache_statistics : () -> (CacheStatistics) query;
+  get_cached_price : (text) -> (opt AssetPrice) query;
+  get_canister_info : () -> (CanisterInfo) query;
+  get_canister_status : () -> (CanisterStatus) query;
+  get_lock_expiration_time : (nat64, LockedFundType) -> (Result_2) query;
+  get_nav_precision_report : (nat64) -> (Result_8);
+  get_nav_token_balance : (principal, nat64) -> (nat64) query;
+  get_oracle_config : () -> (opt OracleConfig) query;
+  get_pending_quote_requests : () -> (vec QuoteRequest) query;
+  get_portfolio_value : (opt principal) -> (Result_2);
+  get_quote_assignment : (nat64) -> (Result_9) query;
+  get_quote_request : (nat64) -> (Result_10) query;
+  get_quote_statistics : () -> (QuoteStatistics) query;
+  get_quotes_expiring_soon : (nat64) -> (vec QuoteRequest) query;
+  get_recent_transactions : (nat64) -> (vec TransactionSummary) query;
+  get_recovery_statistics : () -> (RecoveryStatistics) query;
+  get_resolver : (principal) -> (Result_11) query;
+  get_resolver_statistics : () -> (ResolverStatistics) query;
+  get_total_tokens_for_bundle : (nat64) -> (nat64) query;
+  get_transaction : (nat64) -> (Result_12) query;
+  get_transaction_stats : () -> (TransactionStats) query;
+  get_transaction_summary : (nat64) -> (Result_13) query;
+  get_transactions_by_status : (TransactionStatus) -> (vec Transaction) query;
+  get_user_bundles : (principal) -> (vec BundleConfig) query;
+  get_user_locked_funds : (principal) -> (vec LockedFunds) query;
+  get_user_nav_tokens : (principal) -> (vec XFusionNAVToken) query;
+  get_user_portfolio : (principal) -> (UserPortfolio) query;
+  get_user_total_locked_amount : (principal, LockedFundType) -> (nat64) query;
+  get_user_transaction_summary : (principal) -> (UserTransactionSummary) query;
+  get_user_transactions : (principal) -> (vec Transaction) query;
+  greet : (text) -> (text) query;
+  is_fund_already_locked : (nat64, LockedFundType) -> (bool) query;
+  is_quote_assignment_expired : (nat64) -> (Result_14) query;
+  is_quote_request_expired : (nat64) -> (Result_14) query;
+  list_active_bundles : () -> (vec BundleConfig) query;
+  list_assets : (opt AssetFilter) -> (vec AssetInfo) query;
+  list_cached_prices : () -> (vec AssetPrice) query;
+  list_valid_cached_prices : () -> (vec AssetPrice) query;
+  lock_user_funds_with_validation : (nat64, LockedFundType, nat64) -> (Result);
+  monitor_transaction_health : () -> (Result);
+  register_resolver : (text, nat64) -> (Result);
+  request_quote : (QuoteRequest) -> (Result_2);
+  search_assets : (text) -> (vec AssetInfo) query;
+  search_bundles : (text) -> (vec BundleConfig) query;
+  set_admin : (principal) -> (Result);
+  set_oracle_config : (OracleConfig) -> (Result);
+  set_quote_api_principal : (principal) -> (Result);
+  submit_quote_assignment : (QuoteAssignment) -> (Result);
+  unlock_all_transaction_funds : (nat64) -> (Result_15);
+  update_asset : (text, AssetInfoUpdate) -> (Result);
+  update_resolver_status : (principal, bool) -> (Result);
+  validate_sufficient_balance : (principal, LockedFundType, nat64) -> (
+      Result,
+    ) query;
+  validate_total_supply_consistency : (nat64) -> (Result_16) query;
+  validate_transaction_integrity : (nat64) -> (Result) query;
+  whoami : () -> (text);
 }

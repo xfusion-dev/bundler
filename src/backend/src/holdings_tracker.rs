@@ -1,7 +1,6 @@
 use ic_cdk::api::time;
 use crate::types::*;
 use crate::memory::*;
-use crate::nav_calculator::calculate_precise_nav_per_token;
 
 pub fn update_bundle_holdings(bundle_id: u64, asset_id: &AssetId, amount_change: i64) -> Result<(), String> {
     let key = bundle_holdings_key(bundle_id, asset_id);

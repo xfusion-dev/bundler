@@ -1,10 +1,6 @@
-use candid::Principal;
-use ic_cdk::api::{time, msg_caller};
+use ic_cdk::api::msg_caller;
 
 use crate::types::*;
-use crate::memory::*;
-
-// This replaces the broken confirm_ckusdc_payment flow
 pub async fn confirm_resolver_payment_and_complete_sell(
     request_id: u64,
 ) -> Result<(), String> {

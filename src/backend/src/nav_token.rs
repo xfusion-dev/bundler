@@ -140,9 +140,5 @@ pub fn get_user_nav_token_balance(user: Principal, bundle_id: u64) -> Result<u64
 }
 
 pub async fn get_user_ckusdc_balance(user: Principal) -> Result<u64, String> {
-    crate::icrc_client::get_ckusdc_balance(user).await
-}
-
-pub fn get_user_ckusdc_balance_sync(user: Principal) -> Result<u64, String> {
-    Err("Use async version get_user_ckusdc_balance instead".to_string())
+    crate::icrc2_client::get_ckusdc_balance(user).await
 }

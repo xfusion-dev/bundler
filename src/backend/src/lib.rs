@@ -14,12 +14,10 @@ mod nav_calculator;
 mod holdings_tracker;
 mod quote_manager;
 mod transaction_manager;
-mod icrc_client;
 mod icrc2_client;
 mod resolver_manager;
-mod sell_transaction;
-mod sell_flow_fix;
-mod buy_flow_icrc2;
+mod sell_flow;
+mod buy_flow;
 mod error_recovery;
 mod tests;
 
