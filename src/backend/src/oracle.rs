@@ -1,8 +1,19 @@
 use ic_cdk::api::time;
 use ic_cdk_macros::*;
+use candid::{CandidType, Deserialize, Principal};
 use crate::types::*;
 use crate::memory::*;
 use crate::admin::require_admin;
+
+const XFUSION_ORACLE_CANISTER: &str = "uxrrr-q7777-77774-qaaaq-cai";
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct OraclePrice {
+    pub value: u64,
+    pub confidence: Option<u64>,
+    pub timestamp: u64,
+    pub source: String,
+}
 
 const DEFAULT_CACHE_DURATION_NS: u64 = 60_000_000_000;
 const DEFAULT_MAX_STALENESS_NS: u64 = 300_000_000_000;
@@ -40,7 +51,7 @@ pub async fn get_latest_price(asset_id: &AssetId) -> Result<AssetPrice, String> 
         asset_id: asset_id.clone(),
         price_usd: price,
         timestamp: time(),
-        source: "mock_oracle".to_string(),
+        source: "xfusion_oracle".to_string(),
         confidence: 95,
     };
 
@@ -49,18 +60,80 @@ pub async fn get_latest_price(asset_id: &AssetId) -> Result<AssetPrice, String> 
     Ok(asset_price)
 }
 
-async fn fetch_price_from_oracle(ticker: &str) -> Result<u64, String> {
-    match ticker {
-        "BTC" => Ok(100_000_00_000_000),
-        "ETH" => Ok(4_000_00_000_000),
-        "GOLD" => Ok(3_000_00_000_000),
-        "GLDT" => Ok(1_50_000_000),
-        "USDC" => Ok(1_00_000_000),
-        _ => {
-            ic_cdk::println!("Mock oracle: Unknown ticker {}, returning default price", ticker);
-            Ok(1_00_000_000)
+pub async fn get_multiple_prices(asset_ids: &[AssetId]) -> Result<Vec<AssetPrice>, String> {
+    let mut prices = Vec::new();
+    let mut tickers_to_fetch = Vec::new();
+    let mut assets_to_update = Vec::new();
+
+    for asset_id in asset_ids {
+        if let Some(cached_price) = get_cached_price_if_valid(asset_id) {
+            prices.push(cached_price);
+        } else {
+            let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
+            let oracle_ticker = asset_info.oracle_ticker
+                .ok_or_else(|| format!("No oracle ticker configured for asset {}", asset_id.0))?;
+            tickers_to_fetch.push(oracle_ticker);
+            assets_to_update.push(asset_id.clone());
         }
     }
+
+    if !tickers_to_fetch.is_empty() {
+        let oracle_principal = Principal::from_text(XFUSION_ORACLE_CANISTER)
+            .map_err(|e| format!("Invalid oracle canister ID: {}", e))?;
+
+        let (oracle_prices,): (Vec<Option<OraclePrice>>,) = ic_cdk::call(
+            oracle_principal,
+            "get_prices",
+            (tickers_to_fetch.clone(),)
+        ).await
+        .map_err(|e| format!("Failed to call oracle: {:?}", e))?;
+
+        let current_time = time();
+        let max_age = 5 * 60 * 1_000_000_000;
+
+        for (i, price_opt) in oracle_prices.iter().enumerate() {
+            if let Some(price) = price_opt {
+                if current_time > price.timestamp && (current_time - price.timestamp) > max_age {
+                    return Err(format!("Price for {} is too stale", tickers_to_fetch[i]));
+                }
+
+                let asset_price = AssetPrice {
+                    asset_id: assets_to_update[i].clone(),
+                    price_usd: price.value,
+                    timestamp: current_time,
+                    source: "xfusion_oracle".to_string(),
+                    confidence: 95,
+                };
+
+                PRICE_STORAGE.with(|p| p.borrow_mut().insert(assets_to_update[i].clone(), asset_price.clone()));
+                prices.push(asset_price);
+            } else {
+                return Err(format!("No price available for {}", tickers_to_fetch[i]));
+            }
+        }
+    }
+
+    Ok(prices)
+}
+
+async fn fetch_price_from_oracle(ticker: &str) -> Result<u64, String> {
+    let oracle_principal = Principal::from_text(XFUSION_ORACLE_CANISTER)
+        .map_err(|e| format!("Invalid oracle canister ID: {}", e))?;
+
+    let (price_opt,): (Option<OraclePrice>,) = ic_cdk::call(oracle_principal, "get_price", (ticker,))
+        .await
+        .map_err(|e| format!("Failed to call oracle: {:?}", e))?;
+
+    let price = price_opt.ok_or_else(|| format!("No price available for {}", ticker))?;
+
+    let current_time = time();
+    let max_age = 5 * 60 * 1_000_000_000;
+
+    if current_time > price.timestamp && (current_time - price.timestamp) > max_age {
+        return Err(format!("Price for {} is too stale", ticker));
+    }
+
+    Ok(price.value)
 }
 
 #[query]
