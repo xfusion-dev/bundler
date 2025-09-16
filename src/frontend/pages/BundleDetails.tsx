@@ -184,8 +184,10 @@ export default function BundleDetails() {
 
         // Only approve if we need more allowance
         if (currentAllowance < usdcAmount) {
-          console.log('Approving', usdcAmount.toString(), 'ckUSDC');
-          const approvalResult = await icrc2Service.approveBackendCanister(usdcAmount);
+          // Approve a large amount (10,000 USDC) to avoid frequent approvals
+          const largeApprovalAmount = BigInt(10000 * 1000000); // 10,000 USDC with 6 decimals
+          console.log('Approving', largeApprovalAmount.toString(), 'ckUSDC (10,000 USDC) for future trades');
+          const approvalResult = await icrc2Service.approveBackendCanister(largeApprovalAmount);
           if (!approvalResult) {
             throw new Error('Failed to approve USDC spending');
           }
