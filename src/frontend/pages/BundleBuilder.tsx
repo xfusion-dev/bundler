@@ -270,7 +270,7 @@ export default function BundleBuilder() {
   return (
     <div className="px-6 py-8">
       <div className="max-w-7xl mx-auto mb-8">
-        <h1 className="heading-large mb-4">Build Your Index</h1>
+        <h1 className="heading-large mb-4">Build Your Bundle</h1>
         <p className="text-body max-w-3xl">
           Create a custom token bundle with your preferred asset allocation.
           Select tokens, set percentages, and launch your own tradeable index.

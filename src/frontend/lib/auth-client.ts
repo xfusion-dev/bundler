@@ -7,7 +7,7 @@ const LOCAL_II_CANISTER_ID = 'rdmx6-jaaaa-aaaaa-aaadq-cai';
 
 const LOCAL_II_URL = `http://${LOCAL_II_CANISTER_ID}.localhost:4943`;
 
-const PRODUCTION_II_URL = 'https://identity.ic0.app';
+const PRODUCTION_II_URL = 'https://id.ai';
 
 const isLocal = true;
 

@@ -5,7 +5,7 @@ use crate::types::*;
 use crate::memory::*;
 use crate::admin::require_admin;
 
-const XFUSION_ORACLE_CANISTER: &str = "uxrrr-q7777-77774-qaaaq-cai";
+const XFUSION_ORACLE_CANISTER: &str = "zutfo-jqaaa-aaaao-a4puq-cai";
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
 pub struct OraclePrice {
@@ -34,6 +34,11 @@ pub fn get_oracle_config() -> Option<OracleConfig> {
     ORACLE_CONFIG.with(|oracle_config| {
         oracle_config.borrow().clone()
     })
+}
+
+// This is now exported from lib.rs
+pub async fn get_asset_price(asset_id: AssetId) -> Result<AssetPrice, String> {
+    get_latest_price(&asset_id).await
 }
 
 pub async fn get_latest_price(asset_id: &AssetId) -> Result<AssetPrice, String> {
@@ -80,23 +85,47 @@ pub async fn get_multiple_prices(asset_ids: &[AssetId]) -> Result<Vec<AssetPrice
     if !tickers_to_fetch.is_empty() {
         let current_time = time();
 
-        // Use mock prices for development
-        for (i, ticker) in tickers_to_fetch.iter().enumerate() {
-            let mock_price = match ticker.as_str() {
-                "BTC" => 65_000_00000000,  // $65,000 with 8 decimals
-                "ETH" => 3_500_00000000,   // $3,500 with 8 decimals
-                "ICP" => 15_00000000,      // $15 with 8 decimals
-                "SOL" => 150_00000000,     // $150 with 8 decimals
-                "GOLD" => 2_000_00000000,  // $2,000 with 8 decimals
-                "USDC" => 1_00000000,      // $1 with 8 decimals
-                _ => 100_00000000,         // Default $100 with 8 decimals
+        // Call the real oracle for multiple prices at once (more efficient)
+        let oracle_principal = Principal::from_text("zutfo-jqaaa-aaaao-a4puq-cai")
+            .map_err(|e| format!("Invalid oracle canister ID: {}", e))?;
+
+        #[derive(CandidType, Deserialize)]
+        struct Price {
+            pub value: u64,
+            pub confidence: Option<u64>,
+            pub timestamp: u64,
+            pub source: String,
+        }
+
+        // Call oracle's get_prices method for batch fetching
+        let (fetched_prices,): (Vec<Option<Price>>,) = ic_cdk::call(
+            oracle_principal,
+            "get_prices",
+            (tickers_to_fetch.clone(),)
+        )
+        .await
+        .map_err(|e| format!("Failed to call oracle for multiple prices: {:?}", e))?;
+
+        // Process fetched prices
+        for (i, price_opt) in fetched_prices.into_iter().enumerate() {
+            let price_usd = if let Some(price) = price_opt {
+                price.value
+            } else {
+                // Fallback for stablecoins if oracle doesn't have the price
+                match tickers_to_fetch[i].as_str() {
+                    "USDC" | "ckUSDC" => 1_00000000,  // $1 for stablecoins
+                    _ => {
+                        ic_cdk::println!("No price available for {}", tickers_to_fetch[i]);
+                        continue;
+                    }
+                }
             };
 
             let asset_price = AssetPrice {
                 asset_id: assets_to_update[i].clone(),
-                price_usd: mock_price,
+                price_usd,
                 timestamp: current_time,
-                source: "mock_oracle".to_string(),
+                source: "xfusion_oracle".to_string(),
                 confidence: 95,
             };
 
@@ -109,18 +138,36 @@ pub async fn get_multiple_prices(asset_ids: &[AssetId]) -> Result<Vec<AssetPrice
 }
 
 async fn fetch_price_from_oracle(ticker: &str) -> Result<u64, String> {
-    // Mock prices for development
-    let mock_price = match ticker {
-        "BTC" => 65_000_00000000,  // $65,000 with 8 decimals
-        "ETH" => 3_500_00000000,   // $3,500 with 8 decimals
-        "ICP" => 15_00000000,      // $15 with 8 decimals
-        "SOL" => 150_00000000,     // $150 with 8 decimals
-        "GOLD" => 2_000_00000000,  // $2,000 with 8 decimals
-        "USDC" => 1_00000000,      // $1 with 8 decimals
-        _ => 100_00000000,         // Default $100 with 8 decimals
-    };
+    // Call the real XFusion oracle canister
+    let oracle_principal = Principal::from_text("zutfo-jqaaa-aaaao-a4puq-cai")
+        .map_err(|e| format!("Invalid oracle canister ID: {}", e))?;
 
-    Ok(mock_price)
+    // Define the Price structure matching oracle's structure
+    #[derive(CandidType, Deserialize)]
+    struct Price {
+        pub value: u64,
+        pub confidence: Option<u64>,
+        pub timestamp: u64,
+        pub source: String,
+    }
+
+    // Call oracle's get_price method
+    let (price_opt,): (Option<Price>,) = ic_cdk::call(oracle_principal, "get_price", (ticker,))
+        .await
+        .map_err(|e| format!("Failed to call oracle: {:?}", e))?;
+
+    let price = price_opt.ok_or(format!("No price available for {}", ticker))?;
+
+    // Validate price freshness (within 10 minutes)
+    let current_time = time();
+    let max_age = 10 * 60 * 1_000_000_000; // 10 minutes in nanoseconds
+
+    if current_time > price.timestamp && current_time - price.timestamp > max_age {
+        // Price is stale, but we'll use it with a warning
+        ic_cdk::println!("Warning: {} price is {} seconds old", ticker, (current_time - price.timestamp) / 1_000_000_000);
+    }
+
+    Ok(price.value)
 }
 
 #[query]

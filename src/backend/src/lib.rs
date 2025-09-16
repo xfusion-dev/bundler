@@ -49,6 +49,11 @@ async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
 }
 
 #[update]
+async fn get_asset_price(asset_id: AssetId) -> Result<AssetPrice, String> {
+    oracle::get_asset_price(asset_id).await
+}
+
+#[update]
 async fn get_portfolio_value(user: Option<Principal>) -> Result<u64, String> {
     let user_principal = user.unwrap_or_else(|| msg_caller());
     nav_calculator::get_portfolio_value(user_principal).await

@@ -84,6 +84,9 @@ export default function Header({ showHero = false }: HeaderProps) {
             <Link to="/#features">Features</Link>
             <Link to="/bundles">Bundles</Link>
             <Link to="/assets">Assets</Link>
+            {isAuthenticated && (
+              <Link to="/portfolio">Portfolio</Link>
+            )}
             <span className="nav-menu-disabled">
               Documentation
               <ExternalLink className="w-4 h-4 ml-1" />
@@ -131,13 +134,22 @@ export default function Header({ showHero = false }: HeaderProps) {
               >
                 Bundles
               </Link>
-              <Link 
-                to="/assets" 
+              <Link
+                to="/assets"
                 onClick={closeMobileMenu}
                 className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
               >
                 Assets
               </Link>
+              {isAuthenticated && (
+                <Link
+                  to="/portfolio"
+                  onClick={closeMobileMenu}
+                  className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
+                >
+                  Portfolio
+                </Link>
+              )}
               <span className="px-6 py-3 text-quaternary opacity-50 border-b border-primary/20 flex items-center gap-2">
                 Documentation
                 <ExternalLink className="w-4 h-4" />

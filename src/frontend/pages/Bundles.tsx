@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { backendService } from '../lib/backend-service';
 import { Package, TrendingUp, Users, Clock, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { TradeModal } from '../components/trading/TradeModal';
 
 interface Bundle {
   id: number;
@@ -20,12 +18,6 @@ export default function Bundles() {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tradeModal, setTradeModal] = useState<{
-    isOpen: boolean;
-    bundleId: number;
-    bundleName: string;
-    mode: 'buy' | 'sell';
-  }>({ isOpen: false, bundleId: 0, bundleName: '', mode: 'buy' });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -49,15 +41,6 @@ export default function Bundles() {
 
   const handleBundleClick = (bundleId: number) => {
     navigate(`/bundle/${bundleId}`);
-  };
-
-  const handleTrade = (bundle: Bundle, mode: 'buy' | 'sell') => {
-    setTradeModal({
-      isOpen: true,
-      bundleId: bundle.id,
-      bundleName: bundle.name,
-      mode
-    });
   };
 
   const getAllocationString = (allocations: { asset_id: string; percentage: number }[]) => {
@@ -185,15 +168,14 @@ export default function Bundles() {
                 )}
               </div>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTrade(bundle, 'buy');
-                }}
-                className="w-full mt-4 btn-unique py-2 text-sm"
-              >
-                TRADE BUNDLE
-              </button>
+              <div className="mt-4 pt-4 border-t border-primary">
+                <button
+                  onClick={() => handleBundleClick(bundle.id)}
+                  className="w-full text-accent text-sm font-medium hover:text-accent/80 transition-colors"
+                >
+                  View Details →
+                </button>
+              </div>
             </motion.div>
           ))}
         </motion.div>
@@ -214,14 +196,6 @@ export default function Bundles() {
           </Link>
         </motion.div>
       )}
-
-      <TradeModal
-        isOpen={tradeModal.isOpen}
-        onClose={() => setTradeModal(prev => ({ ...prev, isOpen: false }))}
-        bundleId={tradeModal.bundleId}
-        bundleName={tradeModal.bundleName}
-        mode={tradeModal.mode}
-      />
     </div>
   );
 }

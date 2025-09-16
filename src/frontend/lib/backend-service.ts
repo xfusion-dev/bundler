@@ -3,7 +3,7 @@ import { Principal } from '@dfinity/principal';
 import { idlFactory } from '../../backend/declarations/backend.did.js';
 import { authService } from './auth';
 
-const BACKEND_CANISTER_ID = 'uxrrr-q7777-77774-qaaaq-cai';
+const BACKEND_CANISTER_ID = 'dk3fi-vyaaa-aaaae-qfycq-cai';
 
 class BackendService {
   private actor: any = null;
@@ -25,10 +25,8 @@ class BackendService {
     } else {
       // Fall back to anonymous agent
       const agent = new HttpAgent({
-        host: 'http://localhost:4943',
+        host: 'https://ic0.app',
       });
-
-      await agent.fetchRootKey();
 
       this.agent = agent;
       this.actor = Actor.createActor(idlFactory, {
@@ -42,7 +40,16 @@ class BackendService {
 
   async listAssets() {
     try {
-      const actor = await this.getActor();
+      // Create a fresh agent for query calls to avoid signature issues
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
       const result = await actor.list_assets([]);
       return result;
     } catch (e) {
@@ -57,7 +64,16 @@ class BackendService {
 
   async listBundles() {
     try {
-      const actor = await this.getActor();
+      // Create a fresh agent for query calls to avoid signature issues
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
       const result = await actor.list_active_bundles();
       console.log('Bundles from backend:', result);
       return result;
@@ -169,6 +185,70 @@ class BackendService {
       throw e;
     }
   }
+
+  async calculateBundleNav(bundleId: number) {
+    try {
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      const result = await actor.calculate_bundle_nav(bundleId);
+
+      if ('Ok' in result) {
+        return result.Ok;
+      }
+      throw new Error(result.Err);
+    } catch (e) {
+      console.error('calculateBundleNav failed:', e);
+      throw e;
+    }
+  }
+
+  async getBundleHolderCount(bundleId: number) {
+    try {
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      const holders = await actor.get_nav_holders(bundleId);
+      return holders.length;
+    } catch (e) {
+      console.error('getBundleHolderCount failed:', e);
+      return 0;
+    }
+  }
+
+  async getBundleHoldings(bundleId: number) {
+    try {
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      const holdings = await actor.get_bundle_holdings(bundleId);
+      return holdings;
+    } catch (e) {
+      console.error('getBundleHoldings failed:', e);
+      return [];
+    }
+  }
+
+  // Note: We get asset prices from NAV calculation data instead
+  // as it includes the oracle prices already
 }
 
 export const backendService = new BackendService();

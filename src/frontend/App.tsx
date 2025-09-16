@@ -7,6 +7,7 @@ import BundleDetails from './pages/BundleDetails';
 import BundleBuilder from './pages/BundleBuilder';
 import Assets from './pages/Assets';
 import Bundles from './pages/Bundles';
+import Portfolio from './pages/Portfolio';
 
 function App() {
   return (
@@ -37,6 +38,11 @@ function App() {
           <Route path="/bundles" element={
             <Layout showHero={false}>
               <Bundles />
+            </Layout>
+          } />
+          <Route path="/portfolio" element={
+            <Layout showHero={false}>
+              <Portfolio />
             </Layout>
           } />
         </Routes>
