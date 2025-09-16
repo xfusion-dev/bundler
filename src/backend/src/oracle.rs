@@ -78,38 +78,30 @@ pub async fn get_multiple_prices(asset_ids: &[AssetId]) -> Result<Vec<AssetPrice
     }
 
     if !tickers_to_fetch.is_empty() {
-        let oracle_principal = Principal::from_text(XFUSION_ORACLE_CANISTER)
-            .map_err(|e| format!("Invalid oracle canister ID: {}", e))?;
-
-        let (oracle_prices,): (Vec<Option<OraclePrice>>,) = ic_cdk::call(
-            oracle_principal,
-            "get_prices",
-            (tickers_to_fetch.clone(),)
-        ).await
-        .map_err(|e| format!("Failed to call oracle: {:?}", e))?;
-
         let current_time = time();
-        let max_age = 5 * 60 * 1_000_000_000;
 
-        for (i, price_opt) in oracle_prices.iter().enumerate() {
-            if let Some(price) = price_opt {
-                if current_time > price.timestamp && (current_time - price.timestamp) > max_age {
-                    return Err(format!("Price for {} is too stale", tickers_to_fetch[i]));
-                }
+        // Use mock prices for development
+        for (i, ticker) in tickers_to_fetch.iter().enumerate() {
+            let mock_price = match ticker.as_str() {
+                "BTC" => 65_000_00000000,  // $65,000 with 8 decimals
+                "ETH" => 3_500_00000000,   // $3,500 with 8 decimals
+                "ICP" => 15_00000000,      // $15 with 8 decimals
+                "SOL" => 150_00000000,     // $150 with 8 decimals
+                "GOLD" => 2_000_00000000,  // $2,000 with 8 decimals
+                "USDC" => 1_00000000,      // $1 with 8 decimals
+                _ => 100_00000000,         // Default $100 with 8 decimals
+            };
 
-                let asset_price = AssetPrice {
-                    asset_id: assets_to_update[i].clone(),
-                    price_usd: price.value,
-                    timestamp: current_time,
-                    source: "xfusion_oracle".to_string(),
-                    confidence: 95,
-                };
+            let asset_price = AssetPrice {
+                asset_id: assets_to_update[i].clone(),
+                price_usd: mock_price,
+                timestamp: current_time,
+                source: "mock_oracle".to_string(),
+                confidence: 95,
+            };
 
-                PRICE_STORAGE.with(|p| p.borrow_mut().insert(assets_to_update[i].clone(), asset_price.clone()));
-                prices.push(asset_price);
-            } else {
-                return Err(format!("No price available for {}", tickers_to_fetch[i]));
-            }
+            PRICE_STORAGE.with(|p| p.borrow_mut().insert(assets_to_update[i].clone(), asset_price.clone()));
+            prices.push(asset_price);
         }
     }
 
@@ -117,23 +109,18 @@ pub async fn get_multiple_prices(asset_ids: &[AssetId]) -> Result<Vec<AssetPrice
 }
 
 async fn fetch_price_from_oracle(ticker: &str) -> Result<u64, String> {
-    let oracle_principal = Principal::from_text(XFUSION_ORACLE_CANISTER)
-        .map_err(|e| format!("Invalid oracle canister ID: {}", e))?;
+    // Mock prices for development
+    let mock_price = match ticker {
+        "BTC" => 65_000_00000000,  // $65,000 with 8 decimals
+        "ETH" => 3_500_00000000,   // $3,500 with 8 decimals
+        "ICP" => 15_00000000,      // $15 with 8 decimals
+        "SOL" => 150_00000000,     // $150 with 8 decimals
+        "GOLD" => 2_000_00000000,  // $2,000 with 8 decimals
+        "USDC" => 1_00000000,      // $1 with 8 decimals
+        _ => 100_00000000,         // Default $100 with 8 decimals
+    };
 
-    let (price_opt,): (Option<OraclePrice>,) = ic_cdk::call(oracle_principal, "get_price", (ticker,))
-        .await
-        .map_err(|e| format!("Failed to call oracle: {:?}", e))?;
-
-    let price = price_opt.ok_or_else(|| format!("No price available for {}", ticker))?;
-
-    let current_time = time();
-    let max_age = 5 * 60 * 1_000_000_000;
-
-    if current_time > price.timestamp && (current_time - price.timestamp) > max_age {
-        return Err(format!("Price for {} is too stale", ticker));
-    }
-
-    Ok(price.value)
+    Ok(mock_price)
 }
 
 #[query]

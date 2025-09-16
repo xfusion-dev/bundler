@@ -1,9 +1,11 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_DFX_NETWORK?: string;
+  readonly VITE_DFX_NETWORK?: 'local' | 'ic';
   readonly VITE_CANISTER_ID_BACKEND?: string;
   readonly VITE_CANISTER_ID_FRONTEND?: string;
+  readonly VITE_CANISTER_ID_INTERNET_IDENTITY?: string;
+  readonly VITE_II_URL?: string;
   // Add other environment variables as needed
 }
 

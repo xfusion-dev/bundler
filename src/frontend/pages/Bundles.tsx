@@ -1,67 +1,41 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { backendService } from '../lib/backend';
-import BundleCard from '../components/bundle/BundleCard';
-import { Bundle } from '../lib/mock-bundles';
+import { backendService } from '../lib/backend-service';
+import { Package, TrendingUp, Users, Clock, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { TradeModal } from '../components/trading/TradeModal';
+
+interface Bundle {
+  id: number;
+  name: string;
+  description?: string;
+  allocations: { asset_id: string; percentage: number }[];
+  created_at?: number;
+  creator?: string;
+  is_active?: boolean;
+}
 
 export default function Bundles() {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tradeModal, setTradeModal] = useState<{
+    isOpen: boolean;
+    bundleId: number;
+    bundleName: string;
+    mode: 'buy' | 'sell';
+  }>({ isOpen: false, bundleId: 0, bundleName: '', mode: 'buy' });
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadBundles = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        const [backendBundles, allAssets] = await Promise.all([
-          backendService.getPublishedBundles(),
-          backendService.getActiveAssets()
-        ]);
-        
-        // Create asset lookup map
-        const assetMap = new Map(allAssets.map(asset => [asset.id, asset]));
-        
-        // Transform backend bundles to frontend format
-        const transformedBundles: Bundle[] = backendBundles.map(bundle => {
-          // Calculate real bundle price from asset prices and allocations
-          const calculatedPrice = bundle.assets.reduce((total, asset) => {
-            const assetDetails = assetMap.get(asset.asset_id);
-            const assetPrice = assetDetails?.current_price || 0;
-            const allocation = asset.allocation_percentage / 100; // Convert percentage to decimal
-            return total + (assetPrice * allocation);
-          }, 0);
 
-          return {
-            id: bundle.id,
-            name: bundle.name,
-            description: bundle.description,
-            category: 'balanced' as const,
-            totalValue: calculatedPrice, // Use calculated price instead of backend total_value_usd
-            change24h: bundle.performance_24h,
-            volume24h: 0, // Not available from backend
-            tokens: bundle.assets.map(asset => {
-              const assetDetails = assetMap.get(asset.asset_id);
-              return {
-                symbol: assetDetails?.symbol || asset.asset_id,
-                name: assetDetails?.name || asset.asset_id,
-                allocation: asset.allocation_percentage,
-                logo: assetDetails?.logo_url || ''
-              };
-            }),
-            creator: bundle.creator,
-            createdAt: new Date(Number(bundle.created_at) / 1000000).toISOString().split('T')[0],
-            subscribers: bundle.subscribers,
-            logo: '📦',
-            color: bundle.color || '#6366f1',
-            risk: 'medium' as const,
-            apy: Math.random() * 10 + 5 // Mock APY for now
-          };
-        });
-        
-        setBundles(transformedBundles);
+        const backendBundles = await backendService.listBundles();
+        setBundles(backendBundles);
       } catch (err) {
         console.error('Failed to load bundles:', err);
         setError('Failed to load bundles. Please try again.');
@@ -69,16 +43,33 @@ export default function Bundles() {
         setLoading(false);
       }
     };
-    
+
     void loadBundles();
   }, []);
+
+  const handleBundleClick = (bundleId: number) => {
+    navigate(`/bundle/${bundleId}`);
+  };
+
+  const handleTrade = (bundle: Bundle, mode: 'buy' | 'sell') => {
+    setTradeModal({
+      isOpen: true,
+      bundleId: bundle.id,
+      bundleName: bundle.name,
+      mode
+    });
+  };
+
+  const getAllocationString = (allocations: { asset_id: string; percentage: number }[]) => {
+    return allocations.map(a => `${a.percentage}% ${a.asset_id}`).join(' • ');
+  };
 
   if (loading) {
     return (
       <div className="px-6 py-12 max-w-7xl mx-auto">
         <div className="text-center py-20">
           <div className="w-24 h-24 bg-elevated border border-primary flex items-center justify-center mx-auto mb-6">
-            <span className="text-tertiary text-4xl">⏳</span>
+            <Loader2 className="w-8 h-8 animate-spin text-accent" />
           </div>
           <h3 className="heading-medium mb-4">Loading Bundles...</h3>
           <p className="text-secondary">Fetching the latest token bundles from the community.</p>
@@ -96,7 +87,7 @@ export default function Bundles() {
           </div>
           <h3 className="heading-medium mb-4">Error Loading Bundles</h3>
           <p className="text-secondary mb-8">{error}</p>
-          <button 
+          <button
             onClick={() => {
               window.location.reload();
             }}
@@ -111,8 +102,7 @@ export default function Bundles() {
 
   return (
     <div className="px-6 py-12 max-w-7xl mx-auto">
-      {/* Header */}
-      <motion.div 
+      <motion.div
         className="mb-12"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -125,43 +115,113 @@ export default function Bundles() {
           </Link>
         </div>
         <p className="text-unique max-w-5xl">
-          Explore token bundles curated by the community. When you invest in a bundle, 
-          you own 100% of the underlying Chain-Key assets with full custody and control. 
+          Explore token bundles curated by the community. When you invest in a bundle,
+          you own 100% of the underlying Chain-Key assets with full custody and control.
           No middlemen, no synthetic tokens—just direct ownership.
         </p>
       </motion.div>
 
-      {/* Bundles Grid */}
       {bundles.length > 0 ? (
-        <motion.div 
-          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
         >
           {bundles.map((bundle, index) => (
-            <BundleCard key={bundle.id} bundle={bundle} index={index} />
+            <motion.div
+              key={bundle.id}
+              className="card-unique p-6 hover:border-accent transition-all cursor-pointer"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: index * 0.05 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleBundleClick(bundle.id)}
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent to-unique flex items-center justify-center">
+                  <Package className="w-6 h-6 text-background" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-primary font-bold text-lg">{bundle.name}</h3>
+                  {bundle.description && (
+                    <p className="text-secondary text-sm truncate">{bundle.description}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="mb-4 p-3 bg-elevated border border-primary rounded">
+                <p className="text-sm text-secondary">
+                  {getAllocationString(bundle.allocations)}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-secondary text-sm flex items-center gap-1">
+                    <TrendingUp className="w-4 h-4" />
+                    Performance
+                  </span>
+                  <span className="text-green-400 font-medium">+12.5%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-secondary text-sm flex items-center gap-1">
+                    <Users className="w-4 h-4" />
+                    Holders
+                  </span>
+                  <span className="text-primary">{Math.floor(Math.random() * 100)}</span>
+                </div>
+                {bundle.created_at && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-secondary text-sm flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      Created
+                    </span>
+                    <span className="text-primary text-sm">
+                      {new Date(Number(bundle.created_at) / 1000000).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTrade(bundle, 'buy');
+                }}
+                className="w-full mt-4 btn-unique py-2 text-sm"
+              >
+                TRADE BUNDLE
+              </button>
+            </motion.div>
           ))}
         </motion.div>
       ) : (
-        <motion.div 
+        <motion.div
           className="text-center py-20"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div className="w-24 h-24 bg-elevated border border-primary flex items-center justify-center mx-auto mb-6">
-            <span className="text-tertiary text-4xl">📦</span>
+            <Package className="w-8 h-8 text-tertiary" />
           </div>
-          <h3 className="heading-medium mb-4">No Bundles Found</h3>
-          <p className="text-unique max-w-md mx-auto mb-8">
-            No bundles are currently available. Be the first to create a token bundle for the community!
-          </p>
+          <h3 className="heading-medium mb-4">No Bundles Available</h3>
+          <p className="text-secondary mb-8">Be the first to create a token bundle!</p>
           <Link to="/build" className="btn-unique px-6 py-3">
             CREATE FIRST BUNDLE
           </Link>
         </motion.div>
       )}
+
+      <TradeModal
+        isOpen={tradeModal.isOpen}
+        onClose={() => setTradeModal(prev => ({ ...prev, isOpen: false }))}
+        bundleId={tradeModal.bundleId}
+        bundleName={tradeModal.bundleName}
+        mode={tradeModal.mode}
+      />
     </div>
   );
-} 
+}

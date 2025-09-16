@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Bitcoin, Coins, Building, DollarSign, Smile, Grid3X3, Search, Loader2 } from 'lucide-react';
-import { backendService, type Category } from '../lib/backend';
+import { backendService } from '../lib/backend-service';
+import { TradeModal } from '../components/trading/TradeModal';
 
 interface Asset {
   id: string;
@@ -19,37 +20,38 @@ export default function Assets() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [tradeModal, setTradeModal] = useState<{
+    isOpen: boolean;
+    assetId: string;
+    assetName: string;
+    mode: 'buy' | 'sell';
+  }>({ isOpen: false, assetId: '', assetName: '', mode: 'buy' });
 
-  // Load assets and categories from backend
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        const [backendAssets, backendCategories] = await Promise.all([
-          backendService.getActiveAssets(),
-          backendService.getActiveCategories()
-        ]);
+        const backendAssets = await backendService.listAssets();
         
-        // Transform backend assets to frontend format
-        const transformedAssets: Asset[] = backendAssets.map(asset => ({
+        const transformedAssets: Asset[] = backendAssets.map((asset: any) => ({
           id: asset.id,
           symbol: asset.symbol,
           name: asset.name,
-          price: asset.current_price,
-          change24h: asset.price_change_24h,
-          marketCap: asset.current_price * 1000000, // Rough estimate
-          logo: asset.logo_url || '',
-          category: getCategoryName(asset.category_id, backendCategories),
-          description: asset.description || undefined
+          price: 100,
+          change24h: Math.random() * 10 - 5,
+          marketCap: 1000000,
+          logo: asset.metadata?.logo_url || '',
+          category: asset.metadata?.category?.Cryptocurrency ? 'Cryptocurrency' : 'Stablecoin',
+          description: asset.metadata?.description || undefined
         }));
-        
+
         setAssets(transformedAssets);
-        setCategories(backendCategories);
+        setCategories([{ id: 'crypto', name: 'Cryptocurrency' }, { id: 'stable', name: 'Stablecoin' }]);
       } catch (err) {
         setError('Failed to load assets. Please try again.');
         console.error('Error loading assets:', err);
@@ -61,13 +63,11 @@ export default function Assets() {
     void loadData();
   }, []);
 
-  // Helper function to get category name
-  const getCategoryName = (categoryId: string, categories: Category[]): string => {
-    const category = categories.find(c => c.id === categoryId);
+  const getCategoryName = (categoryId: string, categories: any[]): string => {
+    const category = categories.find((c: any) => c.id === categoryId);
     return category?.name || 'Other';
   };
 
-  // Get category icon
   const getCategoryIcon = (categoryName: string) => {
     const iconMap: Record<string, React.ComponentType> = {
       'Classics': Bitcoin,
@@ -79,11 +79,9 @@ export default function Assets() {
     return iconMap[categoryName] || Grid3X3;
   };
 
-  // Filter assets based on search and category
   const getFilteredAssets = () => {
     let filtered = assets;
     
-    // Filter by category
     if (activeCategory !== 'all') {
       const selectedCategory = categories.find(c => c.id === activeCategory);
       if (selectedCategory) {
@@ -91,7 +89,6 @@ export default function Assets() {
     }
     }
     
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(asset => 
@@ -106,7 +103,6 @@ export default function Assets() {
 
   const filteredAssets = getFilteredAssets();
 
-  // Asset categories with icons - now using backend categories
   const categoryOptions = [
     { id: 'all', label: 'All Assets', icon: Grid3X3, description: 'All available tokens' },
     ...categories.map(category => ({
@@ -119,7 +115,6 @@ export default function Assets() {
 
   return (
     <div className="px-6 py-12 max-w-7xl mx-auto">
-        {/* Header */}
         <motion.div
         className="mb-12"
           initial={{ opacity: 0, y: 20 }}
@@ -134,7 +129,6 @@ export default function Assets() {
           </p>
       </motion.div>
           
-      {/* Search Bar */}
       <motion.div 
         className="mb-8"
         initial={{ opacity: 0, y: 20 }}
@@ -153,7 +147,6 @@ export default function Assets() {
           </div>
         </motion.div>
 
-      {/* Category Filters */}
         <motion.div
         className="mb-12"
           initial={{ opacity: 0, y: 20 }}
@@ -188,7 +181,6 @@ export default function Assets() {
           </div>
         </motion.div>
 
-      {/* Assets Count and Status */}
           <motion.div
         className="mb-6"
         initial={{ opacity: 0, y: 20 }}
@@ -218,7 +210,6 @@ export default function Assets() {
         </div>
       </motion.div>
 
-        {/* Error State */}
         {error && (
           <motion.div
           className="text-center py-20"
@@ -240,7 +231,6 @@ export default function Assets() {
         </motion.div>
       )}
 
-      {/* Loading State */}
       {loading && !error && (
         <motion.div 
           className="text-center py-20"
@@ -256,7 +246,6 @@ export default function Assets() {
           </motion.div>
         )}
 
-        {/* Assets Grid */}
         {!loading && !error && (
         <>
           {filteredAssets.length > 0 ? (
@@ -276,7 +265,6 @@ export default function Assets() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                     >
-                      {/* Asset Header */}
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent to-unique flex items-center justify-center text-background text-lg font-bold">
                             {asset.logo ? (
@@ -309,7 +297,6 @@ export default function Assets() {
                           </div>
                         </div>
                         
-                  {/* Price and Change */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-secondary text-sm">Price</span>
@@ -345,15 +332,45 @@ export default function Assets() {
                         </div>
                       </div>
 
-                      {/* Description */}
                   {asset.description && (
                     <div className="mt-4 pt-4 border-t border-primary">
                       <p className="text-secondary text-xs line-clamp-2">
                         {asset.description}
-                </p>
-              </div>
-            )}
-          </motion.div>
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTradeModal({
+                          isOpen: true,
+                          assetId: asset.id,
+                          assetName: asset.symbol,
+                          mode: 'buy'
+                        });
+                      }}
+                      className="flex-1 py-2 bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-colors text-sm font-medium"
+                    >
+                      BUY
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTradeModal({
+                          isOpen: true,
+                          assetId: asset.id,
+                          assetName: asset.symbol,
+                          mode: 'sell'
+                        });
+                      }}
+                      className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium"
+                    >
+                      SELL
+                    </button>
+                  </div>
+                </motion.div>
               ))}
             </motion.div>
           ) : (

@@ -48,3 +48,5 @@ src/frontend/dist
 target/
 Cargo.lock
 *.rs.bk
+
+deps

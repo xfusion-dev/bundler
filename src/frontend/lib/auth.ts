@@ -2,8 +2,9 @@ import { AuthClient } from '@dfinity/auth-client';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 
-// Internet Identity URL for mainnet
-const IDENTITY_PROVIDER = 'https://identity.ic0.app';
+// Internet Identity URL - using local for development
+const IDENTITY_PROVIDER = 'http://rdmx6-jaaaa-aaaaa-aaadq-cai.localhost:4943';
+// For production, use: 'https://identity.ic0.app'
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -92,11 +93,13 @@ class AuthService {
       
       this.agent = new HttpAgent({
         identity,
-        host: 'https://ic0.app', // Mainnet
+        host: 'http://localhost:4943', // Local development
       });
 
-      // Note: Don't fetch root key on mainnet
-      // Only needed for local development
+      // Fetch root key for local development
+      if (process.env.NODE_ENV !== 'production') {
+        await this.agent.fetchRootKey();
+      }
     } catch (error) {
       console.error('Agent setup error:', error);
     }

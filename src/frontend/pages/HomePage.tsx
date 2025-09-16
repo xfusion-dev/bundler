@@ -24,13 +24,11 @@ export default function HomePage() {
         
         const assetMap = new Map(allAssets.map(asset => [asset.id, asset]));
         
-        // Transform backend bundles to frontend format
         const transformedBundles: Bundle[] = backendBundles.map(bundle => {
-          // Calculate real bundle price from asset prices and allocations
           const calculatedPrice = bundle.assets.reduce((total, asset) => {
             const assetDetails = assetMap.get(asset.asset_id);
             const assetPrice = assetDetails?.current_price || 0;
-            const allocation = asset.allocation_percentage / 100; // Convert percentage to decimal
+            const allocation = asset.allocation_percentage / 100;
             return total + (assetPrice * allocation);
           }, 0);
 
@@ -39,9 +37,9 @@ export default function HomePage() {
             name: bundle.name,
             description: bundle.description,
             category: 'balanced' as const,
-            totalValue: calculatedPrice, // Use calculated price instead of backend total_value_usd
+            totalValue: calculatedPrice,
             change24h: bundle.performance_24h,
-            volume24h: 0, // Not available from backend
+            volume24h: 0,
             tokens: bundle.assets.map(asset => {
               const assetDetails = assetMap.get(asset.asset_id);
               return {
@@ -57,14 +55,13 @@ export default function HomePage() {
             logo: '📦',
             color: bundle.color || '#6366f1',
             risk: 'medium' as const,
-            apy: Math.random() * 10 + 5 // Mock APY for now
+            apy: Math.random() * 10 + 5
           };
         });
         
-        setFeaturedBundles(transformedBundles.slice(0, 3)); // Take first 3 featured bundles
+        setFeaturedBundles(transformedBundles.slice(0, 3));
       } catch (err) {
         console.error('Failed to load featured bundles:', err);
-        // Fallback to empty array if featured bundles fail to load
         setFeaturedBundles([]);
       } finally {
         setLoading(false);
@@ -78,7 +75,6 @@ export default function HomePage() {
     <>
       <CompetitionHero />
 
-      {/* Features Section */}
       <section id="features" className="px-6 py-24 bg-gradient-to-b from-space to-space-dark">
         <div className="max-w-7xl mx-auto">
         <h2 className="heading-large mb-20 text-white text-center">
@@ -86,7 +82,6 @@ export default function HomePage() {
               </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             
-            {/* Content Side */}
             <motion.div
               initial={{ opacity: 0, x: -50 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -145,7 +140,6 @@ export default function HomePage() {
               </div>
             </motion.div>
 
-            {/* Image Side */}
             <motion.div
               initial={{ opacity: 0, x: 50 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -161,14 +155,12 @@ export default function HomePage() {
                 />
               </div>
               
-              {/* Decorative background */}
               <div className="absolute inset-0 bg-gradient-to-br from-unique/20 via-transparent to-violet-500/20 rounded-lg transform translate-x-4 translate-y-4 -z-10" />
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Featured Bundles Section */}
       <section id="bundles" className="px-6 py-24 bg-space">
         <div className="max-w-7xl mx-auto">
           <div className="asymmetric-grid mb-16">
