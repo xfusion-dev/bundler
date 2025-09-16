@@ -7,20 +7,35 @@ const BACKEND_CANISTER_ID = 'uxrrr-q7777-77774-qaaaq-cai';
 
 class BackendService {
   private actor: any = null;
+  private agent: HttpAgent | null = null;
 
   async getActor() {
     if (this.actor) return this.actor;
 
-    const agent = new HttpAgent({
-      host: 'http://localhost:4943',
-    });
+    // Try to get authenticated agent first
+    const authAgent = await authService.getAgent();
 
-    await agent.fetchRootKey();
+    if (authAgent) {
+      // Use authenticated agent
+      this.agent = authAgent;
+      this.actor = Actor.createActor(idlFactory, {
+        agent: authAgent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+    } else {
+      // Fall back to anonymous agent
+      const agent = new HttpAgent({
+        host: 'http://localhost:4943',
+      });
 
-    this.actor = Actor.createActor(idlFactory, {
-      agent,
-      canisterId: BACKEND_CANISTER_ID,
-    });
+      await agent.fetchRootKey();
+
+      this.agent = agent;
+      this.actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+    }
 
     return this.actor;
   }
@@ -123,10 +138,16 @@ class BackendService {
     try {
       const actor = await this.getActor();
 
+      // Get the current user's principal from the auth service
+      const userPrincipal = await authService.getPrincipal();
+      if (!userPrincipal) {
+        throw new Error('Not authenticated');
+      }
+
       // Create bundle config - backend expects BundleConfig with Principal type
       const bundleConfig = {
         id: BigInt(Date.now()),
-        creator: Principal.fromText('vo7cb-z7hj6-cguls-wy5uh-gmewm-m6u4g-qbvq7-bmwxg-zgoi6-szjyx-4qe'),
+        creator: userPrincipal,
         name: name,
         description: description ? [description] : [],
         created_at: BigInt(Date.now() * 1000000),
