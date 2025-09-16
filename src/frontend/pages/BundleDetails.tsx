@@ -1,23 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useParams } from 'react-router-dom';
-import { TrendingUp, TrendingDown, BarChart3, PieChart, ArrowUpDown, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, PieChart, ArrowUpDown, Loader2, CheckCircle } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
+import { icrc2Service } from '../lib/icrc2-service';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
-
-// Helper function to get mock prices for assets
-const getMockPrice = (assetId: string): number => {
-  const prices: Record<string, number> = {
-    'BTC': 65000,
-    'ckBTC': 65000,
-    'ETH': 3500,
-    'ckETH': 3500,
-    'USDC': 1,
-    'ckUSDC': 1
-  };
-  return prices[assetId] || 1;
-};
 
 export default function BundleDetails() {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +22,9 @@ export default function BundleDetails() {
   const [tradeTab, setTradeTab] = useState<'buy' | 'sell'>('buy');
   const [tradeAmount, setTradeAmount] = useState<string>('');
   const [isTrading, setIsTrading] = useState(false);
+  const [tradeStatus, setTradeStatus] = useState('');
+  const [tradeStep, setTradeStep] = useState<'idle' | 'quote' | 'approve' | 'execute' | 'complete'>('idle');
+  const [userUsdcBalance, setUserUsdcBalance] = useState<string>('0');
   const { isAuthenticated, login } = useAuth();
 
   useEffect(() => {
@@ -133,6 +124,24 @@ export default function BundleDetails() {
     void loadBundleDetails();
   }, [id]);
 
+  // Load user's ckUSDC balance when authenticated
+  useEffect(() => {
+    const loadBalance = async () => {
+      if (isAuthenticated) {
+        try {
+          const balance = await icrc2Service.getBalance();
+          // Convert from BigInt with 6 decimals to string (ckUSDC has 6 decimals)
+          const formattedBalance = (Number(balance) / 1000000).toFixed(2);
+          setUserUsdcBalance(formattedBalance);
+        } catch (err) {
+          console.error('Failed to load ckUSDC balance:', err);
+        }
+      }
+    };
+
+    void loadBalance();
+  }, [isAuthenticated]);
+
   function getAssetColor(symbol: string) {
     const tokenColors: Record<string, string> = {
       'BTC': '#f7931a',
@@ -151,24 +160,86 @@ export default function BundleDetails() {
     if (!tradeAmount || parseFloat(tradeAmount) <= 0) return;
 
     setIsTrading(true);
+    setTradeStep('quote');
     try {
       if (tradeTab === 'buy') {
+        // Step 1: Request quote
+        setTradeStatus('Requesting quote...');
         const quote = await backendService.requestBuyQuote(
           Number(id),
           parseFloat(tradeAmount) * 1000000
         );
         console.log('Buy quote:', quote);
+
+        // Step 2: Approve ICRC-2 transfer
+        setTradeStep('approve');
+        setTradeStatus('Approving USDC spending...');
+
+        // Convert USDC amount to proper format (6 decimals for ckUSDC)
+        const usdcAmount = BigInt(Math.floor(parseFloat(tradeAmount) * 1000000));
+
+        // Check current allowance
+        const currentAllowance = await icrc2Service.checkBackendAllowance();
+        console.log('Current allowance:', currentAllowance.toString());
+
+        // Only approve if we need more allowance
+        if (currentAllowance < usdcAmount) {
+          console.log('Approving', usdcAmount.toString(), 'ckUSDC');
+          const approvalResult = await icrc2Service.approveBackendCanister(usdcAmount);
+          if (!approvalResult) {
+            throw new Error('Failed to approve USDC spending');
+          }
+          console.log('Approval successful:', approvalResult.toString());
+        } else {
+          console.log('Sufficient allowance already exists');
+        }
+
+        // Step 3: Execute quote
+        setTradeStep('execute');
+        setTradeStatus('Executing trade...');
+        const result = await backendService.executeQuote(quote.id);
+        console.log('Trade result:', result);
+
+        // Step 4: Complete
+        setTradeStep('complete');
+        setTradeStatus('Trade completed successfully!');
+
+        // Refresh balance after trade
+        const newBalance = await icrc2Service.getBalance();
+        const formattedBalance = (Number(newBalance) / 1000000).toFixed(2);
+        setUserUsdcBalance(formattedBalance);
+
+        setTimeout(() => {
+          setTradeStatus('');
+          setTradeStep('idle');
+        }, 3000);
       } else {
+        setTradeStatus('Requesting sell quote...');
         const quote = await backendService.requestSellQuote(
           Number(id),
           parseFloat(tradeAmount) * 100
         );
         console.log('Sell quote:', quote);
+
+        // Execute sell quote
+        setTradeStatus('Executing sell...');
+        const result = await backendService.executeQuote(quote.id);
+        console.log('Trade result:', result);
+
+        setTradeStep('complete');
+        setTradeStatus('Sale completed!');
+        setTimeout(() => {
+          setTradeStatus('');
+          setTradeStep('idle');
+        }, 3000);
       }
 
       setTradeAmount('');
     } catch (err) {
       console.error('Trade failed:', err);
+      setTradeStatus('Trade failed. Please try again.');
+      setTradeStep('idle');
+      setTimeout(() => setTradeStatus(''), 3000);
     } finally {
       setIsTrading(false);
     }
@@ -475,6 +546,18 @@ export default function BundleDetails() {
               </div>
 
               <div className="space-y-4">
+                {/* Balance Display */}
+                {isAuthenticated && tradeTab === 'buy' && (
+                  <div className="bg-surface-light border border-primary/20 p-3 rounded-lg">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-tertiary">Your Balance:</span>
+                      <span className="text-primary font-mono font-bold">
+                        {userUsdcBalance} ckUSDC
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-secondary text-sm mb-2">
                     {tradeTab === 'buy' ? 'You Pay (USDC)' : 'You Sell (NAV)'}
@@ -545,8 +628,12 @@ export default function BundleDetails() {
                   >
                     {isTrading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Processing...
+                        {tradeStep === 'complete' ? (
+                          <CheckCircle className="w-4 h-4" />
+                        ) : (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        )}
+                        {tradeStatus || 'Processing...'}
                       </>
                     ) : (
                       `${tradeTab === 'buy' ? 'Buy' : 'Sell'} ${bundleDetails.name}`
@@ -559,6 +646,57 @@ export default function BundleDetails() {
                   >
                     Connect Wallet
                   </button>
+                )}
+
+                {/* Transaction Steps Info */}
+                {tradeTab === 'buy' && (
+                  <div className="mt-4 p-3 bg-surface-light rounded-lg border border-primary/20">
+                    <div className="text-xs text-tertiary mb-2">Transaction Flow:</div>
+                    <div className="space-y-2">
+                      <div className={`flex items-center gap-2 text-xs transition-all ${
+                        tradeStep === 'quote' ? 'text-accent' :
+                        ['approve', 'execute', 'complete'].includes(tradeStep) ? 'text-green-400' :
+                        'text-secondary'
+                      }`}>
+                        {['approve', 'execute', 'complete'].includes(tradeStep) ? (
+                          <CheckCircle className="w-3 h-3" />
+                        ) : tradeStep === 'quote' ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full border border-current" />
+                        )}
+                        <span>Request quote from contract</span>
+                      </div>
+                      <div className={`flex items-center gap-2 text-xs transition-all ${
+                        tradeStep === 'approve' ? 'text-accent' :
+                        ['execute', 'complete'].includes(tradeStep) ? 'text-green-400' :
+                        'text-secondary'
+                      }`}>
+                        {['execute', 'complete'].includes(tradeStep) ? (
+                          <CheckCircle className="w-3 h-3" />
+                        ) : tradeStep === 'approve' ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full border border-current" />
+                        )}
+                        <span>Approve ckUSDC spending (ICRC-2)</span>
+                      </div>
+                      <div className={`flex items-center gap-2 text-xs transition-all ${
+                        tradeStep === 'execute' ? 'text-accent' :
+                        tradeStep === 'complete' ? 'text-green-400' :
+                        'text-secondary'
+                      }`}>
+                        {tradeStep === 'complete' ? (
+                          <CheckCircle className="w-3 h-3" />
+                        ) : tradeStep === 'execute' ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full border border-current" />
+                        )}
+                        <span>Execute trade & receive NAV tokens</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
