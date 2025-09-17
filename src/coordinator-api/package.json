@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@dfinity/agent": "^3.2.6",
+    "@dfinity/identity-secp256k1": "^3.2.6",
     "@dfinity/principal": "^3.2.6",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",

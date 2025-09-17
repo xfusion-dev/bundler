@@ -1,37 +1,19 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Actor, HttpAgent } from '@dfinity/agent';
-import { Principal } from '@dfinity/principal';
-import { idlFactory } from '../declarations/backend/backend.did.js';
 import { ResolverService } from '../resolver/resolver.service';
+import { BackendService } from '../backend/backend.service';
 
 @Injectable()
-export class QuoteService implements OnModuleInit {
+export class QuoteService {
   private readonly logger = new Logger(QuoteService.name);
-  private backendActor: any;
-  private readonly resolverApiUrl: string;
-  private readonly backendCanisterId: string;
   private quoteCache = new Map<string, any>();
 
   constructor(
     private readonly configService: ConfigService,
     private readonly resolverService: ResolverService,
+    private readonly backendService: BackendService,
   ) {
-    this.resolverApiUrl = this.configService.get<string>('RESOLVER_API_URL', 'http://localhost:3001');
-    this.backendCanisterId = this.configService.get<string>('BACKEND_CANISTER_ID', 'dk3fi-vyaaa-aaaae-qfycq-cai');
-    this.logger.log(`Initialized with resolver API at ${this.resolverApiUrl}`);
-  }
-
-  async onModuleInit() {
-    const agent = new HttpAgent({ host: 'http://localhost:4943' });
-    await agent.fetchRootKey();
-
-    this.backendActor = Actor.createActor(idlFactory, {
-      agent,
-      canisterId: Principal.fromText(this.backendCanisterId),
-    });
-
-    this.logger.log('Backend actor initialized');
+    this.logger.log('Quote service initialized');
   }
 
   async processQuote(quoteId: string): Promise<any> {
@@ -56,7 +38,7 @@ export class QuoteService implements OnModuleInit {
 
     const quote = await this.fetchQuoteFromBackend(quoteId);
     return {
-      status: quote.assigned ? 'assigned' : 'pending',
+      status: quote.status || 'pending',
       quote,
     };
   }
@@ -65,23 +47,13 @@ export class QuoteService implements OnModuleInit {
     this.logger.log(`Fetching quote ${quoteId} from backend`);
 
     try {
-      const result = await this.backendActor.get_quote(quoteId);
+      const quote = await this.backendService.getQuote(quoteId);
 
-      if (result.length === 0) {
+      if (!quote) {
         throw new Error(`Quote ${quoteId} not found`);
       }
 
-      const quote = result[0];
-      return {
-        id: quote.id,
-        type: quote.quote_type.buy ? 'buy' : 'sell',
-        bundleId: quote.bundle_id,
-        amount: Number(quote.nav_amount),
-        userPrincipal: quote.user.toString(),
-        createdAt: new Date(Number(quote.created_at) / 1000000).toISOString(),
-        assigned: quote.assigned_resolver.length > 0,
-        resolver: quote.assigned_resolver.length > 0 ? quote.assigned_resolver[0].toString() : null,
-      };
+      return quote;
     } catch (error) {
       this.logger.error(`Failed to fetch quote from backend: ${error.message}`);
       throw error;
@@ -111,17 +83,15 @@ export class QuoteService implements OnModuleInit {
     this.logger.log(`Assigning quote ${quoteId} to backend with resolver bid`);
 
     try {
-      const validUntilNanos = new Date(resolverBid.validUntil).getTime() * 1000000;
+      const success = await this.backendService.assignQuote(
+        quoteId,
+        resolverBid.resolver,
+        resolverBid.price,
+        new Date(resolverBid.validUntil),
+      );
 
-      const result = await this.backendActor.assign_quote({
-        quote_id: quoteId,
-        resolver: Principal.fromText(resolverBid.resolver),
-        price: BigInt(resolverBid.price),
-        valid_until: BigInt(validUntilNanos),
-      });
-
-      if ('err' in result) {
-        throw new Error(result.err);
+      if (!success) {
+        throw new Error('Failed to assign quote');
       }
 
       return {
