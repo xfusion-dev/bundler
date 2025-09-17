@@ -1,10 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
-import { firstValueFrom } from 'rxjs';
 import { idlFactory } from '../declarations/backend/backend.did.js';
+import { ResolverService } from '../resolver/resolver.service';
 
 @Injectable()
 export class QuoteService implements OnModuleInit {
@@ -15,8 +14,8 @@ export class QuoteService implements OnModuleInit {
   private quoteCache = new Map<string, any>();
 
   constructor(
-    private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly resolverService: ResolverService,
   ) {
     this.resolverApiUrl = this.configService.get<string>('RESOLVER_API_URL', 'http://localhost:3001');
     this.backendCanisterId = this.configService.get<string>('BACKEND_CANISTER_ID', 'dk3fi-vyaaa-aaaae-qfycq-cai');
@@ -93,16 +92,15 @@ export class QuoteService implements OnModuleInit {
     this.logger.log(`Querying resolver for bid on quote ${quoteDetails.id}`);
 
     try {
-      const response = await firstValueFrom(
-        this.httpService.post(`${this.resolverApiUrl}/quote/bid`, {
-          quoteId: quoteDetails.id,
-          type: quoteDetails.type,
-          bundleId: quoteDetails.bundleId,
-          amount: quoteDetails.amount,
-        }),
-      );
+      const bid = await this.resolverService.getBestBid({
+        quoteId: quoteDetails.id,
+        type: quoteDetails.type as 'buy' | 'sell',
+        bundleId: quoteDetails.bundleId,
+        amount: quoteDetails.amount,
+        userPrincipal: quoteDetails.userPrincipal,
+      });
 
-      return response.data;
+      return bid;
     } catch (error) {
       this.logger.error(`Failed to get resolver bid: ${error.message}`);
       throw new Error(`Resolver unavailable: ${error.message}`);
