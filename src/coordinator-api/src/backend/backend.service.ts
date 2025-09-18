@@ -4,7 +4,6 @@ import { Actor, HttpAgent, Identity } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { idlFactory } from '../declarations/backend.did.js';
 import { Secp256k1KeyIdentity } from '@dfinity/identity-secp256k1';
-import { AnonymousIdentity } from '@dfinity/agent';
 
 @Injectable()
 export class BackendService implements OnModuleInit {
@@ -25,13 +24,12 @@ export class BackendService implements OnModuleInit {
   async onModuleInit() {
     try {
       const mnemonic = this.configService.get<string>('COORDINATOR_MNEMONIC');
-      if (mnemonic) {
-        this.identity = await Secp256k1KeyIdentity.fromSeedPhrase(mnemonic);
-        this.logger.log('Using coordinator identity from mnemonic');
-      } else {
-        this.identity = new AnonymousIdentity();
-        this.logger.log('Using anonymous identity');
+      if (!mnemonic) {
+        throw new Error('COORDINATOR_MNEMONIC is required - coordinator cannot operate without identity');
       }
+
+      this.identity = await Secp256k1KeyIdentity.fromSeedPhrase(mnemonic);
+      this.logger.log('Using coordinator identity from mnemonic');
 
       const host = this.network === 'local'
         ? 'http://localhost:4943'
