@@ -2,6 +2,7 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { idlFactory } from '../../backend/declarations/backend.did.js';
 import { authService } from './auth';
+import { coordinatorService } from '../src/services/coordinator-service';
 
 const BACKEND_CANISTER_ID = 'dk3fi-vyaaa-aaaae-qfycq-cai';
 
@@ -89,21 +90,22 @@ class BackendService {
       const result = await actor.request_buy_quote(bundleId, amount);
 
       if ('Ok' in result) {
-        return result.Ok;
+        const quote = result.Ok;
+
+        try {
+          const coordinatorResult = await coordinatorService.processQuote(quote.id.toString());
+          console.log('Quote processed by coordinator:', coordinatorResult);
+        } catch (coordError) {
+          console.error('Failed to process quote with coordinator:', coordError);
+        }
+
+        return quote;
       } else {
         throw new Error(result.Err || 'Failed to get quote');
       }
     } catch (e) {
       console.error('requestBuyQuote failed:', e);
-      return {
-        id: Math.floor(Math.random() * 1000),
-        bundle_id: bundleId,
-        quote_type: { Buy: null },
-        amount_usdc: amount,
-        nav_tokens: Math.floor(amount / 100),
-        expires_at: Date.now() + 60000,
-        is_active: true,
-      };
+      throw e;
     }
   }
 
@@ -113,21 +115,22 @@ class BackendService {
       const result = await actor.request_sell_quote(bundleId, navTokens);
 
       if ('Ok' in result) {
-        return result.Ok;
+        const quote = result.Ok;
+
+        try {
+          const coordinatorResult = await coordinatorService.processQuote(quote.id.toString());
+          console.log('Quote processed by coordinator:', coordinatorResult);
+        } catch (coordError) {
+          console.error('Failed to process quote with coordinator:', coordError);
+        }
+
+        return quote;
       } else {
         throw new Error(result.Err || 'Failed to get quote');
       }
     } catch (e) {
       console.error('requestSellQuote failed:', e);
-      return {
-        id: Math.floor(Math.random() * 1000),
-        bundle_id: bundleId,
-        quote_type: { Sell: null },
-        amount_usdc: navTokens * 95,
-        nav_tokens: navTokens,
-        expires_at: Date.now() + 60000,
-        is_active: true,
-      };
+      throw e;
     }
   }
 
@@ -143,10 +146,7 @@ class BackendService {
       }
     } catch (e) {
       console.error('executeQuote failed:', e);
-      return {
-        transaction_id: Math.floor(Math.random() * 10000),
-        status: 'completed',
-      };
+      throw e;
     }
   }
 
