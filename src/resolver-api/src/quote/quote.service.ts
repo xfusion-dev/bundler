@@ -4,6 +4,7 @@ import { Actor, HttpAgent, Identity } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { Secp256k1KeyIdentity } from '@dfinity/identity-secp256k1';
 import { PricingService } from '../pricing/pricing.service';
+import { WalletService } from '../wallet/wallet.service';
 
 interface BidRequest {
   quoteId: string;
@@ -34,6 +35,7 @@ export class QuoteService implements OnModuleInit {
   constructor(
     private readonly configService: ConfigService,
     private readonly pricingService: PricingService,
+    private readonly walletService: WalletService,
   ) {
     this.network = this.configService.get<string>('NETWORK', 'local');
     this.backendCanisterId = this.configService.get<string>(
@@ -177,63 +179,6 @@ export class QuoteService implements OnModuleInit {
   }
 
   async getWalletStatus() {
-    try {
-      const balances = await this.checkBalances();
-      const approvals = await this.checkApprovals();
-
-      return {
-        principal: this.resolverPrincipal,
-        balances,
-        approvals,
-        ready: this.isResolverReady(balances, approvals),
-      };
-    } catch (error) {
-      this.logger.error(`Failed to get wallet status: ${error.message}`);
-      throw error;
-    }
-  }
-
-  private async checkBalances(): Promise<any> {
-    const balances: any = {};
-
-    try {
-      const ckusdcBalance = await this.backendActor.get_token_balance(
-        this.identity.getPrincipal(),
-        'ckusdc',
-      );
-      balances.ckusdc = Number(ckusdcBalance);
-
-      const ckbtcBalance = await this.backendActor.get_token_balance(
-        this.identity.getPrincipal(),
-        'ckbtc',
-      );
-      balances.ckbtc = Number(ckbtcBalance);
-
-      const ckethBalance = await this.backendActor.get_token_balance(
-        this.identity.getPrincipal(),
-        'cketh',
-      );
-      balances.cketh = Number(ckethBalance);
-    } catch (error) {
-      this.logger.warn(`Failed to check some balances: ${error.message}`);
-    }
-
-    return balances;
-  }
-
-  private async checkApprovals(): Promise<any> {
-    return {
-      ckusdc: true,
-      ckbtc: true,
-      cketh: true,
-    };
-  }
-
-  private isResolverReady(balances: any, approvals: any): boolean {
-    const hasMinimumCkusdc = balances.ckusdc && balances.ckusdc > 100000000;
-    const hasMinimumAssets = balances.ckbtc > 0 || balances.cketh > 0;
-    const hasApprovals = approvals.ckusdc && approvals.ckbtc && approvals.cketh;
-
-    return hasMinimumCkusdc && hasMinimumAssets && hasApprovals;
+    return this.walletService.getWalletStatus();
   }
 }

@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ResolverModule } from './resolver/resolver.module';
 import { QuoteModule } from './quote/quote.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { QuoteModule } from './quote/quote.module';
     }),
     ResolverModule,
     QuoteModule,
+    WalletModule,
   ],
   controllers: [AppController],
   providers: [AppService],
