@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { authService } from '../lib/auth';
+import { backendService } from '../lib/backend-service';
 
 interface Holding {
   bundleId: number;
@@ -11,45 +12,6 @@ interface Holding {
   allocations: { symbol: string; percentage: number }[];
 }
 
-// Mock data for portfolio
-const getMockHoldings = (): Holding[] => [
-  {
-    bundleId: 1,
-    bundleName: "DeFi Leaders Index",
-    navTokens: 150,
-    navPrice: 1.05,
-    totalValue: 157.50,
-    allocations: [
-      { symbol: "ETH", percentage: 40 },
-      { symbol: "BTC", percentage: 30 },
-      { symbol: "SOL", percentage: 30 }
-    ]
-  },
-  {
-    bundleId: 2,
-    bundleName: "Digital Gold Basket",
-    navTokens: 500,
-    navPrice: 1.02,
-    totalValue: 510,
-    allocations: [
-      { symbol: "BTC", percentage: 70 },
-      { symbol: "ETH", percentage: 20 },
-      { symbol: "GOLD", percentage: 10 }
-    ]
-  },
-  {
-    bundleId: 3,
-    bundleName: "Stable Growth Fund",
-    navTokens: 1000,
-    navPrice: 0.98,
-    totalValue: 980,
-    allocations: [
-      { symbol: "USDC", percentage: 50 },
-      { symbol: "BTC", percentage: 30 },
-      { symbol: "ETH", percentage: 20 }
-    ]
-  }
-];
 
 export default function Portfolio() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -63,13 +25,30 @@ export default function Portfolio() {
       setIsAuthenticated(authenticated);
 
       if (authenticated) {
-        // In production, fetch real holdings from backend
-        const mockHoldings = getMockHoldings();
-        setHoldings(mockHoldings);
+        try {
+          const userHoldings = await backendService.getUserHoldings();
 
-        // Calculate total portfolio value
-        const total = mockHoldings.reduce((sum, holding) => sum + holding.totalValue, 0);
-        setTotalPortfolioValue(total);
+          const formattedHoldings: Holding[] = userHoldings.map((h: any) => ({
+            bundleId: Number(h.bundle_id),
+            bundleName: h.bundle_name,
+            navTokens: Number(h.nav_tokens) / 100000000,
+            navPrice: Number(h.nav_price) / 100000000,
+            totalValue: (Number(h.nav_tokens) * Number(h.nav_price)) / (100000000 * 100000000),
+            allocations: h.allocations?.map((a: any) => ({
+              symbol: a.symbol,
+              percentage: Number(a.percentage)
+            })) || []
+          }));
+
+          setHoldings(formattedHoldings);
+
+          const total = formattedHoldings.reduce((sum, h) => sum + h.totalValue, 0);
+          setTotalPortfolioValue(total);
+        } catch (error) {
+          console.error('Failed to fetch holdings:', error);
+          setHoldings([]);
+          setTotalPortfolioValue(0);
+        }
       }
 
       setLoading(false);

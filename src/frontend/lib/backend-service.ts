@@ -150,6 +150,26 @@ class BackendService {
     }
   }
 
+  async getUserHoldings() {
+    try {
+      const actor = await this.getActor();
+      const principal = await authService.getPrincipal();
+      if (!principal) {
+        throw new Error('Not authenticated');
+      }
+
+      const result = await actor.get_user_holdings(principal);
+      if ('Ok' in result) {
+        return result.Ok;
+      } else {
+        throw new Error(result.Err || 'Failed to get holdings');
+      }
+    } catch (e) {
+      console.error('getUserHoldings failed:', e);
+      return [];
+    }
+  }
+
   async createBundle(name: string, description: string | null, allocations: { asset_id: string; percentage: number }[]) {
     try {
       const actor = await this.getActor();
