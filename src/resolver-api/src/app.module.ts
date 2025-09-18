@@ -3,13 +3,15 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ResolverModule } from './resolver/resolver.module';
+import { QuoteModule } from './quote/quote.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    ResolverModule
+    ResolverModule,
+    QuoteModule,
   ],
   controllers: [AppController],
   providers: [AppService],
