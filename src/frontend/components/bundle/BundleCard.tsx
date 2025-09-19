@@ -1,6 +1,23 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Bundle } from '../../lib/mock-bundles';
+
+interface Bundle {
+  id: number;
+  name: string;
+  description: string;
+  nav: number;
+  tvl: number;
+  performance: {
+    '24h': number;
+    '7d': number;
+    '30d': number;
+  };
+  risk: 'low' | 'medium' | 'high';
+  subscribers: number;
+  logo: string;
+  color: string;
+  apy: number;
+}
 
 interface BundleCardProps {
   bundle: Bundle;

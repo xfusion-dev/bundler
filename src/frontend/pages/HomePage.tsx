@@ -6,7 +6,23 @@ import { backendService } from '../lib/backend';
 import BundleCard from '../components/bundle/BundleCard';
 import CompetitionHero from '../components/competition/CompetitionHero';
 import assetsImage from '../assets/assets.png';
-import { Bundle } from '../lib/mock-bundles';
+interface Bundle {
+  id: number;
+  name: string;
+  description: string;
+  nav: number;
+  tvl: number;
+  performance: {
+    '24h': number;
+    '7d': number;
+    '30d': number;
+  };
+  risk: 'low' | 'medium' | 'high';
+  subscribers: number;
+  logo: string;
+  color: string;
+  apy: number;
+}
 
 export default function HomePage() {
   const [featuredBundles, setFeaturedBundles] = useState<Bundle[]>([]);

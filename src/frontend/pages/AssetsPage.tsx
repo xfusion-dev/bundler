@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import mockData from '../lib/mock-trading-data';
 import TradeModal from '../components/trading/TradeModal';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -8,8 +7,8 @@ import { Card } from '../components/ui/Card';
 type AssetCategory = 'All' | 'Cryptocurrency' | 'Stablecoin' | 'Stocks' | 'CommodityBacked';
 
 export const AssetsPage: React.FC = () => {
-  const [assets, setAssets] = useState(mockData.assets);
-  const [filteredAssets, setFilteredAssets] = useState(mockData.assets);
+  const [assets, setAssets] = useState([]);
+  const [filteredAssets, setFilteredAssets] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState<AssetCategory>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<any>(null);

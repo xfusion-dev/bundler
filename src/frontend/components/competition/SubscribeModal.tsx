@@ -4,7 +4,12 @@ import { X, Mail, Trophy, Users, Share2, Check } from 'lucide-react';
 import { validateEmail } from '../../lib/competition';
 import { competitionApi } from '../../lib/competition-api';
 import { useAuth } from '../../lib/AuthContext';
-import type { Bundle } from '../../lib/mock-data';
+
+interface Bundle {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 interface SubscribeModalProps {
   isOpen: boolean;

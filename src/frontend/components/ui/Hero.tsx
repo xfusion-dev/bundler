@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown } from 'lucide-react';
-import { mockPlatformStats } from '../../lib/mock-data';
 
 export default function Hero() {
   return (

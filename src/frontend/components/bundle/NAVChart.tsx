@@ -12,7 +12,6 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { motion } from 'framer-motion';
-import mockData from '../../lib/mock-trading-data';
 
 interface NAVChartProps {
   bundleId: number;
