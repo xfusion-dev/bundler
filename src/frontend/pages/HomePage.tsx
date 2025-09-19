@@ -55,7 +55,7 @@ export default function HomePage() {
             logo: '📦',
             color: bundle.color || '#6366f1',
             risk: 'medium' as const,
-            apy: Math.random() * 10 + 5
+            apy: 0
           };
         });
         

@@ -153,7 +153,7 @@ export default function Bundles() {
                     <Users className="w-4 h-4" />
                     Holders
                   </span>
-                  <span className="text-primary">{Math.floor(Math.random() * 100)}</span>
+                  <span className="text-primary">{bundle.holder_count || 0}</span>
                 </div>
                 {bundle.created_at && (
                   <div className="flex items-center justify-between">

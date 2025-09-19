@@ -281,11 +281,11 @@ export default function BundleDetails() {
     totalSupply: bundle.total_tokens || 0,
     assets: bundleAssets,
     performance: {
-      '1D': Math.random() * 10 - 5,
-      '7D': Math.random() * 20 - 10,
-      '30D': Math.random() * 30 - 15,
-      '90D': Math.random() * 50 - 25,
-      '1Y': Math.random() * 100 - 50,
+      '1D': 0,
+      '7D': 0,
+      '30D': 0,
+      '90D': 0,
+      '1Y': 0,
     },
     priceHistory: (() => {
       const basePrice = bundle.calculated_price || 100;
@@ -293,8 +293,7 @@ export default function BundleDetails() {
       const data = [];
 
       for (let i = 0; i <= points; i++) {
-        const variance = (Math.random() - 0.5) * 0.1 * basePrice;
-        const price = basePrice + variance;
+        const price = basePrice;
         data.push({
           time: `${Math.floor(i)}:00`,
           price: Math.max(0, price)
