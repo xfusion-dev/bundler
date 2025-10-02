@@ -56,8 +56,8 @@ export default function Header({ showHero = false }: HeaderProps) {
     <>
       <nav className={`nav-main ${isScrolled ? 'scrolled' : ''}`}>
         <div className="nav-content">
-          {/* Left side - Logo and Mobile Menu Button */}
-          <div className="flex items-center gap-4">
+          {/* Left side - Logo, Menu Button, and Desktop Menu */}
+          <div className="flex items-center gap-8">
             {/* Mobile Menu Button */}
             <button
               onClick={() => { setIsMobileMenuOpen(!isMobileMenuOpen); }}
@@ -77,22 +77,18 @@ export default function Header({ showHero = false }: HeaderProps) {
               </div>
               <span>Fusion</span>
             </Link>
+
+            {/* Desktop Menu */}
+            <div className="nav-menu hidden md:flex">
+              <Link to="/bundles">Discover Bundles</Link>
+              <Link to="/build">Create Bundle</Link>
+              <span className="nav-menu-disabled">Lending</span>
+              {isAuthenticated && (
+                <Link to="/portfolio">Portfolio</Link>
+              )}
+            </div>
           </div>
-        
-          {/* Desktop Menu */}
-          <div className="nav-menu hidden md:flex">
-            <Link to="/#features">Features</Link>
-            <Link to="/bundles">Bundles</Link>
-            <Link to="/assets">Assets</Link>
-            {isAuthenticated && (
-              <Link to="/portfolio">Portfolio</Link>
-            )}
-            <span className="nav-menu-disabled">
-              Documentation
-              <ExternalLink className="w-4 h-4 ml-1" />
-            </span>
-          </div>
-        
+
           {/* Right side - Auth */}
           <div className="nav-actions">
             {isAuthenticated && principal ? (
@@ -120,27 +116,23 @@ export default function Header({ showHero = false }: HeaderProps) {
         {isMobileMenuOpen && (
           <div className="md:hidden absolute top-full left-0 right-0 bg-surface border-t border-primary z-50">
             <div className="flex flex-col py-4">
-              <Link 
-                to="/#features" 
+              <Link
+                to="/bundles"
                 onClick={closeMobileMenu}
                 className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
               >
-                Features
-              </Link>
-              <Link 
-                to="/bundles" 
-                onClick={closeMobileMenu}
-                className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
-              >
-                Bundles
+                Discover Bundles
               </Link>
               <Link
-                to="/assets"
+                to="/build"
                 onClick={closeMobileMenu}
                 className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
               >
-                Assets
+                Create Bundle
               </Link>
+              <span className="px-6 py-3 text-quaternary opacity-50 border-b border-primary/20">
+                Lending
+              </span>
               {isAuthenticated && (
                 <Link
                   to="/portfolio"
@@ -150,10 +142,6 @@ export default function Header({ showHero = false }: HeaderProps) {
                   Portfolio
                 </Link>
               )}
-              <span className="px-6 py-3 text-quaternary opacity-50 border-b border-primary/20 flex items-center gap-2">
-                Documentation
-                <ExternalLink className="w-4 h-4" />
-              </span>
             </div>
           </div>
         )}

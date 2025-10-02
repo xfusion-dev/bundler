@@ -254,12 +254,6 @@ get_asset_price(asset_id: AssetId) -> Result<AssetPrice, String>
 - Automatic refresh on cache miss
 - Fallback to last known price if oracle unavailable
 
-**Supported Price Feeds:**
-- `BTC/USD` - Bitcoin price
-- `ETH/USD` - Ethereum price
-- `XAUT/USD` - Gold price
-- `USDC/USD` - Stablecoin price
-
 ## Safety Mechanisms
 
 ### 1. Atomic Operations
@@ -360,46 +354,3 @@ dfx deploy backend
 ```bash
 dfx deploy --network ic backend
 ```
-
-### Canister IDs
-- Local: `bkyz2-fmaaa-aaaaa-qaaaq-cai`
-- Mainnet: `dk3fi-vyaaa-aaaae-qfycq-cai`
-
-## API Documentation
-
-Full Candid interface available at:
-- Local: http://localhost:4943/?canisterId=bkyz2-fmaaa-aaaaa-qaaaq-cai
-- Mainnet: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=dk3fi-vyaaa-aaaae-qfycq-cai
-
-## Security Considerations
-
-1. **Principal-based Authentication**: All actions tied to Internet Identity
-2. **Approval Pattern**: ICRC-2 requires explicit approval before transfers
-3. **Escrow Model**: Canister holds funds during trades
-4. **Rate Limiting**: Quote request throttling per user
-5. **Input Validation**: Comprehensive validation on all inputs
-
-## Performance Metrics
-
-- NAV Calculation: < 100ms
-- Quote Request: < 50ms
-- Transaction Creation: < 200ms
-- Bundle Query: < 20ms
-- Price Cache Hit: < 5ms
-
-## Future Enhancements
-
-- [ ] Cross-chain asset support via threshold signatures
-- [ ] Advanced order types (limit, stop-loss)
-- [ ] Automated rebalancing strategies
-- [ ] Governance token for protocol decisions
-- [ ] Historical price tracking and analytics
-- [ ] WebSocket support for real-time updates
-
-## Contributing
-
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for development guidelines.
-
-## License
-
-MIT License - see [LICENSE](../../LICENSE) for details.
