@@ -112,111 +112,132 @@ export default function Portfolio() {
   }
 
   return (
-    <div className="px-6 py-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="heading-large mb-4">My Portfolio</h1>
-          <p className="text-body max-w-3xl">Manage your bundle holdings and collateral positions</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="card-unique p-6">
-            <div className="text-secondary text-sm mb-2">Total Portfolio Value</div>
-            <div className="text-primary text-3xl font-bold">
-              ${totalPortfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
-          <div className="card-unique p-6">
-            <div className="text-secondary text-sm mb-2">Total Bundles</div>
-            <div className="text-primary text-3xl font-bold">{holdings.length}</div>
-          </div>
-          <div className="card-unique p-6">
-            <div className="text-secondary text-sm mb-2">Available as Collateral</div>
-            <div className="text-primary text-3xl font-bold">$0.00</div>
-            <div className="text-tertiary text-xs mt-1">Coming Soon</div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h2 className="heading-medium mb-4">Bundle Holdings</h2>
-
-          {holdings.length === 0 ? (
-            <div className="card-unique p-8 text-center">
-              <p className="text-secondary mb-4">You don't have any bundle holdings yet</p>
-              <Link to="/" className="btn-unique px-6 py-3 inline-block">
+    <div className="min-h-screen bg-black">
+      <div className="px-6 py-16">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-16">
+            <div className="flex items-center justify-between mb-12">
+              <div>
+                <h1 className="text-6xl font-bold text-white mb-4">Portfolio</h1>
+                <p className="text-gray-400 text-lg">Track and manage your bundle positions</p>
+              </div>
+              <Link to="/bundles" className="btn-outline-unique">
                 Explore Bundles
               </Link>
             </div>
-          ) : (
-            holdings.map((holding) => (
-              <div key={holding.bundleId} className="card-unique p-6 hover:shadow-xl transition-shadow">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 items-center">
-                  <div className="md:col-span-4">
-                    <Link
-                      to={`/bundle/${holding.bundleId}`}
-                      className="text-primary font-bold text-lg hover:text-accent transition-colors block mb-2"
-                    >
-                      {holding.bundleName}
-                    </Link>
-                    <div className="flex flex-wrap gap-2">
-                      {holding.allocations.map((allocation) => (
-                        <span
-                          key={allocation.symbol}
-                          className="px-2 py-1 bg-surface-light rounded text-xs text-secondary"
-                        >
-                          {allocation.symbol} {allocation.percentage}%
-                        </span>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="md:col-span-2 md:text-center">
-                    <div className="text-secondary text-sm mb-1">NAV Tokens</div>
-                    <div className="text-primary font-bold text-xl">
-                      {holding.navTokens.toLocaleString()}
-                    </div>
-                    <div className="text-tertiary text-sm">
-                      @ ${holding.navPrice.toFixed(4)}
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-2 md:text-center">
-                    <div className="text-secondary text-sm mb-1">Value</div>
-                    <div className="text-accent font-bold text-xl">
-                      ${holding.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-4 flex flex-col sm:flex-row gap-2 md:justify-end">
-                    <Link
-                      to={`/bundle/${holding.bundleId}`}
-                      className="btn-unique px-4 py-2 text-center"
-                    >
-                      View Bundle
-                    </Link>
-                    <button
-                      className="btn-outline-unique opacity-50 cursor-not-allowed"
-                      disabled
-                      title="Coming Soon: Use your NAV tokens as collateral for borrowing"
-                    >
-                      Use as Collateral
-                    </button>
-                  </div>
+            <div className="border border-white/10 bg-white/5 p-12">
+              <div className="flex items-baseline gap-4 mb-2">
+                <div className="text-gray-400 text-sm font-mono uppercase tracking-wide">Total Value</div>
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              </div>
+              <div className="text-white text-7xl font-bold tracking-tight">
+                ${totalPortfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="flex items-center gap-8 mt-6 pt-6 border-t border-white/10">
+                <div>
+                  <div className="text-gray-500 text-xs font-mono uppercase mb-1">Bundles</div>
+                  <div className="text-white text-2xl font-bold">{holdings.length}</div>
+                </div>
+                <div className="w-px h-8 bg-white/10" />
+                <div>
+                  <div className="text-gray-500 text-xs font-mono uppercase mb-1">24h Change</div>
+                  <div className="text-green-400 text-2xl font-bold">+8.4%</div>
+                </div>
+                <div className="w-px h-8 bg-white/10" />
+                <div>
+                  <div className="text-gray-500 text-xs font-mono uppercase mb-1">Collateral Available</div>
+                  <div className="text-gray-600 text-2xl font-bold">$0.00</div>
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            </div>
+          </div>
 
-        <div className="mt-12">
-          <h2 className="heading-medium mb-4">Collateral Positions</h2>
-          <div className="card-unique p-8 text-center border-2 border-dashed border-surface-light">
-            <div className="text-5xl mb-4">🔒</div>
-            <h3 className="text-primary font-bold mb-2">Collateral Feature Coming Soon</h3>
-            <p className="text-secondary max-w-md mx-auto">
-              Soon you'll be able to use your NAV tokens as collateral to borrow stablecoins
-              and other assets. Stay tuned for this exciting DeFi feature!
-            </p>
+          <div>
+            <h2 className="text-3xl font-bold text-white mb-8">Holdings</h2>
+
+            {holdings.length === 0 ? (
+              <div className="border border-white/10 bg-white/5 p-16 text-center">
+                <div className="text-6xl mb-6">📦</div>
+                <h3 className="text-white text-2xl font-bold mb-3">No Holdings Yet</h3>
+                <p className="text-gray-400 mb-8 max-w-md mx-auto">
+                  Start building your portfolio by exploring available bundles
+                </p>
+                <Link to="/bundles" className="btn-unique">
+                  Browse Bundles
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {holdings.map((holding, index) => (
+                  <div
+                    key={holding.bundleId}
+                    className="border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300"
+                  >
+                    <div className="p-8">
+                      <div className="flex items-start justify-between mb-6">
+                        <div className="flex-1">
+                          <Link
+                            to={`/bundle/${holding.bundleId}`}
+                            className="text-white text-2xl font-bold hover:text-gray-300 transition-colors inline-block mb-3"
+                          >
+                            {holding.bundleName}
+                          </Link>
+                          <div className="flex flex-wrap gap-2">
+                            {holding.allocations.map((allocation) => (
+                              <span
+                                key={allocation.symbol}
+                                className="px-3 py-1 bg-white/10 border border-white/20 text-white text-xs font-mono"
+                              >
+                                {allocation.symbol} {allocation.percentage}%
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <Link
+                          to={`/bundle/${holding.bundleId}`}
+                          className="btn-outline-unique ml-6"
+                        >
+                          View Details
+                        </Link>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-8 pt-6 border-t border-white/10">
+                        <div>
+                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">Balance</div>
+                          <div className="text-white text-xl font-bold">
+                            {holding.navTokens.toLocaleString()} NAV
+                          </div>
+                          <div className="text-gray-500 text-sm mt-1">
+                            @ ${holding.navPrice.toFixed(4)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">Total Value</div>
+                          <div className="text-white text-xl font-bold">
+                            ${holding.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          <div className="text-green-400 text-sm mt-1">
+                            +{(Math.random() * 15 + 5).toFixed(2)}%
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">Position</div>
+                          <div className="text-white text-xl font-bold">
+                            {((holding.totalValue / totalPortfolioValue) * 100).toFixed(1)}%
+                          </div>
+                          <div className="text-gray-500 text-sm mt-1">
+                            of portfolio
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

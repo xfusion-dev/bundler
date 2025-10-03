@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Minus, Eye, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3 } from 'lucide-react';
+import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
 
@@ -53,6 +53,7 @@ export default function BundleBuilder() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -119,14 +120,16 @@ export default function BundleBuilder() {
 
   if (loading) {
     return (
-      <div className="px-6 py-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-20">
-            <div className="w-24 h-24 bg-elevated border border-primary flex items-center justify-center mx-auto mb-6">
-              <span className="text-tertiary text-4xl">⏳</span>
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">⏳</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Loading...</h3>
+              <p className="text-gray-400">Checking authentication status...</p>
             </div>
-            <h3 className="heading-medium mb-4">Loading...</h3>
-            <p className="text-secondary">Checking authentication status...</p>
           </div>
         </div>
       </div>
@@ -135,22 +138,24 @@ export default function BundleBuilder() {
 
   if (!isAuthenticated) {
     return (
-      <div className="px-6 py-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-20">
-            <div className="w-24 h-24 bg-elevated border border-primary flex items-center justify-center mx-auto mb-6">
-              <span className="text-tertiary text-4xl">🔐</span>
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">🔐</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Authentication Required</h3>
+              <p className="text-gray-400 mb-8 max-w-md mx-auto">
+                You need to be logged in to create bundles. Please authenticate with Internet Identity to continue.
+              </p>
+              <button
+                onClick={() => void login()}
+                className="btn-unique px-8 py-3"
+              >
+                LOGIN WITH INTERNET IDENTITY
+              </button>
             </div>
-            <h3 className="heading-medium mb-4">Authentication Required</h3>
-            <p className="text-secondary mb-8 max-w-md mx-auto">
-              You need to be logged in to create bundles. Please authenticate with Internet Identity to continue.
-            </p>
-            <button
-              onClick={() => void login()}
-              className="btn-unique px-8 py-3"
-            >
-              LOGIN WITH INTERNET IDENTITY
-            </button>
           </div>
         </div>
       </div>
@@ -164,6 +169,7 @@ export default function BundleBuilder() {
     const suggestedPercentage = Math.min(remainingPercentage, 20);
 
     setSelectedAssets([...selectedAssets, { asset, percentage: suggestedPercentage }]);
+    setIsDrawerOpen(false);
   };
 
   const removeAsset = (assetId: string) => {
@@ -268,146 +274,365 @@ export default function BundleBuilder() {
   const isValid = totalPercentage === 100 && bundleName && selectedAssets.length >= 2;
 
   return (
-    <div className="px-6 py-8">
-      <div className="max-w-7xl mx-auto mb-8">
-        <h1 className="heading-large mb-4">Build Your Bundle</h1>
-        <p className="text-body max-w-3xl">
-          Create a custom token bundle with your preferred asset allocation.
-          Select tokens, set percentages, and launch your own tradeable index.
-        </p>
-      </div>
+    <>
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-16">
+              <h1 className="text-6xl font-bold text-white mb-4">Create Bundle</h1>
+              <p className="text-gray-400 text-lg">
+                Design a custom token portfolio with your own allocations and earn commission from every trade
+              </p>
+            </div>
 
-      {error && (
-        <div className="max-w-7xl mx-auto mb-6">
-          <div className="card-unique p-4 border-red-400/20 bg-red-400/5">
-            <div className="text-red-400">{error}</div>
-          </div>
-        </div>
-      )}
+            {error && (
+              <div className="mb-8 border border-red-400/20 bg-red-400/5 p-4">
+                <div className="text-red-400">{error}</div>
+              </div>
+            )}
 
-      {success && (
-        <div className="max-w-7xl mx-auto mb-6">
-          <div className="card-unique p-4 border-green-400/20 bg-green-400/5">
-            <div className="text-green-400">{success}</div>
-          </div>
-        </div>
-      )}
+            {success && (
+              <div className="mb-8 border border-green-400/20 bg-green-400/5 p-4">
+                <div className="text-green-400">{success}</div>
+              </div>
+            )}
 
-      <div className="max-w-7xl mx-auto">
-        <div className="asymmetric-grid gap-8">
-          <div className="space-y-8">
-            <div className="card-unique p-6">
-              <h2 className="heading-medium mb-6">Bundle Configuration</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-8">
+                <div className="border border-white/10 bg-white/5 p-8">
+                  <h2 className="text-2xl font-bold text-white mb-6">Bundle Details</h2>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-secondary text-sm mb-2">Bundle Name</label>
-                  <input
-                    type="text"
-                    value={bundleName}
-                    onChange={(e) => { setBundleName(e.target.value); }}
-                    placeholder="e.g., My DeFi Portfolio"
-                    className="w-full bg-elevated border border-primary p-3 text-primary rounded focus:border-accent focus:outline-none"
-                    disabled={creating}
-                  />
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-gray-400 text-sm font-mono uppercase mb-3">Bundle Name</label>
+                      <input
+                        type="text"
+                        value={bundleName}
+                        onChange={(e) => { setBundleName(e.target.value); }}
+                        placeholder="e.g., DeFi Blue Chips"
+                        className="w-full bg-black border border-white/20 p-4 text-white text-lg focus:border-white focus:outline-none transition-colors"
+                        disabled={creating}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-400 text-sm font-mono uppercase mb-3">Description (Optional)</label>
+                      <textarea
+                        value={bundleDescription}
+                        onChange={(e) => { setBundleDescription(e.target.value); }}
+                        placeholder="Describe your bundle strategy..."
+                        rows={4}
+                        className="w-full bg-black border border-white/20 p-4 text-white focus:border-white focus:outline-none resize-none transition-colors"
+                        disabled={creating}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-secondary text-sm mb-2">Description</label>
-                  <textarea
-                    value={bundleDescription}
-                    onChange={(e) => { setBundleDescription(e.target.value); }}
-                    placeholder="Describe your bundle strategy..."
-                    rows={3}
-                    className="w-full bg-elevated border border-primary p-3 text-primary rounded focus:border-accent focus:outline-none resize-none"
-                    disabled={creating}
-                  />
+                <div className="border border-white/10 bg-white/5 p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-white">Asset Allocation</h2>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={distributeEvenly}
+                        disabled={selectedAssets.length === 0 || creating}
+                        className="border border-white/20 px-4 py-2 text-white text-sm hover:bg-white/10 disabled:opacity-30 transition-colors flex items-center gap-2"
+                        title="Distribute Evenly"
+                      >
+                        <Shuffle className="w-4 h-4" />
+                        Even
+                      </button>
+                      <button
+                        onClick={resetAllocations}
+                        disabled={selectedAssets.length === 0 || creating}
+                        className="border border-white/20 px-4 py-2 text-white text-sm hover:bg-white/10 disabled:opacity-30 transition-colors flex items-center gap-2"
+                        title="Reset All"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  {selectedAssets.length === 0 ? (
+                    <div className="border-2 border-dashed border-white/10 p-12 text-center">
+                      <Sparkles className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                      <h3 className="text-white text-xl font-bold mb-2">No Assets Selected</h3>
+                      <p className="text-gray-400 mb-6">Add assets to start building your bundle</p>
+                      <button
+                        onClick={() => setIsDrawerOpen(true)}
+                        className="btn-unique"
+                        disabled={creating}
+                      >
+                        <Plus className="w-4 h-4 inline mr-2" />
+                        Add Assets
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-6">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-gray-400 text-sm font-mono uppercase">Total Allocation</span>
+                          <span className={`text-2xl font-bold ${
+                            totalPercentage === 100 ? 'text-green-400' :
+                            totalPercentage > 100 ? 'text-red-400' : 'text-white'
+                          }`}>
+                            {totalPercentage}%
+                          </span>
+                        </div>
+                        <div className="w-full h-3 bg-white/10 overflow-hidden">
+                          <div className="h-full flex">
+                            {selectedAssets.map((allocation) => (
+                              <div
+                                key={allocation.asset.id}
+                                className="h-full transition-all"
+                                style={{
+                                  backgroundColor: allocation.asset.color,
+                                  width: `${allocation.percentage}%`
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {selectedAssets.map((allocation) => (
+                          <div key={allocation.asset.id} className="border border-white/10 bg-black p-6">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 flex items-center justify-center overflow-hidden bg-white/10">
+                                  {allocation.asset.logo ? (
+                                    <img
+                                      src={allocation.asset.logo}
+                                      alt={allocation.asset.symbol}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                        const parent = target.parentElement;
+                                        if (parent) {
+                                          parent.innerHTML = `<div class="w-full h-full flex items-center justify-center" style="background-color: ${allocation.asset.color}"><span class="text-white font-bold">${allocation.asset.symbol.slice(0, 2)}</span></div>`;
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="w-full h-full flex items-center justify-center"
+                                      style={{ backgroundColor: allocation.asset.color }}
+                                    >
+                                      <span className="text-white font-bold">
+                                        {allocation.asset.symbol.slice(0, 2)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-white font-bold text-lg">{allocation.asset.symbol}</div>
+                                  <div className="text-gray-400 text-sm">{allocation.asset.name}</div>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => { removeAsset(allocation.asset.id); }}
+                                className="text-gray-500 hover:text-red-400 transition-colors p-2"
+                                disabled={creating}
+                              >
+                                <X className="w-5 h-5" />
+                              </button>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <label className="text-gray-400 text-sm font-mono uppercase">Allocation</label>
+                                <input
+                                  type="number"
+                                  value={allocation.percentage}
+                                  onChange={(e) => { updatePercentage(allocation.asset.id, parseInt(e.target.value) || 0); }}
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                  className="w-24 bg-white/10 border border-white/20 p-2 text-white text-center font-mono focus:border-white focus:outline-none"
+                                  disabled={creating}
+                                />
+                              </div>
+
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                step="1"
+                                value={allocation.percentage}
+                                onChange={(e) => { updatePercentage(allocation.asset.id, parseInt(e.target.value)); }}
+                                className="w-full h-2"
+                                style={{
+                                  background: `linear-gradient(to right, ${allocation.asset.color} 0%, ${allocation.asset.color} ${allocation.percentage}%, rgba(255,255,255,0.1) ${allocation.percentage}%, rgba(255,255,255,0.1) 100%)`
+                                }}
+                                disabled={creating}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => setIsDrawerOpen(true)}
+                        className="w-full border border-white/20 p-4 text-white hover:bg-white/10 transition-colors mt-4 flex items-center justify-center gap-2"
+                        disabled={creating}
+                      >
+                        <Plus className="w-5 h-5" />
+                        Add More Assets
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="border border-white/10 bg-white/5 p-6 sticky top-6">
+                  <h3 className="text-xl font-bold text-white mb-6">Summary</h3>
+
+                  <div className="space-y-6">
+                    <div>
+                      <div className="text-gray-500 text-xs font-mono uppercase mb-2">Bundle Name</div>
+                      <div className="text-white font-bold text-lg">
+                        {bundleName || <span className="text-gray-600">Not set</span>}
+                      </div>
+                    </div>
+
+                    <div className="w-full h-px bg-white/10" />
+
+                    <div>
+                      <div className="text-gray-500 text-xs font-mono uppercase mb-2">Assets</div>
+                      <div className="text-white font-bold text-2xl">{selectedAssets.length}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-gray-500 text-xs font-mono uppercase mb-2">Allocation</div>
+                      <div className={`font-bold text-2xl ${
+                        totalPercentage === 100 ? 'text-green-400' :
+                        totalPercentage > 100 ? 'text-red-400' : 'text-white'
+                      }`}>
+                        {totalPercentage}%
+                      </div>
+                    </div>
+
+                    <div className="w-full h-px bg-white/10" />
+
+                    <button
+                      disabled={!isValid || creating}
+                      onClick={() => void handleCreateBundle()}
+                      className={`btn-unique w-full py-4 text-lg ${
+                        !isValid || creating ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {creating ? 'CREATING...' : 'CREATE BUNDLE'}
+                    </button>
+
+                    {!isValid && (
+                      <div className="border border-red-400/20 bg-red-400/5 p-4">
+                        <div className="text-red-400 text-sm space-y-1">
+                          {!bundleName && <div>• Bundle name required</div>}
+                          {selectedAssets.length < 2 && <div>• Min 2 assets required</div>}
+                          {totalPercentage !== 100 && <div>• Allocation must = 100%</div>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <div className="card-unique p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="heading-medium">Select Assets</h2>
-                <div className="flex gap-2">
+      <AnimatePresence>
+        {isDrawerOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDrawerOpen(false)}
+              className="fixed inset-0 bg-black/80 z-40"
+            />
+
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-black border-l border-white/10 z-50 overflow-hidden flex flex-col"
+            >
+              <div className="p-8 border-b border-white/10">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-3xl font-bold text-white">Select Assets</h2>
                   <button
-                    onClick={distributeEvenly}
-                    disabled={selectedAssets.length === 0 || creating}
-                    className="btn-outline-unique p-2 disabled:opacity-50"
-                    title="Distribute Evenly"
+                    onClick={() => setIsDrawerOpen(false)}
+                    className="text-gray-400 hover:text-white transition-colors p-2"
                   >
-                    <Shuffle className="w-4 h-4" />
+                    <X className="w-6 h-6" />
                   </button>
-                  <button
-                    onClick={resetAllocations}
-                    disabled={selectedAssets.length === 0 || creating}
-                    className="btn-outline-unique p-2 disabled:opacity-50"
-                    title="Reset All"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input
+                      type="text"
+                      placeholder="Search assets..."
+                      value={searchQuery}
+                      onChange={(e) => { setSearchQuery(e.target.value); }}
+                      className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/20 text-white placeholder-gray-500 focus:border-white focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {categoryOptions.map((category) => {
+                      const IconComponent = category.icon;
+                      const isActive = selectedCategory === category.id;
+
+                      return (
+                        <button
+                          key={category.id}
+                          onClick={() => { setSelectedCategory(category.id); }}
+                          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-white text-black'
+                              : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                          }`}
+                        >
+                          <IconComponent className="w-4 h-4" />
+                          {category.name}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
-              <div className="mb-4 space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-tertiary" />
-                  <input
-                    type="text"
-                    placeholder="Search assets..."
-                    value={searchQuery}
-                    onChange={(e) => { setSearchQuery(e.target.value); }}
-                    className="w-full pl-10 pr-4 py-2 bg-elevated border border-primary text-primary placeholder-tertiary focus:outline-none focus:border-accent transition-colors"
-                    disabled={creating}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {categoryOptions.map((category) => {
-                    const IconComponent = category.icon;
-                    const isActive = selectedCategory === category.id;
-
-                    return (
-                      <button
-                        key={category.id}
-                        onClick={() => { setSelectedCategory(category.id); }}
-                        className={`flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors uppercase whitespace-nowrap ${
-                          isActive
-                            ? 'bg-accent text-background'
-                            : 'bg-elevated border border-primary text-tertiary hover:text-primary hover:border-accent'
-                        }`}
-                        disabled={creating}
-                      >
-                        <IconComponent className="w-4 h-4" />
-                        {category.id === 'all' ? 'ALL' : category.name.toUpperCase()}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="text-xs text-tertiary">
-                  {assetsLoading ? 'Loading...' : `${availableAssetsToAdd.length} assets available`}
-                </div>
-              </div>
-
-              <div className="max-h-96 overflow-y-auto overflow-x-hidden mb-6">
+              <div className="flex-1 overflow-y-auto p-8">
                 {assetsLoading ? (
-                  <div className="text-center py-8 text-tertiary">
+                  <div className="text-center py-16 text-gray-400">
                     Loading assets...
                   </div>
+                ) : availableAssetsToAdd.length === 0 ? (
+                  <div className="text-center py-16">
+                    <div className="text-4xl mb-4">🔍</div>
+                    <div className="text-gray-400">
+                      {searchQuery ? 'No assets found matching your search' : 'No available assets'}
+                    </div>
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     {availableAssetsToAdd.map((asset) => (
-                      <motion.button
+                      <button
                         key={asset.id}
                         onClick={() => { addAsset(asset); }}
-                        className="card-unique p-4 hover:border-accent transition-all"
-                        whileHover={{ scale: 1 }}
-                        whileTap={{ scale: 0.98 }}
-                        disabled={creating}
+                        className="border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 p-6 transition-all text-left"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded flex items-center justify-center overflow-hidden bg-background">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 flex items-center justify-center overflow-hidden bg-white/10">
                             {asset.logo ? (
                               <img
                                 src={asset.logo}
@@ -418,7 +643,7 @@ export default function BundleBuilder() {
                                   target.style.display = 'none';
                                   const parent = target.parentElement;
                                   if (parent) {
-                                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center" style="background-color: ${asset.color}"><span class="text-white font-bold text-xs">${asset.symbol.slice(0, 2)}</span></div>`;
+                                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center" style="background-color: ${asset.color}"><span class="text-white font-bold">${asset.symbol.slice(0, 2)}</span></div>`;
                                   }
                                 }}
                               />
@@ -427,235 +652,27 @@ export default function BundleBuilder() {
                                 className="w-full h-full flex items-center justify-center"
                                 style={{ backgroundColor: asset.color }}
                               >
-                                <span className="text-white font-bold text-xs">
+                                <span className="text-white font-bold">
                                   {asset.symbol.slice(0, 2)}
                                 </span>
                               </div>
                             )}
                           </div>
-                          <div className="text-left">
-                            <div className="text-primary font-medium text-sm">{asset.symbol}</div>
-                            <div className="text-tertiary text-xs">{asset.name}</div>
+                          <div className="flex-1">
+                            <div className="text-white font-bold text-lg">{asset.symbol}</div>
+                            <div className="text-gray-400 text-sm">{asset.name}</div>
                           </div>
+                          <Plus className="w-5 h-5 text-gray-400" />
                         </div>
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
                 )}
-
-                {!assetsLoading && availableAssetsToAdd.length === 0 && (
-                  <div className="text-center py-8 text-tertiary">
-                    {searchQuery ? 'No assets found matching your search' : 'No available assets'}
-                  </div>
-                )}
               </div>
-
-              {selectedAssets.length > 0 && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="heading-small">Asset Allocation</h3>
-                    <div className={`text-sm font-mono ${
-                      totalPercentage === 100 ? 'text-green-400' :
-                      totalPercentage > 100 ? 'text-red-400' : 'text-tertiary'
-                    }`}>
-                      {totalPercentage}%
-                    </div>
-                  </div>
-
-                  {selectedAssets.map((allocation) => (
-                    <div key={allocation.asset.id} className="bg-elevated border border-primary p-4 rounded">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-6 h-6 rounded flex items-center justify-center overflow-hidden bg-background">
-                            {allocation.asset.logo ? (
-                              <img
-                                src={allocation.asset.logo}
-                                alt={allocation.asset.symbol}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center" style="background-color: ${allocation.asset.color}"><span class="text-white font-bold text-xs">${allocation.asset.symbol.slice(0, 2)}</span></div>`;
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <div
-                                className="w-full h-full flex items-center justify-center"
-                                style={{ backgroundColor: allocation.asset.color }}
-                              >
-                                <span className="text-white font-bold text-xs">
-                                  {allocation.asset.symbol.slice(0, 2)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <span className="text-primary font-medium">{allocation.asset.symbol}</span>
-                            <span className="text-tertiary text-sm ml-2">{allocation.asset.name}</span>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => { removeAsset(allocation.asset.id); }}
-                          className="text-tertiary hover:text-red-400 transition-colors"
-                          disabled={creating}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-secondary text-sm">Allocation</label>
-                          <input
-                            type="number"
-                            value={allocation.percentage}
-                            onChange={(e) => { updatePercentage(allocation.asset.id, parseInt(e.target.value) || 0); }}
-                            min="0"
-                            max="100"
-                            step="1"
-                            className="w-20 bg-accent border border-primary p-1 text-primary text-data text-center rounded text-sm"
-                            disabled={creating}
-                          />
-                        </div>
-
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          step="1"
-                          value={allocation.percentage}
-                          onChange={(e) => { updatePercentage(allocation.asset.id, parseInt(e.target.value)); }}
-                          className="w-full"
-                          style={{
-                            background: `linear-gradient(to right, ${allocation.asset.color} 0%, ${allocation.asset.color} ${allocation.percentage}%, var(--border-primary) ${allocation.percentage}%, var(--border-primary) 100%)`
-                          }}
-                          disabled={creating}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="card-unique p-6">
-              <div className="flex items-center gap-2 mb-6">
-                <Eye className="w-4 h-4 text-tertiary" />
-                <h3 className="heading-medium">Preview</h3>
-              </div>
-
-              {bundleName ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-elevated border border-primary flex items-center justify-center">
-                      <span className="text-primary font-bold text-sm text-data">
-                        {bundleName ? bundleName.slice(0, 3).toUpperCase() : '???'}
-                      </span>
-                    </div>
-                    <div>
-                      <h4 className="heading-medium">{bundleName || 'Unnamed Bundle'}</h4>
-                      <p className="text-quaternary text-sm">Bundle Token</p>
-                    </div>
-                  </div>
-
-                  {bundleDescription && (
-                    <p className="text-body text-sm">{bundleDescription}</p>
-                  )}
-
-                  {selectedAssets.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="text-secondary text-sm font-medium">Asset Allocation</div>
-
-                      <div className="w-full h-2 bg-border-primary rounded overflow-hidden">
-                        <div className="h-full flex">
-                          {selectedAssets.map((allocation) => (
-                            <div
-                              key={allocation.asset.id}
-                              className="h-full"
-                              style={{
-                                backgroundColor: allocation.asset.color,
-                                width: `${allocation.percentage}%`
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        {selectedAssets.map((allocation) => (
-                          <div key={allocation.asset.id} className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded"
-                                style={{ backgroundColor: allocation.asset.color }}
-                              />
-                              <span className="text-secondary font-mono">{allocation.asset.symbol}</span>
-                            </div>
-                            <span className="text-tertiary font-mono">{allocation.percentage}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-tertiary">
-                  <p>Configure your bundle to see preview</p>
-                </div>
-              )}
-            </div>
-
-            <div className="card-unique p-6">
-              <h3 className="heading-medium mb-4">Bundle Statistics</h3>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-secondary">Total Assets</span>
-                  <span className="text-primary text-data">{selectedAssets.length}</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-secondary">Allocation</span>
-                  <span className={`text-data font-semibold ${
-                    totalPercentage === 100 ? 'text-green-400' :
-                    totalPercentage > 100 ? 'text-red-400' : 'text-tertiary'
-                  }`}>
-                    {totalPercentage}%
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                disabled={!isValid || creating}
-                onClick={() => void handleCreateBundle()}
-                className={`btn-unique w-full py-3 ${
-                  !isValid || creating ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {creating ? 'CREATING...' : 'CREATE BUNDLE'}
-              </button>
-            </div>
-
-            {!isValid && (
-              <div className="card-unique p-4 border-red-400/20 bg-red-400/5">
-                <div className="text-red-400 text-sm space-y-1">
-                  {!bundleName && <div>• Bundle name is required</div>}
-                  {selectedAssets.length < 2 && <div>• Select at least 2 assets</div>}
-                  {totalPercentage !== 100 && <div>• Allocation must equal 100%</div>}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

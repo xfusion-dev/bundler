@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { backendService } from '../lib/backend-service';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 import BundleRow from '../components/bundle/BundleRow';
 
 interface Bundle {
@@ -28,6 +28,7 @@ export default function Bundles() {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const loadBundles = async () => {
@@ -68,6 +69,13 @@ export default function Bundles() {
     void loadBundles();
   }, []);
 
+  const filteredBundles = bundles.filter(bundle => {
+    const description = Array.isArray(bundle.description) ? bundle.description[0] : bundle.description;
+    return bundle.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (description && description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      bundle.tokens.some(token => token.symbol.toLowerCase().includes(searchQuery.toLowerCase()));
+  });
+
   if (loading) {
     return (
       <div className="px-6 py-12 max-w-7xl mx-auto">
@@ -105,61 +113,92 @@ export default function Bundles() {
   }
 
   return (
-    <div className="px-6 py-12 max-w-7xl mx-auto">
-      <motion.div
-        className="mb-12"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="heading-large">Community Token Bundles</h1>
-          <Link to="/build" className="btn-unique">
-            CREATE BUNDLE
-          </Link>
-        </div>
-        <p className="text-unique max-w-5xl">
-          Explore token bundles curated by the community. When you invest in a bundle,
-          you own 100% of the underlying Chain-Key assets with full custody and control.
-          No middlemen, no synthetic tokens—just direct ownership.
-        </p>
-      </motion.div>
-
-      {bundles.length > 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <div className="border border-white/10 rounded-lg overflow-hidden bg-black">
-            <div className="flex items-center justify-between py-3 px-6 border-b border-white/10 bg-white/5">
-              <div className="text-sm text-gray-400 font-medium">Name</div>
-              <div className="flex items-center gap-8">
-                <div className="text-sm text-gray-400 font-medium min-w-[120px]">Backing</div>
-                <div className="text-sm text-gray-400 font-medium min-w-[120px]">Tags</div>
-                <div className="text-sm text-gray-400 font-medium min-w-[140px]">Performance (Last 7 Days)</div>
-                <div className="text-sm text-gray-400 font-medium min-w-[120px]">Market Cap</div>
+    <div className="min-h-screen bg-black">
+      <div className="px-6 py-16">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            className="mb-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="flex items-end justify-between mb-8">
+              <div>
+                <h1 className="text-6xl font-bold text-white mb-4">Discover Bundles</h1>
+                <p className="text-gray-400 text-lg max-w-3xl">
+                  Explore diversified token bundles. Own 100% of the underlying assets with full custody—no middlemen, just direct ownership.
+                </p>
               </div>
+              <Link to="/build" className="btn-unique px-8 py-4 text-lg">
+                Create Bundle
+              </Link>
             </div>
-            {bundles.map((bundle) => (
-              <BundleRow key={bundle.id} bundle={bundle} />
-            ))}
-          </div>
-        </motion.div>
-      ) : (
-        <motion.div
-          className="text-center py-20"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <h3 className="heading-medium mb-4">No Bundles Available</h3>
-          <p className="text-secondary mb-8">Be the first to create a token bundle!</p>
-          <Link to="/build" className="btn-unique">
-            CREATE FIRST BUNDLE
-          </Link>
-        </motion.div>
-      )}
+
+            <div className="relative">
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search bundles by name, description, or tokens..."
+                className="w-full bg-white/5 border border-white/10 pl-14 pr-6 py-5 text-white placeholder:text-gray-500 focus:border-white/30 focus:outline-none transition-colors"
+              />
+            </div>
+          </motion.div>
+
+          {filteredBundles.length > 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="space-y-4"
+            >
+              {filteredBundles.map((bundle) => (
+                <BundleRow key={bundle.id} bundle={bundle} />
+              ))}
+            </motion.div>
+          ) : searchQuery ? (
+            <motion.div
+              className="border border-white/10 bg-white/5 p-20 text-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Search className="w-8 h-8 text-gray-500" />
+              </div>
+              <h3 className="text-3xl font-bold text-white mb-4">No bundles found</h3>
+              <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
+                No bundles match your search. Try different keywords or create your own bundle.
+              </p>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="btn-outline-unique px-6 py-3"
+              >
+                Clear Search
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              className="border border-white/10 bg-white/5 p-20 text-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">📦</span>
+              </div>
+              <h3 className="text-3xl font-bold text-white mb-4">No Bundles Yet</h3>
+              <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
+                Be the first to create a token bundle and start earning from subscribers!
+              </p>
+              <Link to="/build" className="btn-unique px-8 py-4 text-lg">
+                Create First Bundle
+              </Link>
+            </motion.div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

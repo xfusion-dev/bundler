@@ -8,6 +8,8 @@ import BundleBuilder from './pages/BundleBuilder';
 import Assets from './pages/Assets';
 import Bundles from './pages/Bundles';
 import Portfolio from './pages/Portfolio';
+import Supply from './pages/Supply';
+import Borrow from './pages/Borrow';
 
 function App() {
   return (
@@ -43,6 +45,16 @@ function App() {
           <Route path="/portfolio" element={
             <Layout showHero={false}>
               <Portfolio />
+            </Layout>
+          } />
+          <Route path="/supply" element={
+            <Layout showHero={false}>
+              <Supply />
+            </Layout>
+          } />
+          <Route path="/borrow" element={
+            <Layout showHero={false}>
+              <Borrow />
             </Layout>
           } />
         </Routes>
