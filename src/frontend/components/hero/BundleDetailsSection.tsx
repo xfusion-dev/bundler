@@ -61,8 +61,8 @@ export default function BundlesIntroSection() {
             className="group"
           >
             <Link to="/bundles">
-              <div className="relative h-full p-8 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
-                <div className="w-12 h-12 bg-white/10 border border-white/20 rounded flex items-center justify-center mb-6">
+              <div className="relative h-full p-8 border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="w-12 h-12 bg-white/10 border border-white/20 flex items-center justify-center mb-6">
                   <Package className="w-6 h-6 text-white" />
                 </div>
 
@@ -89,8 +89,8 @@ export default function BundlesIntroSection() {
             className="group"
           >
             <Link to="/build">
-              <div className="relative h-full p-8 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
-                <div className="w-12 h-12 bg-white/10 border border-white/20 rounded flex items-center justify-center mb-6">
+              <div className="relative h-full p-8 border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="w-12 h-12 bg-white/10 border border-white/20 flex items-center justify-center mb-6">
                   <Plus className="w-6 h-6 text-white" />
                 </div>
 
