@@ -1,69 +1,79 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { DollarSign, Package, Plus, ArrowRight } from 'lucide-react';
+import { Package, Plus, ArrowRight } from 'lucide-react';
+import chartImage from '../../assets/chart.png';
 
 export default function BundlesIntroSection() {
   return (
-    <section id="bundles-intro" className="px-6 py-24 bg-space relative">
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-unique/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-violet-500/20 rounded-full blur-3xl" />
-      </div>
+    <section id="bundles-intro" className="px-6 py-32 bg-black relative overflow-hidden">
+      <div className="absolute inset-0 opacity-[0.02]"
+        style={{
+          backgroundImage: `linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)`,
+          backgroundSize: '50px 50px'
+        }}
+      />
 
       <div className="max-w-7xl mx-auto relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.8 }}
           viewport={{ once: true }}
-          className="max-w-4xl mx-auto mb-16"
+          className="mb-20"
         >
-          <div className="bg-surface/50 border border-primary rounded-lg p-8">
-            <div className="flex items-start gap-6">
-              <div className="w-12 h-12 bg-unique/10 border border-unique/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <DollarSign className="w-6 h-6 text-unique" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white mb-3">
-                  What are XFusion Bundles?
-                </h3>
-                <p className="text-tertiary leading-relaxed mb-4">
-                  Welcome to XFusion — a platform for creating, exploring, and trading with decentralized token bundles.
-                  An XFusion Bundle is a dynamic portfolio owned by any number of subscribers in a decentralized network.
-                  Bundles can be created in seconds, are fully auditable on the blockchain, and are backed with real tokens.
-                </p>
-                <p className="text-tertiary leading-relaxed">
-                  XFusion Bundles support all major assets including ckBTC, ckETH, ckUSDC, and tokenized gold, wrapped via{' '}
-                  <span className="text-unique font-semibold">Chain-Key</span> technology backed by the Internet Computer.
-                  Users can trade their bundle tokens for any use-case at any time without anyone else's permission.
-                </p>
-              </div>
+          <div className="flex flex-col lg:flex-row gap-12 items-center max-w-6xl mx-auto">
+            <div className="flex-[3]">
+              <h2 className="text-5xl font-bold text-white mb-6">
+                What are XFusion Bundles?
+              </h2>
+              <p className="text-gray-400 text-lg leading-relaxed mb-6">
+                Think of XFusion Bundles as crypto-native ETFs. With Bundles, you can combine assets from 10+ blockchains — Bitcoin, Ethereum, stablecoins, gold, and more — into a single token.
+              </p>
+              <p className="text-gray-400 text-lg leading-relaxed mb-4">
+                Bundles are:
+              </p>
+              <ul className="text-gray-400 text-lg leading-relaxed mb-6 space-y-2 list-disc pl-6">
+                <li><span className="text-white font-semibold">Multi-chain backed</span> – powered by Chain-Key and cross-chain integrations</li>
+                <li><span className="text-white font-semibold">Fully auditable</span> – transparent and verifiable on the blockchain</li>
+                <li><span className="text-white font-semibold">Instant to launch & trade</span> – create and share portfolios in seconds</li>
+              </ul>
+              <p className="text-gray-400 text-lg leading-relaxed">
+                Whether you're an investor seeking simple diversification or a creator designing your own strategy, XFusion makes it seamless to build, own, and trade decentralized portfolios.
+              </p>
+            </div>
+
+            <div className="relative flex-[2]">
+              <img
+                src={chartImage}
+                alt="XFusion Bundle Performance"
+                className="w-full h-auto opacity-90"
+              />
             </div>
           </div>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
             viewport={{ once: true }}
             className="group"
           >
             <Link to="/bundles">
-              <div className="relative p-8 rounded-lg border border-unique/30 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-sm hover:border-unique/50 transition-all duration-300 hover:transform hover:scale-[1.02]">
-                <div className="w-14 h-14 bg-elevated/80 border border-primary/50 rounded-lg flex items-center justify-center mb-6 group-hover:border-unique/50 transition-colors">
-                  <Package className="w-7 h-7 text-unique" />
+              <div className="relative h-full p-8 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="w-12 h-12 bg-white/10 border border-white/20 rounded flex items-center justify-center mb-6">
+                  <Package className="w-6 h-6 text-white" />
                 </div>
 
-                <h3 className="text-xl font-bold text-white mb-3">
+                <h3 className="text-2xl font-bold text-white mb-3">
                   Browse Bundles
                 </h3>
-                <p className="text-tertiary mb-6 text-sm leading-relaxed">
-                  Explore curated token bundles created by the community. Subscribe to diversified portfolios with a single click.
+                <p className="text-gray-400 mb-8 leading-relaxed">
+                  Explore curated token bundles created by the community. Buy diversified portfolios with a single click.
                 </p>
 
-                <div className="flex items-center gap-2 text-unique text-sm font-medium group-hover:gap-3 transition-all">
+                <div className="flex items-center gap-2 text-white text-sm font-medium group-hover:gap-3 transition-all">
                   <span>Explore Now</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>
@@ -72,26 +82,26 @@ export default function BundlesIntroSection() {
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
             viewport={{ once: true }}
             className="group"
           >
             <Link to="/build">
-              <div className="relative p-8 rounded-lg border border-unique/30 bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-sm hover:border-unique/50 transition-all duration-300 hover:transform hover:scale-[1.02]">
-                <div className="w-14 h-14 bg-elevated/80 border border-primary/50 rounded-lg flex items-center justify-center mb-6 group-hover:border-unique/50 transition-colors">
-                  <Plus className="w-7 h-7 text-unique" />
+              <div className="relative h-full p-8 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="w-12 h-12 bg-white/10 border border-white/20 rounded flex items-center justify-center mb-6">
+                  <Plus className="w-6 h-6 text-white" />
                 </div>
 
-                <h3 className="text-xl font-bold text-white mb-3">
+                <h3 className="text-2xl font-bold text-white mb-3">
                   Create Bundle
                 </h3>
-                <p className="text-tertiary mb-6 text-sm leading-relaxed">
-                  Build your own token bundle with custom allocations. Share your strategy and earn from subscribers.
+                <p className="text-gray-400 mb-8 leading-relaxed">
+                  Design custom token portfolios with your own allocations and earn commission from every trade.
                 </p>
 
-                <div className="flex items-center gap-2 text-unique text-sm font-medium group-hover:gap-3 transition-all">
+                <div className="flex items-center gap-2 text-white text-sm font-medium group-hover:gap-3 transition-all">
                   <span>Start Building</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>

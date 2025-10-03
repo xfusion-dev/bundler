@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { backendService } from '../lib/backend';
-import BundleCard from '../components/bundle/BundleCard';
+import BundleRow from '../components/bundle/BundleRow';
 import TVLHero from '../components/hero/TVLHero';
 import BundlesIntroSection from '../components/hero/BundleDetailsSection';
 interface Bundle {
@@ -91,40 +91,47 @@ export default function HomePage() {
 
       <BundlesIntroSection />
 
-      <section id="bundles" className="px-6 py-24 bg-space">
+      <section id="bundles" className="px-6 py-24 bg-black">
         <div className="max-w-7xl mx-auto">
-          <div className="asymmetric-grid mb-16">
+          <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="heading-large mb-6">Featured Bundles</h2>
-              <p className="text-unique max-w-lg">
-                Popular token bundles created by the community.
+              <h2 className="text-3xl font-bold text-white mb-2">Featured Bundles</h2>
+              <p className="text-gray-400">
+                Popular token bundles created by the community
               </p>
             </div>
-            <div className="flex items-end justify-end">
-              <Link to="/bundles" className="btn-outline-unique">View All Bundles</Link>
-            </div>
+            <Link to="/bundles" className="btn-outline-unique">
+              View All Bundles
+            </Link>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-1">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-surface border border-primary rounded-lg p-6 animate-pulse">
-                  <div className="h-4 bg-primary/20 rounded mb-4"></div>
-                  <div className="h-3 bg-primary/20 rounded mb-2"></div>
-                  <div className="h-3 bg-primary/20 rounded w-3/4"></div>
-                </div>
+                <div key={i} className="h-16 bg-white/5 animate-pulse"></div>
               ))}
             </div>
           ) : featuredBundles.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {featuredBundles.map((bundle, index) => (
-                <BundleCard key={bundle.id} bundle={bundle} index={index} />
+            <div className="border border-white/10 rounded-lg overflow-hidden bg-black">
+              <div className="flex items-center justify-between py-3 px-6 border-b border-white/10 bg-white/5">
+                <div className="text-sm text-gray-400 font-medium">Name</div>
+                <div className="flex items-center gap-8">
+                  <div className="text-sm text-gray-400 font-medium min-w-[120px]">Backing</div>
+                  <div className="text-sm text-gray-400 font-medium min-w-[120px]">Tags</div>
+                  <div className="text-sm text-gray-400 font-medium min-w-[140px]">Performance (Last 7 Days)</div>
+                  <div className="text-sm text-gray-400 font-medium min-w-[120px]">Market Cap</div>
+                </div>
+              </div>
+              {featuredBundles.map((bundle) => (
+                <BundleRow key={bundle.id} bundle={bundle} />
               ))}
             </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-tertiary mb-4">No featured bundles available yet.</p>
-              <Link to="/build" className="btn-unique">Create the First Bundle</Link>
+              <p className="text-gray-400 mb-4">No featured bundles available yet.</p>
+              <Link to="/build" className="btn-unique">
+                Create the First Bundle
+              </Link>
             </div>
           )}
         </div>

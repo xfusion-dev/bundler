@@ -1,16 +1,26 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { backendService } from '../lib/backend-service';
-import { Package, TrendingUp, Users, Clock, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import BundleRow from '../components/bundle/BundleRow';
 
 interface Bundle {
   id: number;
   name: string;
-  description?: string;
-  allocations: { asset_id: string; percentage: number }[];
+  description: string;
+  tokens: Array<{
+    symbol: string;
+    name: string;
+    allocation: number;
+    logo: string;
+  }>;
+  totalValue: number;
+  change24h: number;
+  subscribers: number;
+  creator: string;
+  allocations?: { asset_id: string; percentage: number }[];
   created_at?: number;
-  creator?: string;
   is_active?: boolean;
 }
 
@@ -18,7 +28,6 @@ export default function Bundles() {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const loadBundles = async () => {
@@ -27,7 +36,27 @@ export default function Bundles() {
         setError(null);
 
         const backendBundles = await backendService.listBundles();
-        setBundles(backendBundles);
+
+        const transformedBundles: Bundle[] = backendBundles.map(bundle => ({
+          id: bundle.id,
+          name: bundle.name,
+          description: bundle.description || '',
+          tokens: bundle.allocations.map(a => ({
+            symbol: a.asset_id,
+            name: a.asset_id,
+            allocation: a.percentage,
+            logo: ''
+          })),
+          totalValue: 0,
+          change24h: 0,
+          subscribers: 0,
+          creator: bundle.creator || '',
+          allocations: bundle.allocations,
+          created_at: bundle.created_at,
+          is_active: bundle.is_active
+        }));
+
+        setBundles(transformedBundles);
       } catch (err) {
         console.error('Failed to load bundles:', err);
         setError('Failed to load bundles. Please try again.');
@@ -38,14 +67,6 @@ export default function Bundles() {
 
     void loadBundles();
   }, []);
-
-  const handleBundleClick = (bundleId: number) => {
-    navigate(`/bundle/${bundleId}`);
-  };
-
-  const getAllocationString = (allocations: { asset_id: string; percentage: number }[]) => {
-    return allocations.map(a => `${a.percentage}% ${a.asset_id}`).join(' • ');
-  };
 
   if (loading) {
     return (
@@ -93,7 +114,7 @@ export default function Bundles() {
       >
         <div className="flex items-center justify-between mb-4">
           <h1 className="heading-large">Community Token Bundles</h1>
-          <Link to="/build" className="btn-unique px-6 py-3">
+          <Link to="/build" className="btn-unique">
             CREATE BUNDLE
           </Link>
         </div>
@@ -106,78 +127,24 @@ export default function Bundles() {
 
       {bundles.length > 0 ? (
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
-          {bundles.map((bundle, index) => (
-            <motion.div
-              key={bundle.id}
-              className="card-unique p-6 hover:border-accent transition-all cursor-pointer"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: index * 0.05 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleBundleClick(bundle.id)}
-            >
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent to-unique flex items-center justify-center">
-                  <Package className="w-6 h-6 text-background" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-primary font-bold text-lg">{bundle.name}</h3>
-                  {bundle.description && (
-                    <p className="text-secondary text-sm truncate">{bundle.description}</p>
-                  )}
-                </div>
+          <div className="border border-white/10 rounded-lg overflow-hidden bg-black">
+            <div className="flex items-center justify-between py-3 px-6 border-b border-white/10 bg-white/5">
+              <div className="text-sm text-gray-400 font-medium">Name</div>
+              <div className="flex items-center gap-8">
+                <div className="text-sm text-gray-400 font-medium min-w-[120px]">Backing</div>
+                <div className="text-sm text-gray-400 font-medium min-w-[120px]">Tags</div>
+                <div className="text-sm text-gray-400 font-medium min-w-[140px]">Performance (Last 7 Days)</div>
+                <div className="text-sm text-gray-400 font-medium min-w-[120px]">Market Cap</div>
               </div>
-
-              <div className="mb-4 p-3 bg-elevated border border-primary rounded">
-                <p className="text-sm text-secondary">
-                  {getAllocationString(bundle.allocations)}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-secondary text-sm flex items-center gap-1">
-                    <TrendingUp className="w-4 h-4" />
-                    Performance
-                  </span>
-                  <span className="text-green-400 font-medium">+12.5%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-secondary text-sm flex items-center gap-1">
-                    <Users className="w-4 h-4" />
-                    Holders
-                  </span>
-                  <span className="text-primary">{bundle.holder_count || 0}</span>
-                </div>
-                {bundle.created_at && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-secondary text-sm flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      Created
-                    </span>
-                    <span className="text-primary text-sm">
-                      {new Date(Number(bundle.created_at) / 1000000).toLocaleDateString()}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-primary">
-                <button
-                  onClick={() => handleBundleClick(bundle.id)}
-                  className="w-full text-accent text-sm font-medium hover:text-accent/80 transition-colors"
-                >
-                  View Details →
-                </button>
-              </div>
-            </motion.div>
-          ))}
+            </div>
+            {bundles.map((bundle) => (
+              <BundleRow key={bundle.id} bundle={bundle} />
+            ))}
+          </div>
         </motion.div>
       ) : (
         <motion.div
@@ -186,12 +153,9 @@ export default function Bundles() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
-          <div className="w-24 h-24 bg-elevated border border-primary flex items-center justify-center mx-auto mb-6">
-            <Package className="w-8 h-8 text-tertiary" />
-          </div>
           <h3 className="heading-medium mb-4">No Bundles Available</h3>
           <p className="text-secondary mb-8">Be the first to create a token bundle!</p>
-          <Link to="/build" className="btn-unique px-6 py-3">
+          <Link to="/build" className="btn-unique">
             CREATE FIRST BUNDLE
           </Link>
         </motion.div>
