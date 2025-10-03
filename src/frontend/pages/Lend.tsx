@@ -1,11 +1,42 @@
 import { useState } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 
-export default function Supply() {
+export default function Lend() {
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState<'lend' | 'withdraw'>('lend');
   const { isAuthenticated, login, loading } = useAuth();
+
+  const handleLend = () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (parseFloat(amount) > walletBalance) {
+      toast.error('Insufficient balance');
+      return;
+    }
+    toast.success(`Successfully lent ${amount} ckUSDC!`);
+    setAmount('');
+  };
+
+  const handleWithdraw = () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (parseFloat(amount) > lentBalance) {
+      toast.error('Insufficient lent balance');
+      return;
+    }
+    if (parseFloat(amount) > availableLiquidity) {
+      toast.error('Withdrawal amount exceeds available liquidity');
+      return;
+    }
+    toast.success(`Successfully withdrew ${amount} ckUSDC!`);
+    setAmount('');
+  };
 
   const walletBalance = 10000;
   const lentBalance = 5000;
@@ -210,7 +241,10 @@ export default function Supply() {
                         )}
                       </div>
 
-                      <button className="btn-unique w-full py-6 text-xl">
+                      <button
+                        onClick={handleLend}
+                        className="btn-unique w-full py-6 text-xl"
+                      >
                         Lend ckUSDC
                       </button>
                     </>
@@ -255,6 +289,7 @@ export default function Supply() {
                       </div>
 
                       <button
+                        onClick={handleWithdraw}
                         className="btn-unique w-full py-6 text-xl"
                         disabled={amount && parseFloat(amount) > availableLiquidity}
                       >

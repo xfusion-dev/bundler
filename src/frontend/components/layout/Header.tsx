@@ -82,8 +82,8 @@ export default function Header({ showHero = false }: HeaderProps) {
             <div className="nav-menu hidden md:flex">
               <Link to="/bundles">Discover Bundles</Link>
               <Link to="/build">Create Bundle</Link>
-              <Link to="/supply">Lend</Link>
-              <Link to="/borrow">Borrow</Link>
+              <Link to="/lending/supply">Lend</Link>
+              <Link to="/lending/borrow">Borrow</Link>
               {isAuthenticated && (
                 <Link to="/portfolio">Portfolio</Link>
               )}
@@ -132,14 +132,14 @@ export default function Header({ showHero = false }: HeaderProps) {
                 Create Bundle
               </Link>
               <Link
-                to="/supply"
+                to="/lending/supply"
                 onClick={closeMobileMenu}
                 className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
               >
                 Lend
               </Link>
               <Link
-                to="/borrow"
+                to="/lending/borrow"
                 onClick={closeMobileMenu}
                 className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
               >

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useParams } from 'react-router-dom';
-import { TrendingUp, TrendingDown, BarChart3, PieChart, ArrowUpDown, Loader2, CheckCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, PieChart, ArrowUpDown, CheckCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
 import { icrc2Service } from '../lib/icrc2-service';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import { BundleDetailsSkeleton } from '../components/ui/Skeleton';
 
 export default function BundleDetails() {
   const { id } = useParams<{ id: string }>();
@@ -205,6 +207,7 @@ export default function BundleDetails() {
         // Step 4: Complete
         setTradeStep('complete');
         setTradeStatus('Trade completed successfully!');
+        toast.success(`Successfully purchased ${tradeAmount} ${bundle.name} tokens!`);
 
         // Refresh balance after trade
         const newBalance = await icrc2Service.getBalance();
@@ -230,6 +233,7 @@ export default function BundleDetails() {
 
         setTradeStep('complete');
         setTradeStatus('Sale completed!');
+        toast.success(`Successfully sold ${tradeAmount} ${bundle.name} tokens!`);
         setTimeout(() => {
           setTradeStatus('');
           setTradeStep('idle');
@@ -239,7 +243,9 @@ export default function BundleDetails() {
       setTradeAmount('');
     } catch (err) {
       console.error('Trade failed:', err);
-      setTradeStatus('Trade failed. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Trade failed. Please try again.';
+      setTradeStatus(errorMessage);
+      toast.error(errorMessage);
       setTradeStep('idle');
       setTimeout(() => setTradeStatus(''), 3000);
     } finally {
@@ -248,21 +254,7 @@ export default function BundleDetails() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center py-20">
-              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
-                <Loader2 className="w-8 h-8 animate-spin text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-4">Loading Bundle...</h3>
-              <p className="text-gray-400">Fetching bundle details and real-time pricing data.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <BundleDetailsSkeleton />;
   }
 
   if (error || !bundle) {

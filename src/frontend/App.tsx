@@ -1,5 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './lib/AuthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/layout/Layout';
 import ScrollToTop from './components/layout/ScrollToTop';
 import HomePage from './pages/HomePage';
@@ -8,14 +11,42 @@ import BundleBuilder from './pages/BundleBuilder';
 import Assets from './pages/Assets';
 import Bundles from './pages/Bundles';
 import Portfolio from './pages/Portfolio';
-import Supply from './pages/Supply';
+import Lend from './pages/Lend';
 import Borrow from './pages/Borrow';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <ScrollToTop />
+    <ErrorBoundary>
+      <HelmetProvider>
+        <AuthProvider>
+          <Router>
+            <ScrollToTop />
+            <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#000',
+              color: '#fff',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              padding: '16px',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+            },
+            success: {
+              iconTheme: {
+                primary: '#fff',
+                secondary: '#000',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#000',
+              },
+            },
+          }}
+        />
         <Routes>
           <Route path="/" element={
             <Layout showHero={true}>
@@ -47,19 +78,22 @@ function App() {
               <Portfolio />
             </Layout>
           } />
-          <Route path="/supply" element={
+          <Route path="/lending/supply" element={
             <Layout showHero={false}>
-              <Supply />
+              <Lend />
             </Layout>
           } />
-          <Route path="/borrow" element={
+          <Route path="/lending/borrow" element={
             <Layout showHero={false}>
               <Borrow />
             </Layout>
           } />
+          <Route path="*" element={<NotFound />} />
         </Routes>
-      </Router>
-    </AuthProvider>
+          </Router>
+        </AuthProvider>
+      </HelmetProvider>
+    </ErrorBoundary>
   );
 }
 

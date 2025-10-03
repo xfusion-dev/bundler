@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3, Sparkles } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
+import SEO from '../components/SEO';
 
 interface AssetMetadata {
   category?: any;
@@ -221,6 +223,7 @@ export default function BundleBuilder() {
       );
 
       setSuccess(`Bundle "${bundleName}" created successfully!`);
+      toast.success(`Bundle "${bundleName}" created successfully!`);
 
       setTimeout(() => {
         resetAllocations();
@@ -229,7 +232,9 @@ export default function BundleBuilder() {
 
     } catch (error) {
       console.error('Failed to create bundle:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create bundle. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create bundle. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setCreating(false);
     }
@@ -275,6 +280,11 @@ export default function BundleBuilder() {
 
   return (
     <>
+      <SEO
+        title="Create Token Bundle | XFusion"
+        description="Design your own custom token portfolio with personalized allocations. Earn commission from every trade. Start building your diversified crypto bundle now."
+        keywords="create crypto bundle, custom token portfolio, DeFi portfolio builder, crypto index creator"
+      />
       <div className="min-h-screen bg-black">
         <div className="px-6 py-16">
           <div className="max-w-7xl mx-auto">

@@ -46,9 +46,9 @@ export default function BundleRow({ bundle }: BundleRowProps) {
           </div>
 
           <div className="flex items-center gap-8 flex-shrink-0">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-24 justify-center">
               <div className="flex -space-x-1.5">
-                {bundle.tokens.slice(0, 4).map((token, idx) => (
+                {bundle.tokens.slice(0, 3).map((token, idx) => (
                   <div
                     key={idx}
                     className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 border-2 border-black flex items-center justify-center group-hover:border-white/20 transition-colors"
@@ -60,32 +60,35 @@ export default function BundleRow({ bundle }: BundleRowProps) {
                     </span>
                   </div>
                 ))}
-                {bundle.tokens.length > 4 && (
+                {bundle.tokens.length > 3 && (
                   <div className="w-7 h-7 rounded-full bg-white/10 border-2 border-black flex items-center justify-center text-[9px] text-gray-400 group-hover:border-white/20 transition-colors">
-                    +{bundle.tokens.length - 4}
+                    +{bundle.tokens.length - 3}
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="text-center min-w-[90px]">
-              <div className={`text-sm font-bold ${
+            <div className="text-right min-w-[120px]">
+              <div className="text-white text-xl font-bold mb-1">
+                ${price}
+              </div>
+              <div className="text-gray-500 text-xs">per token</div>
+            </div>
+
+            <div className="text-right min-w-[100px]">
+              <div className={`text-lg font-bold ${
                 bundle.change24h >= 0 ? 'text-green-400' : 'text-red-400'
               }`}>
                 {bundle.change24h >= 0 ? '+' : ''}{bundle.change24h.toFixed(2)}%
               </div>
-              <div className="text-gray-500 text-xs">${price}</div>
             </div>
 
             <div className="text-right min-w-[100px]">
-              <div className="text-white font-bold">
-                ${marketCap >= 1000000
-                  ? `${(marketCap / 1000000).toFixed(1)}M`
-                  : marketCap >= 1000
-                  ? `${(marketCap / 1000).toFixed(1)}K`
-                  : marketCap.toLocaleString()}
+              <div className="text-white text-lg font-bold">
+                {bundle.subscribers >= 1000
+                  ? `${(bundle.subscribers / 1000).toFixed(1)}K`
+                  : bundle.subscribers.toLocaleString()}
               </div>
-              <div className="text-gray-500 text-xs">Market Cap</div>
             </div>
 
             <div className="w-8 h-8 border border-white/20 flex items-center justify-center group-hover:border-white/40 group-hover:bg-white/10 transition-all flex-shrink-0">

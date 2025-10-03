@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Shield, AlertTriangle, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 
 interface CollateralAsset {
@@ -37,6 +38,47 @@ export default function Borrow() {
   const [selectedAsset, setSelectedAsset] = useState<WalletAsset | null>(null);
   const [collateralAmount, setCollateralAmount] = useState('');
   const { isAuthenticated, login, loading } = useAuth();
+
+  const handleBorrow = () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (parseFloat(amount) > availableToBorrow) {
+      toast.error('Amount exceeds available borrow limit');
+      return;
+    }
+    toast.success(`Successfully borrowed ${amount} ckUSDC!`);
+    setAmount('');
+  };
+
+  const handleRepay = () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (parseFloat(amount) > currentDebt) {
+      toast.error('Amount exceeds current debt');
+      return;
+    }
+    toast.success(`Successfully repaid ${amount} ckUSDC!`);
+    setAmount('');
+  };
+
+  const handleAddCollateral = () => {
+    if (!selectedAsset || !collateralAmount || parseFloat(collateralAmount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (parseFloat(collateralAmount) > selectedAsset.balance) {
+      toast.error('Insufficient balance');
+      return;
+    }
+    toast.success(`Successfully added ${collateralAmount} ${selectedAsset.symbol} as collateral!`);
+    setCollateralDrawerOpen(false);
+    setSelectedAsset(null);
+    setCollateralAmount('');
+  };
 
   const totalCollateralValue = MOCK_COLLATERAL.reduce((sum, asset) => sum + asset.valueUSD, 0);
   const borrowLimit = MOCK_COLLATERAL.reduce((sum, asset) => sum + (asset.valueUSD * asset.ltv / 100), 0);
@@ -322,6 +364,7 @@ export default function Borrow() {
                       </div>
 
                       <button
+                        onClick={handleBorrow}
                         className="btn-unique w-full py-6 text-xl"
                         disabled={availableToBorrow <= 0 || (amount && parseFloat(amount) > availableToBorrow)}
                       >
@@ -380,7 +423,10 @@ export default function Borrow() {
                         )}
                       </div>
 
-                      <button className="btn-unique w-full py-6 text-xl">
+                      <button
+                        onClick={handleRepay}
+                        className="btn-unique w-full py-6 text-xl"
+                      >
                         Repay ckUSDC
                       </button>
                     </>
@@ -537,7 +583,10 @@ export default function Borrow() {
                       </div>
                     )}
 
-                    <button className="btn-unique w-full py-6 text-xl">
+                    <button
+                      onClick={handleAddCollateral}
+                      className="btn-unique w-full py-6 text-xl"
+                    >
                       Add {collateralAmount || '0'} {selectedAsset.symbol} as Collateral
                     </button>
                   </div>

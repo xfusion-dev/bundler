@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { backendService } from '../lib/backend-service';
-import { Loader2, Search } from 'lucide-react';
+import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import BundleRow from '../components/bundle/BundleRow';
+import { BundleCardSkeleton } from '../components/ui/Skeleton';
+import SEO from '../components/SEO';
 
 interface Bundle {
   id: number;
@@ -24,11 +26,16 @@ interface Bundle {
   is_active?: boolean;
 }
 
+type SortOption = 'name' | 'price' | 'change' | 'holders' | 'marketCap';
+type SortDirection = 'asc' | 'desc';
+
 export default function Bundles() {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   useEffect(() => {
     const loadBundles = async () => {
@@ -69,24 +76,84 @@ export default function Bundles() {
     void loadBundles();
   }, []);
 
-  const filteredBundles = bundles.filter(bundle => {
-    const description = Array.isArray(bundle.description) ? bundle.description[0] : bundle.description;
-    return bundle.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (description && description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      bundle.tokens.some(token => token.symbol.toLowerCase().includes(searchQuery.toLowerCase()));
-  });
+  const handleSort = (column: SortOption) => {
+    if (sortBy === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const filteredBundles = bundles
+    .filter(bundle => {
+      const description = Array.isArray(bundle.description) ? bundle.description[0] : bundle.description;
+      return bundle.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (description && description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        bundle.tokens.some(token => token.symbol.toLowerCase().includes(searchQuery.toLowerCase()));
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'price':
+          comparison = a.totalValue - b.totalValue;
+          break;
+        case 'change':
+          comparison = a.change24h - b.change24h;
+          break;
+        case 'holders':
+          comparison = a.subscribers - b.subscribers;
+          break;
+        case 'marketCap':
+          comparison = (a.totalValue * a.subscribers) - (b.totalValue * b.subscribers);
+          break;
+        default:
+          comparison = 0;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black">
         <div className="px-6 py-16">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center py-20">
-              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
-                <Loader2 className="w-8 h-8 animate-spin text-white" />
+            <motion.div
+              className="mb-16"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="flex items-start justify-between mb-12">
+                <div className="flex-1">
+                  <h1 className="text-6xl font-bold text-white mb-4">Discover Bundles</h1>
+                  <p className="text-gray-400 text-lg max-w-2xl">
+                    Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives.
+                  </p>
+                </div>
+                <Link to="/build" className="btn-unique px-8 py-4 text-lg flex-shrink-0">
+                  Create Bundle
+                </Link>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-4">Loading Bundles...</h3>
-              <p className="text-gray-400">Fetching the latest token bundles from the community.</p>
+
+              <div className="relative mb-8">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  disabled
+                  placeholder="Search by name, description, or token..."
+                  className="w-full bg-white/5 border border-white/10 pl-14 pr-6 py-4 text-white placeholder:text-gray-500 focus:border-white/30 focus:outline-none transition-colors"
+                />
+              </div>
+            </motion.div>
+
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <BundleCardSkeleton key={i} />
+              ))}
             </div>
           </div>
         </div>
@@ -122,44 +189,109 @@ export default function Bundles() {
 
   return (
     <div className="min-h-screen bg-black">
+      <SEO
+        title="Discover Token Bundles | XFusion"
+        description="Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives. Start building your diversified crypto portfolio today."
+        keywords="crypto bundles, token portfolios, DeFi portfolios, diversified crypto, crypto index funds"
+      />
       <div className="px-6 py-16">
         <div className="max-w-7xl mx-auto">
           <motion.div
-            className="mb-16"
+            className="mb-8"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="flex items-start justify-between mb-12">
-              <div className="flex-1">
-                <h1 className="text-6xl font-bold text-white mb-4">Discover Bundles</h1>
-                <p className="text-gray-400 text-lg max-w-2xl">
-                  Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives.
-                </p>
+            <div className="mb-8">
+              <div className="flex items-start justify-between mb-8">
+                <div className="flex-1">
+                  <h1 className="text-6xl font-bold text-white mb-4">Discover Bundles</h1>
+                  <p className="text-gray-400 text-lg max-w-2xl">
+                    Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives.
+                  </p>
+                </div>
+                <Link to="/build" className="btn-unique px-8 py-4 text-lg flex-shrink-0">
+                  Create Bundle
+                </Link>
               </div>
-              <Link to="/build" className="btn-unique px-8 py-4 text-lg flex-shrink-0">
-                Create Bundle
-              </Link>
-            </div>
 
-            <div className="relative mb-8">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name, description, or token..."
-                className="w-full bg-white/5 border border-white/10 pl-14 pr-6 py-4 text-white placeholder:text-gray-500 focus:border-white/30 focus:outline-none transition-colors"
-              />
+              <div className="flex justify-end">
+                <div className="relative w-full md:w-1/3">
+                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by name, description, or token..."
+                    className="w-full bg-white/5 border border-white/10 pl-14 pr-6 py-4 text-white placeholder:text-gray-500 focus:border-white/30 focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
             </div>
           </motion.div>
+
+          {/* Table Header */}
+          <div className="border border-white/10 bg-white/5 p-5">
+            <div className="flex items-center justify-between gap-8">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="w-12" /> {/* Icon spacer */}
+                <button
+                  onClick={() => handleSort('name')}
+                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-mono uppercase"
+                >
+                  Name
+                  {sortBy === 'name' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                  ) : (
+                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                  )}
+                </button>
+              </div>
+              <div className="flex items-center gap-8">
+                <div className="w-24" /> {/* Tokens spacer */}
+                <button
+                  onClick={() => handleSort('price')}
+                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-mono uppercase min-w-[120px] justify-end"
+                >
+                  Price
+                  {sortBy === 'price' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                  ) : (
+                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSort('change')}
+                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-mono uppercase min-w-[100px] justify-end"
+                >
+                  24h
+                  {sortBy === 'change' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                  ) : (
+                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSort('holders')}
+                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-mono uppercase min-w-[100px] justify-end"
+                >
+                  Holders
+                  {sortBy === 'holders' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                  ) : (
+                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                  )}
+                </button>
+                <div className="w-6" /> {/* Arrow spacer */}
+              </div>
+            </div>
+          </div>
 
           {filteredBundles.length > 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="space-y-3"
             >
               {filteredBundles.map((bundle) => (
                 <BundleRow key={bundle.id} bundle={bundle} />
