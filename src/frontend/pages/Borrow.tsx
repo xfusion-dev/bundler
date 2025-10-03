@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Shield, AlertTriangle, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../lib/AuthContext';
 
 interface CollateralAsset {
   symbol: string;
@@ -35,6 +36,7 @@ export default function Borrow() {
   const [collateralDrawerOpen, setCollateralDrawerOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<WalletAsset | null>(null);
   const [collateralAmount, setCollateralAmount] = useState('');
+  const { isAuthenticated, login, loading } = useAuth();
 
   const totalCollateralValue = MOCK_COLLATERAL.reduce((sum, asset) => sum + asset.valueUSD, 0);
   const borrowLimit = MOCK_COLLATERAL.reduce((sum, asset) => sum + (asset.valueUSD * asset.ltv / 100), 0);
@@ -42,6 +44,50 @@ export default function Borrow() {
   const availableToBorrow = borrowLimit - currentDebt;
   const healthFactor = borrowLimit > 0 ? borrowLimit / Math.max(currentDebt, 1) : 0;
   const borrowAPR = 8.5;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">⏳</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Loading...</h3>
+              <p className="text-gray-400">Checking authentication status...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">🔐</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Authentication Required</h3>
+              <p className="text-gray-400 mb-8 max-w-md mx-auto">
+                You need to be logged in to borrow ckUSDC. Please authenticate with Internet Identity to continue.
+              </p>
+              <button
+                onClick={() => void login()}
+                className="btn-unique px-8 py-3"
+              >
+                LOGIN WITH INTERNET IDENTITY
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const getHealthColor = (health: number) => {
     if (health >= 2) return 'text-green-400';

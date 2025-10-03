@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { authService } from '../lib/auth';
+import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
 
 interface Holding {
@@ -54,38 +54,34 @@ const MOCK_HOLDINGS: Holding[] = [
 export default function Portfolio() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated, login, loading } = useAuth();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const authenticated = await authService.isAuthenticated();
-      setIsAuthenticated(authenticated);
-
-      if (authenticated) {
-        try {
-          setHoldings(MOCK_HOLDINGS);
-          const total = MOCK_HOLDINGS.reduce((sum, h) => sum + h.totalValue, 0);
-          setTotalPortfolioValue(total);
-        } catch (error) {
-          console.error('Failed to fetch holdings:', error);
-          setHoldings([]);
-          setTotalPortfolioValue(0);
-        }
+    if (isAuthenticated) {
+      try {
+        setHoldings(MOCK_HOLDINGS);
+        const total = MOCK_HOLDINGS.reduce((sum, h) => sum + h.totalValue, 0);
+        setTotalPortfolioValue(total);
+      } catch (error) {
+        console.error('Failed to fetch holdings:', error);
+        setHoldings([]);
+        setTotalPortfolioValue(0);
       }
-
-      setLoading(false);
-    };
-
-    checkAuth();
-  }, []);
+    }
+  }, [isAuthenticated]);
 
   if (loading) {
     return (
-      <div className="px-6 py-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-20">
-            <div className="text-primary">Loading portfolio...</div>
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">⏳</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Loading...</h3>
+              <p className="text-gray-400">Checking authentication status...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -94,17 +90,24 @@ export default function Portfolio() {
 
   if (!isAuthenticated) {
     return (
-      <div className="px-6 py-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-20">
-            <h2 className="heading-large mb-4">Please Sign In</h2>
-            <p className="text-secondary mb-6">Connect your wallet to view your portfolio</p>
-            <button
-              onClick={() => authService.login()}
-              className="btn-unique px-6 py-3"
-            >
-              Connect Wallet
-            </button>
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">🔐</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Authentication Required</h3>
+              <p className="text-gray-400 mb-8 max-w-md mx-auto">
+                You need to be logged in to view your portfolio. Please authenticate with Internet Identity to continue.
+              </p>
+              <button
+                onClick={() => void login()}
+                className="btn-unique px-8 py-3"
+              >
+                LOGIN WITH INTERNET IDENTITY
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { useAuth } from '../lib/AuthContext';
 
 export default function Supply() {
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState<'lend' | 'withdraw'>('lend');
+  const { isAuthenticated, login, loading } = useAuth();
 
   const walletBalance = 10000;
   const lentBalance = 5000;
@@ -13,6 +15,50 @@ export default function Supply() {
   const totalBorrowed = 875000;
   const availableLiquidity = totalPoolSize - totalBorrowed;
   const utilizationRate = (totalBorrowed / totalPoolSize) * 100;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">⏳</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Loading...</h3>
+              <p className="text-gray-400">Checking authentication status...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">🔐</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Authentication Required</h3>
+              <p className="text-gray-400 mb-8 max-w-md mx-auto">
+                You need to be logged in to lend ckUSDC. Please authenticate with Internet Identity to continue.
+              </p>
+              <button
+                onClick={() => void login()}
+                className="btn-unique px-8 py-3"
+              >
+                LOGIN WITH INTERNET IDENTITY
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black">
