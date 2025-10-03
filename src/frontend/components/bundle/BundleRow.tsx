@@ -27,29 +27,31 @@ export default function BundleRow({ bundle }: BundleRowProps) {
 
   return (
     <Link to={`/bundle/${bundle.id}`}>
-      <div className="border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition-all group">
-        <div className="flex items-center justify-between gap-6">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-10 h-10 bg-gradient-to-br from-white/20 to-white/10 border border-white/30 flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-xs">
+      <div className="border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.03] hover:from-white/[0.12] hover:to-white/[0.06] transition-all duration-300 group relative overflow-hidden p-5">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+        <div className="relative flex items-center justify-between gap-8">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <div className="w-12 h-12 bg-gradient-to-br from-white/20 to-white/5 border border-white/20 flex items-center justify-center flex-shrink-0 group-hover:border-white/40 transition-colors">
+              <span className="text-white font-bold">
                 {symbol}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-white font-bold group-hover:text-gray-300 transition-colors truncate">
+              <h3 className="text-white text-lg font-bold mb-1 group-hover:text-gray-200 transition-colors truncate">
                 {bundle.name}
               </h3>
               <p className="text-gray-500 text-xs truncate">{bundle.description}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-6 flex-shrink-0">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-8 flex-shrink-0">
+            <div className="flex items-center gap-3">
               <div className="flex -space-x-1.5">
                 {bundle.tokens.slice(0, 4).map((token, idx) => (
                   <div
                     key={idx}
-                    className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 border-2 border-black flex items-center justify-center"
+                    className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 border-2 border-black flex items-center justify-center group-hover:border-white/20 transition-colors"
                     style={{ zIndex: bundle.tokens.length - idx }}
                     title={token.symbol}
                   >
@@ -59,14 +61,14 @@ export default function BundleRow({ bundle }: BundleRowProps) {
                   </div>
                 ))}
                 {bundle.tokens.length > 4 && (
-                  <div className="w-6 h-6 rounded-full bg-white/10 border-2 border-black flex items-center justify-center text-[9px] text-gray-400">
+                  <div className="w-7 h-7 rounded-full bg-white/10 border-2 border-black flex items-center justify-center text-[9px] text-gray-400 group-hover:border-white/20 transition-colors">
                     +{bundle.tokens.length - 4}
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="text-center min-w-[100px]">
+            <div className="text-center min-w-[90px]">
               <div className={`text-sm font-bold ${
                 bundle.change24h >= 0 ? 'text-green-400' : 'text-red-400'
               }`}>
@@ -84,6 +86,10 @@ export default function BundleRow({ bundle }: BundleRowProps) {
                   : marketCap.toLocaleString()}
               </div>
               <div className="text-gray-500 text-xs">Market Cap</div>
+            </div>
+
+            <div className="w-8 h-8 border border-white/20 flex items-center justify-center group-hover:border-white/40 group-hover:bg-white/10 transition-all flex-shrink-0">
+              <span className="text-white">→</span>
             </div>
           </div>
         </div>

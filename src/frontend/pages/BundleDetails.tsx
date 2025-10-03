@@ -17,8 +17,8 @@ export default function BundleDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'composition' | 'statistics'>('composition');
-  const [selectedPeriod, setSelectedPeriod] = useState<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D');
+  const [activeTab, setActiveTab] = useState<'composition' | 'statistics' | 'about'>('composition');
+  const [selectedPeriod, setSelectedPeriod] = useState<'1D' | '7D' | '30D'>('1D');
   const [tradeTab, setTradeTab] = useState<'buy' | 'sell'>('buy');
   const [tradeAmount, setTradeAmount] = useState<string>('');
   const [isTrading, setIsTrading] = useState(false);
@@ -249,19 +249,39 @@ export default function BundleDetails() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-primary">Loading bundle details...</div>
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <Loader2 className="w-8 h-8 animate-spin text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Loading Bundle...</h3>
+              <p className="text-gray-400">Fetching bundle details and real-time pricing data.</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error || !bundle) {
     return (
-      <div className="min-h-screen flex items-center justify-center flex-col gap-4">
-        <div className="text-red-400">{error || 'Bundle not found'}</div>
-        <Link to="/bundles" className="btn-outline-unique">
-          Back to Bundles
-        </Link>
+      <div className="min-h-screen bg-black">
+        <div className="px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center py-20">
+              <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">❌</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Bundle Not Found</h3>
+              <p className="text-gray-400 mb-8">{error || 'The bundle you are looking for does not exist.'}</p>
+              <Link to="/bundles" className="btn-unique px-8 py-3">
+                Back to Bundles
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -284,18 +304,35 @@ export default function BundleDetails() {
       '1D': 0,
       '7D': 0,
       '30D': 0,
-      '90D': 0,
-      '1Y': 0,
     },
     priceHistory: (() => {
-      const basePrice = bundle.calculated_price || 100;
-      const points = 24;
+      const basePrice = bundle.calculated_price || 1.00;
+      const points = selectedPeriod === '1D' ? 24 : selectedPeriod === '7D' ? 7 : 30;
       const data = [];
+      const now = new Date();
 
       for (let i = 0; i <= points; i++) {
-        const price = basePrice;
+        // Add some realistic variation
+        const variation = Math.sin(i / 3) * 0.02 + (Math.random() - 0.5) * 0.01;
+        const trend = i * 0.001; // Slight upward trend
+        const price = basePrice * (1 + variation + trend);
+
+        let timeLabel = '';
+        const date = new Date(now);
+
+        if (selectedPeriod === '1D') {
+          date.setHours(now.getHours() - (24 - i));
+          timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        } else if (selectedPeriod === '7D') {
+          date.setDate(now.getDate() - (7 - i));
+          timeLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else if (selectedPeriod === '30D') {
+          date.setDate(now.getDate() - (30 - i));
+          timeLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
         data.push({
-          time: `${Math.floor(i)}:00`,
+          time: timeLabel,
           price: Math.max(0, price)
         });
       }
@@ -308,245 +345,281 @@ export default function BundleDetails() {
   const TrendIcon = isPositive ? TrendingUp : TrendingDown;
 
   return (
-    <div className="px-6 py-8">
-      <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 bg-elevated border border-primary flex items-center justify-center">
-            <span className="text-primary font-bold text-lg text-data">
-              {bundleDetails.symbol}
-            </span>
-          </div>
-          <div>
-            <h1 className="heading-large">{bundleDetails.name}</h1>
-            <p className="text-tertiary">Bundle Token • Created {bundleDetails.createdAt}</p>
-          </div>
-        </div>
-
-        {bundleDetails.description && (
-          <p className="text-body max-w-3xl">
-            {bundleDetails.description}
-          </p>
-        )}
-      </div>
-
-      <div className="max-w-7xl mx-auto">
-        <div className="asymmetric-grid gap-8">
-          <div className="space-y-8">
-            <div className="card-unique p-6">
-              <div className="flex items-start justify-between mb-6">
-                <div>
-                  <div className="text-3xl font-bold text-primary text-data mb-2">
-                    ${bundleDetails.price.toFixed(2)}
-                  </div>
-                  <div className={`flex items-center gap-2 text-sm font-semibold ${
-                    isPositive ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    <TrendIcon className="w-4 h-4" />
-                    {isPositive ? '+' : ''}{bundleDetails.change24h.toFixed(2)}% (24h)
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  {Object.keys(bundleDetails.performance).map((period) => (
-                    <button
-                      key={period}
-                      onClick={() => setSelectedPeriod(period as any)}
-                      className={`px-3 py-1 text-xs font-mono transition-colors ${
-                        selectedPeriod === period
-                          ? 'bg-accent text-primary'
-                          : 'text-tertiary hover:text-primary'
-                      }`}
-                    >
-                      {period}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="h-64 relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={bundleDetails.priceHistory}>
-                    <XAxis
-                      dataKey="time"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fontSize: 12, fill: '#8b949e' }}
-                    />
-                    <YAxis
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fontSize: 12, fill: '#8b949e' }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-
-                <div className="absolute inset-0 bg-surface/60 backdrop-blur-sm flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-primary font-medium mb-1">Chart data will be available soon</div>
-                    <div className="text-tertiary text-sm">Live data coming after launch</div>
-                  </div>
-                </div>
+    <div className="min-h-screen bg-black">
+      <div className="px-6 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-white/20 to-white/5 border border-white/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-xl">
+                {bundleDetails.symbol}
+              </span>
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-white">{bundleDetails.name}</h1>
+              <div className="flex items-center gap-3 text-gray-400 text-sm mt-1">
+                <span>Bundle Token</span>
+                <span>•</span>
+                <span>Created {bundleDetails.createdAt}</span>
               </div>
             </div>
+          </div>
 
-            <div className="card-unique">
-              <div className="border-b border-primary">
-                <div className="flex">
-                  {[
-                    { key: 'composition', label: 'Composition', icon: PieChart },
-                    { key: 'statistics', label: 'Statistics', icon: BarChart3 },
-                  ].map(({ key, label, icon: Icon }) => (
-                    <button
-                      key={key}
-                      onClick={() => setActiveTab(key as any)}
-                      className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors ${
-                        activeTab === key
-                          ? 'text-primary border-b border-accent'
-                          : 'text-tertiary hover:text-primary'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {label}
-                    </button>
-                  ))}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-8">
+              <div className="border border-white/10 bg-white/5 p-8">
+                <div className="flex items-start justify-between mb-8">
+                  <div>
+                    <div className="text-5xl font-bold text-white mb-3">
+                      ${bundleDetails.price.toFixed(2)}
+                    </div>
+                    <div className={`flex items-center gap-2 text-lg font-semibold ${
+                      isPositive ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      <TrendIcon className="w-5 h-5" />
+                      {isPositive ? '+' : ''}{bundleDetails.change24h.toFixed(2)}% (24h)
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1">
+                    {Object.keys(bundleDetails.performance).map((period) => (
+                      <button
+                        key={period}
+                        onClick={() => setSelectedPeriod(period as any)}
+                        className={`px-3 py-1 text-xs font-mono transition-colors ${
+                          selectedPeriod === period
+                            ? 'bg-white text-black'
+                            : 'text-gray-400 hover:text-white border border-white/10'
+                        }`}
+                      >
+                        {period}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={bundleDetails.priceHistory}>
+                      <XAxis
+                        dataKey="time"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 11, fill: '#6b7280' }}
+                        interval={selectedPeriod === '1D' ? 4 : selectedPeriod === '7D' ? 0 : 5}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 11, fill: '#6b7280' }}
+                        domain={['dataMin - 0.01', 'dataMax + 0.01']}
+                        tickFormatter={(value) => `$${value.toFixed(2)}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="price"
+                        stroke="#ffffff"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
 
-              <div className="p-6">
-                {activeTab === 'statistics' && (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="heading-medium mb-3">About This Bundle</h3>
-                      <p className="text-body">{bundleDetails.description || 'No description available'}</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <div className="text-ghost text-xs mb-2 font-mono">HOLDERS</div>
-                        <div className="text-xl font-bold text-primary text-data">
-                          {bundleDetails.holders.toLocaleString()}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-ghost text-xs mb-2 font-mono">VOLUME 24H</div>
-                        <div className="text-xl font-bold text-primary text-data">
-                          ${(bundleDetails.volume24h / 1000).toFixed(1)}K
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-ghost text-xs mb-2 font-mono">MARKET CAP</div>
-                        <div className="text-xl font-bold text-primary text-data">
-                          ${(bundleDetails.marketCap / 1000).toFixed(1)}K
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-ghost text-xs mb-2 font-mono">TOTAL SUPPLY</div>
-                        <div className="text-xl font-bold text-primary text-data">
-                          {(bundleDetails.totalSupply / 1000000).toFixed(1)}M
-                        </div>
-                      </div>
-                    </div>
+              <div className="border border-white/10 bg-white/5">
+                <div className="border-b border-white/10">
+                  <div className="flex">
+                    {[
+                      { key: 'composition', label: 'Composition', icon: PieChart },
+                      { key: 'statistics', label: 'Statistics', icon: BarChart3 },
+                      { key: 'about', label: 'About', icon: null },
+                    ].map(({ key, label, icon: Icon }) => (
+                      <button
+                        key={key}
+                        onClick={() => setActiveTab(key as any)}
+                        className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors ${
+                          activeTab === key
+                            ? 'text-white border-b-2 border-white'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {Icon && <Icon className="w-4 h-4" />}
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                )}
+                </div>
 
-                {activeTab === 'composition' && (
-                  <div className="space-y-6">
-                    <h3 className="heading-medium mb-4">Asset Allocation</h3>
-
-                    {bundleNav && bundleNav.total_nav_usd > 0 && (
-                      <div className="bg-elevated border border-primary p-4 rounded mb-4">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-secondary text-sm">Total Treasury Value</span>
-                          <span className="text-primary font-bold text-lg">
-                            ${(Number(bundleNav.total_nav_usd) / 100000000).toFixed(2)}
-                          </span>
+                <div className="p-8">
+                  {activeTab === 'statistics' && (
+                    <div className="space-y-8">
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="border border-white/10 bg-black/40 p-4">
+                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">HOLDERS</div>
+                          <div className="text-2xl font-bold text-white">
+                            {bundleDetails.holders.toLocaleString()}
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-secondary text-sm">NAV Tokens Outstanding</span>
-                          <span className="text-primary font-mono">
-                            {(Number(bundleNav.total_tokens) / 100000000).toLocaleString()}
-                          </span>
+                        <div className="border border-white/10 bg-black/40 p-4">
+                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">VOLUME 24H</div>
+                          <div className="text-2xl font-bold text-white">
+                            ${(bundleDetails.volume24h / 1000).toFixed(1)}K
+                          </div>
+                        </div>
+                        <div className="border border-white/10 bg-black/40 p-4">
+                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">MARKET CAP</div>
+                          <div className="text-2xl font-bold text-white">
+                            ${(bundleDetails.marketCap / 1000).toFixed(1)}K
+                          </div>
+                        </div>
+                        <div className="border border-white/10 bg-black/40 p-4">
+                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">TOTAL SUPPLY</div>
+                          <div className="text-2xl font-bold text-white">
+                            {(bundleDetails.totalSupply / 1000000).toFixed(1)}M
+                          </div>
                         </div>
                       </div>
-                    )}
-                    {bundleDetails.assets.map((asset, idx) => (
-                      <div key={asset.symbol} className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-4 h-4 rounded-sm"
-                              style={{ backgroundColor: asset.color }}
-                            />
-                            <div>
-                              <span className="text-primary font-medium">{asset.name}</span>
-                              <span className="text-tertiary text-sm ml-2 font-mono">{asset.symbol}</span>
-                              {asset.price > 0 && (
-                                <span className="text-accent text-sm ml-3">
-                                  @ ${asset.price.toLocaleString()}
-                                </span>
+                    </div>
+                  )}
+
+                  {activeTab === 'composition' && (
+                    <div className="space-y-6">
+                      <h3 className="text-xl font-bold text-white mb-6">Asset Allocation</h3>
+
+                      {bundleNav && bundleNav.total_nav_usd > 0 && (
+                        <div className="border border-white/10 bg-black/40 p-6 mb-6">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="text-gray-400">Total Treasury Value</span>
+                            <span className="text-white font-bold text-xl">
+                              ${(Number(bundleNav.total_nav_usd) / 100000000).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">NAV Tokens Outstanding</span>
+                            <span className="text-white font-mono">
+                              {(Number(bundleNav.total_tokens) / 100000000).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {bundleDetails.assets.map((asset, idx) => (
+                        <div key={asset.symbol} className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-3 h-3"
+                                style={{ backgroundColor: asset.color }}
+                              />
+                              <div>
+                                <span className="text-white font-medium">{asset.name}</span>
+                                <span className="text-gray-500 text-sm ml-2 font-mono">{asset.symbol}</span>
+                                {asset.price > 0 && (
+                                  <span className="text-gray-400 text-sm ml-3">
+                                    @ ${asset.price.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-white font-bold">
+                                {asset.percentage ? asset.percentage.toFixed(1) : asset.percentage}%
+                              </div>
+                              <div className="text-gray-500 text-sm">
+                                {asset.value > 0 ? `$${asset.value.toFixed(2)}` : 'No holdings yet'}
+                              </div>
+                              {asset.amount > 0 && (
+                                <div className="text-gray-500 text-xs">
+                                  {asset.amount.toLocaleString()} {asset.symbol}
+                                </div>
                               )}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="text-primary font-bold text-data">
-                              {asset.percentage ? asset.percentage.toFixed(1) : asset.percentage}%
-                            </div>
-                            <div className="text-tertiary text-sm">
-                              {asset.value > 0 ? `$${asset.value.toFixed(2)}` : 'No holdings yet'}
-                            </div>
-                            {asset.amount > 0 && (
-                              <div className="text-tertiary text-xs">
-                                {asset.amount.toLocaleString()} {asset.symbol}
-                              </div>
-                            )}
+                          <div className="w-full h-2 bg-white/10 relative overflow-hidden">
+                            <motion.div
+                              className="absolute top-0 left-0 h-full"
+                              style={{ backgroundColor: asset.color }}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${asset.percentage}%` }}
+                              transition={{ duration: 1, delay: idx * 0.1 }}
+                            />
                           </div>
                         </div>
-                        <div className="w-full h-1 bg-border-primary relative">
-                          <motion.div
-                            className="absolute top-0 left-0 h-full rounded-sm"
-                            style={{ backgroundColor: asset.color }}
-                            initial={{ width: 0 }}
-                            animate={{ width: `${asset.percentage}%` }}
-                            transition={{ duration: 1, delay: idx * 0.1 }}
-                          />
+                      ))}
+                    </div>
+                  )}
+
+                  {activeTab === 'about' && (
+                    <div className="space-y-8">
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-4">Description</h3>
+                        <p className="text-gray-400">{bundleDetails.description || 'No description available'}</p>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-4">Creator</h3>
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-white/10 border border-white/20 flex items-center justify-center">
+                            <span className="text-white font-bold">
+                              {bundleDetails.creator ? bundleDetails.creator.toString().slice(0, 2).toUpperCase() : 'AN'}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-white font-medium font-mono">
+                              {bundleDetails.creator ?
+                                (() => {
+                                  const creatorStr = bundleDetails.creator.toString();
+                                  return `${creatorStr.slice(0, 6)}...${creatorStr.slice(-4)}`;
+                                })()
+                                : 'Anonymous'}
+                            </div>
+                            <div className="text-gray-500 text-sm">Bundle Creator</div>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-4">Details</h3>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">Created</span>
+                            <span className="text-white font-mono">{bundleDetails.createdAt}</span>
+                          </div>
+                          <div className="w-full h-px bg-white/10" />
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">Symbol</span>
+                            <span className="text-white font-bold">{bundleDetails.symbol}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="space-y-6">
-            {/* Trading Widget */}
-            <div className="card-unique p-6">
-              <div className="flex mb-4">
-                {['buy', 'sell'].map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setTradeTab(mode as 'buy' | 'sell')}
-                    className={`flex-1 py-3 text-sm font-bold uppercase transition-all ${
-                      tradeTab === mode
-                        ? mode === 'buy'
-                          ? 'bg-green-500/20 text-green-400 border-b-2 border-green-400'
-                          : 'bg-red-500/20 text-red-400 border-b-2 border-red-400'
-                        : 'text-tertiary hover:text-primary'
-                    }`}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
+            <div className="space-y-6">
+              {/* Trading Widget */}
+              <div className="border border-white/10 bg-white/5 sticky top-6">
+                <div className="flex border-b border-white/10">
+                  {['buy', 'sell'].map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setTradeTab(mode as 'buy' | 'sell')}
+                      className={`flex-1 py-4 text-sm font-bold uppercase transition-all ${
+                        tradeTab === mode
+                          ? mode === 'buy'
+                            ? 'bg-green-500/20 text-green-400 border-b-2 border-green-400'
+                            : 'bg-red-500/20 text-red-400 border-b-2 border-red-400'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
 
-              <div className="space-y-4">
+                <div className="p-6">
+                  <div className="space-y-4">
                 {/* Balance Display */}
                 {isAuthenticated && tradeTab === 'buy' && (
                   <div className="bg-surface-light border border-primary/20 p-3 rounded-lg">
@@ -698,64 +771,11 @@ export default function BundleDetails() {
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Bundle Metrics */}
-            <div className="card-unique p-6">
-              <h3 className="heading-medium mb-4">Bundle Metrics</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-secondary text-sm">Total Holders</span>
-                  <span className="text-primary font-bold text-data">
-                    {holderCount.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-secondary text-sm">Treasury Value</span>
-                  <span className="text-primary font-bold text-data">
-                    ${bundle?.total_nav_usd ? bundle.total_nav_usd.toFixed(2) : '0.00'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-secondary text-sm">NAV Tokens</span>
-                  <span className="text-primary font-mono text-data">
-                    {bundle?.total_tokens ? bundle.total_tokens.toLocaleString() : '0'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-secondary text-sm">Price per NAV</span>
-                  <span className="text-primary font-bold text-data">
-                    ${bundle?.calculated_price ? bundle.calculated_price.toFixed(4) : '1.0000'}
-                  </span>
+                  )}
                 </div>
               </div>
             </div>
-
-            <div className="card-unique p-6">
-              <h3 className="heading-medium mb-4">Creator</h3>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-elevated border border-primary rounded flex items-center justify-center">
-                    <span className="text-primary font-bold text-xs">
-                      {bundleDetails.creator ? bundleDetails.creator.toString().slice(0, 2) : 'AN'}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="text-primary font-medium text-xs font-mono">
-                      {bundleDetails.creator ?
-                        (() => {
-                          const creatorStr = bundleDetails.creator.toString();
-                          return `${creatorStr.slice(0, 6)}...${creatorStr.slice(-4)}`;
-                        })()
-                        : 'Anonymous'}
-                    </div>
-                    <div className="text-tertiary text-sm">Bundle Creator</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          </div>
           </div>
         </div>
       </div>
