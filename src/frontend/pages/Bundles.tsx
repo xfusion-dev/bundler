@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { backendService } from '../lib/backend-service';
 import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import BundleRow from '../components/bundle/BundleRow';
+import BundleMobileCard from '../components/bundle/BundleMobileCard';
 import { BundleCardSkeleton } from '../components/ui/Skeleton';
 import SEO from '../components/SEO';
 
@@ -203,7 +204,17 @@ export default function Bundles() {
             transition={{ duration: 0.6 }}
           >
             <div className="mb-8">
-              <div className="flex items-start justify-between mb-8">
+              <div className="md:hidden mb-6">
+                <h1 className="text-4xl font-bold text-white mb-3">Discover Bundles</h1>
+                <p className="text-gray-400 text-base mb-4">
+                  Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives.
+                </p>
+                <Link to="/build" className="btn-unique w-full py-3 text-center block">
+                  Create Bundle
+                </Link>
+              </div>
+
+              <div className="hidden md:flex items-start justify-between mb-8">
                 <div className="flex-1">
                   <h1 className="text-6xl font-bold text-white mb-4">Discover Bundles</h1>
                   <p className="text-gray-400 text-lg max-w-2xl">
@@ -230,11 +241,10 @@ export default function Bundles() {
             </div>
           </motion.div>
 
-          {/* Table Header */}
-          <div className="border border-white/10 bg-white/5 p-5">
+          <div className="hidden md:block border border-white/10 bg-white/5 p-5">
             <div className="flex items-center justify-between gap-8">
               <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="w-12" /> {/* Icon spacer */}
+                <div className="w-12" />
                 <button
                   onClick={() => handleSort('name')}
                   className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-mono uppercase"
@@ -288,15 +298,29 @@ export default function Bundles() {
           </div>
 
           {filteredBundles.length > 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              {filteredBundles.map((bundle) => (
-                <BundleRow key={bundle.id} bundle={bundle} />
-              ))}
-            </motion.div>
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="hidden md:block"
+              >
+                {filteredBundles.map((bundle) => (
+                  <BundleRow key={bundle.id} bundle={bundle} />
+                ))}
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="md:hidden space-y-6"
+              >
+                {filteredBundles.map((bundle) => (
+                  <BundleMobileCard key={bundle.id} bundle={bundle} />
+                ))}
+              </motion.div>
+            </>
           ) : searchQuery ? (
             <motion.div
               className="border border-white/10 bg-white/5 p-20 text-center"
