@@ -56,20 +56,8 @@ export default function Header({ showHero = false }: HeaderProps) {
     <>
       <nav className={`nav-main ${isScrolled ? 'scrolled' : ''}`}>
         <div className="nav-content">
-          {/* Left side - Logo, Menu Button, and Desktop Menu */}
+          {/* Left side - Logo and Desktop Menu */}
           <div className="flex items-center gap-8">
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => { setIsMobileMenuOpen(!isMobileMenuOpen); }}
-              className="md:hidden p-2 text-tertiary hover:text-primary transition-colors"
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
-            </button>
-
             {/* Logo */}
             <Link to="/" className="nav-logo">
               <div className="nav-logo-icon">
@@ -112,51 +100,6 @@ export default function Header({ showHero = false }: HeaderProps) {
             )}
           </div>
         </div>
-
-        {/* Mobile Menu Overlay */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 right-0 bg-surface border-t border-primary z-50">
-            <div className="flex flex-col py-4">
-              <Link
-                to="/bundles"
-                onClick={closeMobileMenu}
-                className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
-              >
-                Discover Bundles
-              </Link>
-              <Link
-                to="/build"
-                onClick={closeMobileMenu}
-                className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
-              >
-                Create Bundle
-              </Link>
-              <Link
-                to="/lending/supply"
-                onClick={closeMobileMenu}
-                className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
-              >
-                Lend
-              </Link>
-              <Link
-                to="/lending/borrow"
-                onClick={closeMobileMenu}
-                className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
-              >
-                Borrow
-              </Link>
-              {isAuthenticated && (
-                <Link
-                  to="/portfolio"
-                  onClick={closeMobileMenu}
-                  className="px-6 py-3 text-tertiary hover:text-primary transition-colors border-b border-primary/20"
-                >
-                  Portfolio
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
       </nav>
 
       {/* Authentication Modal */}
