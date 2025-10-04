@@ -56,6 +56,10 @@ export default function BundleBuilder() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isCreationModalOpen, setIsCreationModalOpen] = useState(false);
+  const [usdcAmount, setUsdcAmount] = useState('');
+  const [navTokenAmount, setNavTokenAmount] = useState('');
+  const [creationStep, setCreationStep] = useState<number>(0);
 
   const navigate = useNavigate();
 
@@ -119,6 +123,24 @@ export default function BundleBuilder() {
     const total = selectedAssets.reduce((sum, allocation) => sum + allocation.percentage, 0);
     setTotalPercentage(total);
   }, [selectedAssets]);
+
+  const initialNavPrice = (() => {
+    if (!usdcAmount || !navTokenAmount || parseFloat(usdcAmount) <= 0 || parseFloat(navTokenAmount) <= 0) {
+      return 0;
+    }
+    return parseFloat(usdcAmount) / parseFloat(navTokenAmount);
+  })();
+
+  const assetPurchaseBreakdown = (() => {
+    if (!usdcAmount || parseFloat(usdcAmount) <= 0) return [];
+
+    const totalUsdc = parseFloat(usdcAmount);
+    return selectedAssets.map(allocation => ({
+      symbol: allocation.asset.symbol,
+      percentage: allocation.percentage,
+      usdcAmount: (totalUsdc * allocation.percentage) / 100
+    }));
+  })();
 
   if (loading) {
     return (
@@ -206,10 +228,16 @@ export default function BundleBuilder() {
   };
 
   const handleCreateBundle = async () => {
+    if (!usdcAmount || !navTokenAmount || parseFloat(usdcAmount) <= 0 || parseFloat(navTokenAmount) <= 0) {
+      toast.error('Please enter valid USDC and NAV token amounts');
+      return;
+    }
+
     try {
       setCreating(true);
       setError(null);
       setSuccess(null);
+      setCreationStep(1);
 
       const allocations = selectedAssets.map(allocation => ({
         asset_id: allocation.asset.id,
@@ -222,11 +250,24 @@ export default function BundleBuilder() {
         allocations
       );
 
-      setSuccess(`Bundle "${bundleName}" created successfully!`);
+      setCreationStep(2);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      setCreationStep(3);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      setCreationStep(4);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      setSuccess(`Bundle "${bundleName}" created successfully with ${navTokenAmount} NAV tokens!`);
       toast.success(`Bundle "${bundleName}" created successfully!`);
 
       setTimeout(() => {
         resetAllocations();
+        setCreationStep(0);
+        setIsCreationModalOpen(false);
+        setUsdcAmount('');
+        setNavTokenAmount('');
         navigate(`/bundles/${bundleId}`);
       }, 2000);
 
@@ -235,6 +276,7 @@ export default function BundleBuilder() {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create bundle. Please try again.';
       setError(errorMessage);
       toast.error(errorMessage);
+      setCreationStep(0);
     } finally {
       setCreating(false);
     }
@@ -288,9 +330,9 @@ export default function BundleBuilder() {
       <div className="min-h-screen bg-black">
         <div className="px-6 py-16">
           <div className="max-w-7xl mx-auto">
-            <div className="mb-16">
-              <h1 className="text-6xl font-bold text-white mb-4">Create Bundle</h1>
-              <p className="text-gray-400 text-lg">
+            <div className="mb-8 md:mb-16">
+              <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 md:mb-4">Create Bundle</h1>
+              <p className="text-gray-400 text-base md:text-lg">
                 Design a custom token portfolio with your own allocations and earn commission from every trade
               </p>
             </div>
@@ -307,9 +349,9 @@ export default function BundleBuilder() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-8">
-                <div className="border border-white/10 bg-white/5 p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+              <div className="lg:col-span-2 space-y-6 md:space-y-8">
+                <div className="border border-white/10 bg-white/5 p-4 md:p-8">
                   <h2 className="text-2xl font-bold text-white mb-6">Bundle Details</h2>
 
                   <div className="space-y-6">
@@ -339,9 +381,9 @@ export default function BundleBuilder() {
                   </div>
                 </div>
 
-                <div className="border border-white/10 bg-white/5 p-8">
+                <div className="border border-white/10 bg-white/5 p-4 md:p-8">
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-white">Asset Allocation</h2>
+                    <h2 className="text-xl md:text-2xl font-bold text-white">Asset Allocation</h2>
                     <div className="flex gap-3">
                       <button
                         onClick={distributeEvenly}
@@ -499,7 +541,7 @@ export default function BundleBuilder() {
               </div>
 
               <div className="space-y-6">
-                <div className="border border-white/10 bg-white/5 p-6 sticky top-6">
+                <div className="border border-white/10 bg-white/5 p-4 md:p-6 md:sticky md:top-6">
                   <h3 className="text-xl font-bold text-white mb-6">Summary</h3>
 
                   <div className="space-y-6">
@@ -530,13 +572,13 @@ export default function BundleBuilder() {
                     <div className="w-full h-px bg-white/10" />
 
                     <button
-                      disabled={!isValid || creating}
-                      onClick={() => void handleCreateBundle()}
+                      disabled={!isValid}
+                      onClick={() => setIsCreationModalOpen(true)}
                       className={`btn-unique w-full py-4 text-lg ${
-                        !isValid || creating ? 'opacity-50 cursor-not-allowed' : ''
+                        !isValid ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
-                      {creating ? 'CREATING...' : 'CREATE BUNDLE'}
+                      CONTINUE
                     </button>
 
                     {!isValid && (
@@ -557,6 +599,157 @@ export default function BundleBuilder() {
       </div>
 
       <AnimatePresence>
+        {isCreationModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !creating && setIsCreationModalOpen(false)}
+              className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-black border border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 md:p-8">
+                  <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">Initial Bundle Funding</h2>
+                  <p className="text-gray-400 text-sm mb-8">
+                    Set the initial price and supply for your NAV token by specifying how much USDC you're contributing and how many tokens to mint.
+                  </p>
+
+                  {!creating ? (
+                    <div className="space-y-8">
+                      <div>
+                        <label className="block text-gray-400 text-sm font-mono uppercase mb-3">USDC Amount</label>
+                        <input
+                          type="number"
+                          value={usdcAmount}
+                          onChange={(e) => setUsdcAmount(e.target.value)}
+                          placeholder="e.g., 10000"
+                          min="0"
+                          step="0.01"
+                          className="w-full bg-white/5 border border-white/20 p-4 text-white text-lg focus:border-white focus:outline-none transition-colors"
+                        />
+                        <div className="mt-2 text-gray-500 text-sm">
+                          Total USDC to spend on initial assets
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-gray-400 text-sm font-mono uppercase mb-3">NAV Tokens to Mint</label>
+                        <input
+                          type="number"
+                          value={navTokenAmount}
+                          onChange={(e) => setNavTokenAmount(e.target.value)}
+                          placeholder="e.g., 1000"
+                          min="0"
+                          step="1"
+                          className="w-full bg-white/5 border border-white/20 p-4 text-white text-lg focus:border-white focus:outline-none transition-colors"
+                        />
+                        <div className="mt-2 text-gray-500 text-sm">
+                          Number of NAV tokens you'll receive
+                        </div>
+                      </div>
+
+                      {initialNavPrice > 0 && (
+                        <>
+                          <div className="border border-white/20 bg-white/5 p-6">
+                            <div className="text-gray-400 text-sm font-mono uppercase mb-3">Initial NAV Token Price</div>
+                            <div className="text-white text-4xl font-bold mb-2">
+                              ${initialNavPrice.toFixed(4)}
+                            </div>
+                            <div className="text-gray-500 text-sm">
+                              Price per NAV token (${usdcAmount} ÷ {navTokenAmount} tokens)
+                            </div>
+                          </div>
+
+                          {assetPurchaseBreakdown.length > 0 && (
+                            <div className="border border-white/20 bg-white/5 p-6">
+                              <div className="text-gray-400 text-sm font-mono uppercase mb-4">Asset Purchase Breakdown</div>
+                              <div className="space-y-3">
+                                {assetPurchaseBreakdown.map((asset) => (
+                                  <div key={asset.symbol} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-white font-mono">{asset.symbol}</span>
+                                      <span className="text-gray-500 text-sm">{asset.percentage}%</span>
+                                    </div>
+                                    <div className="text-white font-bold">
+                                      ${asset.usdcAmount.toFixed(2)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setIsCreationModalOpen(false)}
+                          className="flex-1 border border-white/20 p-4 text-white hover:bg-white/10 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => void handleCreateBundle()}
+                          disabled={!usdcAmount || !navTokenAmount || parseFloat(usdcAmount) <= 0 || parseFloat(navTokenAmount) <= 0}
+                          className={`flex-1 btn-unique py-4 ${
+                            (!usdcAmount || !navTokenAmount || parseFloat(usdcAmount) <= 0 || parseFloat(navTokenAmount) <= 0)
+                              ? 'opacity-50 cursor-not-allowed'
+                              : ''
+                          }`}
+                        >
+                          CREATE BUNDLE
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {[
+                        { step: 1, label: 'Creating bundle configuration', desc: 'Saving bundle details and allocations' },
+                        { step: 2, label: 'Approving USDC payment', desc: `Approving $${parseFloat(usdcAmount).toFixed(2)} USDC` },
+                        { step: 3, label: 'Funding bundle treasury', desc: 'Purchasing underlying assets' },
+                        { step: 4, label: 'Minting NAV tokens', desc: `Minting ${parseFloat(navTokenAmount).toLocaleString()} NAV tokens` }
+                      ].map((item) => (
+                        <div key={item.step} className="flex items-start gap-4">
+                          <div className={`w-8 h-8 flex items-center justify-center border-2 ${
+                            creationStep > item.step ? 'border-green-400 bg-green-400' :
+                            creationStep === item.step ? 'border-white bg-white' :
+                            'border-white/20 bg-transparent'
+                          }`}>
+                            {creationStep > item.step ? (
+                              <span className="text-black text-sm">✓</span>
+                            ) : creationStep === item.step ? (
+                              <div className="w-3 h-3 bg-black animate-pulse" />
+                            ) : (
+                              <span className="text-gray-600 text-sm">{item.step}</span>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className={`font-bold ${
+                              creationStep >= item.step ? 'text-white' : 'text-gray-600'
+                            }`}>
+                              {item.label}
+                            </div>
+                            <div className="text-gray-500 text-sm">{item.desc}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {isDrawerOpen && (
           <>
             <motion.div
@@ -572,11 +765,11 @@ export default function BundleBuilder() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-black border-l border-white/10 z-50 overflow-hidden flex flex-col"
+              className="fixed right-0 top-0 bottom-0 w-full md:max-w-2xl bg-black md:border-l border-white/10 z-50 overflow-hidden flex flex-col"
             >
-              <div className="p-8 border-b border-white/10">
+              <div className="p-4 md:p-8 border-b border-white/10">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-3xl font-bold text-white">Select Assets</h2>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white">Select Assets</h2>
                   <button
                     onClick={() => setIsDrawerOpen(false)}
                     className="text-gray-400 hover:text-white transition-colors p-2"
@@ -621,7 +814,7 @@ export default function BundleBuilder() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8">
+              <div className="flex-1 overflow-y-auto p-4 md:p-8">
                 {assetsLoading ? (
                   <div className="text-center py-16 text-gray-400">
                     Loading assets...
