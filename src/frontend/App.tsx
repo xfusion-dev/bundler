@@ -11,6 +11,7 @@ import BundleBuilder from './pages/BundleBuilder';
 import Assets from './pages/Assets';
 import Bundles from './pages/Bundles';
 import Portfolio from './pages/Portfolio';
+import Lending from './pages/Lending';
 import Lend from './pages/Lend';
 import Borrow from './pages/Borrow';
 import NotFound from './pages/NotFound';
@@ -76,6 +77,11 @@ function App() {
           <Route path="/portfolio" element={
             <Layout showHero={false}>
               <Portfolio />
+            </Layout>
+          } />
+          <Route path="/lending" element={
+            <Layout showHero={false}>
+              <Lending />
             </Layout>
           } />
           <Route path="/lending/supply" element={

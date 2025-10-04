@@ -1,29 +1,27 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, Menu, X } from 'lucide-react';
+import { ExternalLink, Menu, X, Wallet } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import AuthModal from '../ui/AuthModal';
 import UserDropdown from '../ui/UserDropdown';
 
 interface HeaderProps {
   showHero?: boolean;
+  onWalletClick?: () => void;
 }
 
-export default function Header({ showHero = false }: HeaderProps) {
+export default function Header({ showHero = false, onWalletClick }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(!showHero);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isAuthenticated, principal, login, logout, loading } = useAuth();
 
   useEffect(() => {
-    // Only set up scroll listener on homepage with hero
     if (!showHero) {
-      // For all non-homepage pages, always show scrolled state
       setIsScrolled(true);
       return;
     }
 
-    // Homepage with hero - handle scroll
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
@@ -41,10 +39,6 @@ export default function Header({ showHero = false }: HeaderProps) {
       setShowAuthModal(true);
       const success = await login();
       setShowAuthModal(false);
-      
-      if (!success) {
-        // Handle login failure if needed
-      }
     }
   };
 
@@ -78,17 +72,25 @@ export default function Header({ showHero = false }: HeaderProps) {
             </div>
           </div>
 
-          {/* Right side - Auth */}
           <div className="nav-actions">
             {isAuthenticated && principal ? (
-              <UserDropdown 
-                principal={principal} 
-                onSignOut={() => {
-                  void logout();
-                }} 
-              />
+              <div className="flex items-center gap-3">
+                <UserDropdown
+                  principal={principal}
+                  onSignOut={() => {
+                    void logout();
+                  }}
+                />
+                <button
+                  onClick={onWalletClick}
+                  className="flex w-10 h-10 border border-white/20 hover:bg-white/10 items-center justify-center transition-colors"
+                  title="Open Wallet"
+                >
+                  <Wallet className="w-5 h-5 text-white" />
+                </button>
+              </div>
             ) : (
-              <button 
+              <button
                 onClick={() => {
                   void handleAuth();
                 }}
@@ -102,10 +104,9 @@ export default function Header({ showHero = false }: HeaderProps) {
         </div>
       </nav>
 
-      {/* Authentication Modal */}
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => { setShowAuthModal(false); }} 
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => { setShowAuthModal(false); }}
       />
     </>
   );

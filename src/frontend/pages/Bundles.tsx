@@ -44,18 +44,26 @@ export default function Bundles() {
         setLoading(true);
         setError(null);
 
-        const backendBundles = await backendService.listBundles();
+        const [backendBundles, allAssets] = await Promise.all([
+          backendService.listBundles(),
+          backendService.listAssets()
+        ]);
+
+        const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
 
         const transformedBundles: Bundle[] = backendBundles.map(bundle => ({
           id: bundle.id,
           name: bundle.name,
           description: bundle.description || '',
-          tokens: bundle.allocations.map(a => ({
-            symbol: a.asset_id,
-            name: a.asset_id,
-            allocation: a.percentage,
-            logo: ''
-          })),
+          tokens: bundle.allocations.map(a => {
+            const assetDetails = assetMap.get(a.asset_id);
+            return {
+              symbol: assetDetails?.symbol || a.asset_id,
+              name: assetDetails?.name || a.asset_id,
+              allocation: a.percentage,
+              logo: assetDetails?.metadata?.logo_url || ''
+            };
+          }),
           totalValue: 0,
           change24h: 0,
           subscribers: 0,
@@ -120,7 +128,7 @@ export default function Bundles() {
   if (loading) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <motion.div
               className="mb-16"
@@ -128,9 +136,9 @@ export default function Bundles() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <div className="flex items-start justify-between mb-12">
+              <div className="flex items-start justify-between mb-8 md:mb-12">
                 <div className="flex-1">
-                  <h1 className="text-6xl font-bold text-white mb-4">Discover Bundles</h1>
+                  <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 md:mb-4">Discover Bundles</h1>
                   <p className="text-gray-400 text-lg max-w-2xl">
                     Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives.
                   </p>
@@ -165,7 +173,7 @@ export default function Bundles() {
   if (error) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-20">
               <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
@@ -195,17 +203,17 @@ export default function Bundles() {
         description="Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives. Start building your diversified crypto portfolio today."
         keywords="crypto bundles, token portfolios, DeFi portfolios, diversified crypto, crypto index funds"
       />
-      <div className="px-6 py-16">
+      <div className="px-6 py-8 md:py-16">
         <div className="max-w-7xl mx-auto">
           <motion.div
-            className="mb-8"
+            className="mb-6 md:mb-8"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="mb-8">
-              <div className="md:hidden mb-6">
-                <h1 className="text-4xl font-bold text-white mb-3">Discover Bundles</h1>
+            <div className="mb-6 md:mb-8">
+              <div className="md:hidden mb-4 md:mb-6">
+                <h1 className="text-4xl font-bold text-white mb-2 md:mb-3">Discover Bundles</h1>
                 <p className="text-gray-400 text-base mb-4">
                   Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives.
                 </p>
@@ -214,9 +222,9 @@ export default function Bundles() {
                 </Link>
               </div>
 
-              <div className="hidden md:flex items-start justify-between mb-8">
+              <div className="hidden md:flex items-start justify-between mb-6 md:mb-8">
                 <div className="flex-1">
-                  <h1 className="text-6xl font-bold text-white mb-4">Discover Bundles</h1>
+                  <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 md:mb-4">Discover Bundles</h1>
                   <p className="text-gray-400 text-lg max-w-2xl">
                     Explore curated token portfolios. Each bundle represents real asset ownership—no synthetics, no derivatives.
                   </p>
@@ -258,7 +266,7 @@ export default function Bundles() {
                 </button>
               </div>
               <div className="flex items-center gap-8">
-                <div className="w-24" /> {/* Tokens spacer */}
+                <div className="w-48 text-gray-400 text-sm font-mono uppercase text-center">Assets</div>
                 <button
                   onClick={() => handleSort('price')}
                   className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-mono uppercase min-w-[120px] justify-end"
@@ -292,7 +300,18 @@ export default function Bundles() {
                     <ArrowUpDown className="w-4 h-4 opacity-50" />
                   )}
                 </button>
-                <div className="w-6" /> {/* Arrow spacer */}
+                <button
+                  onClick={() => handleSort('marketCap')}
+                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-mono uppercase min-w-[120px] justify-end"
+                >
+                  Market Cap
+                  {sortBy === 'marketCap' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                  ) : (
+                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                  )}
+                </button>
+                <div className="w-8" />
               </div>
             </div>
           </div>
@@ -314,10 +333,15 @@ export default function Bundles() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
-                className="md:hidden space-y-6"
+                className="md:hidden"
               >
-                {filteredBundles.map((bundle) => (
-                  <BundleMobileCard key={bundle.id} bundle={bundle} />
+                {filteredBundles.map((bundle, index) => (
+                  <div key={bundle.id}>
+                    <BundleMobileCard bundle={bundle} />
+                    {index < filteredBundles.length - 1 && (
+                      <div className="h-px bg-white/10 my-4" />
+                    )}
+                  </div>
                 ))}
               </motion.div>
             </>

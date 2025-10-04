@@ -50,7 +50,7 @@ export default function Lend() {
   if (loading) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-20">
               <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
@@ -68,7 +68,7 @@ export default function Lend() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-20">
               <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
@@ -93,44 +93,44 @@ export default function Lend() {
 
   return (
     <div className="min-h-screen bg-black">
-      <div className="px-6 py-16">
+      <div className="px-6 py-8 md:py-16">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-12">
-            <h1 className="text-6xl font-bold text-white mb-4">Lend ckUSDC</h1>
-            <p className="text-gray-400 text-lg">
+          <div className="mb-8 md:mb-12">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 md:mb-4">Lend ckUSDC</h1>
+            <p className="text-gray-400 text-base md:text-lg">
               Lend ckUSDC to the pool and earn {currentAPY}% APY from borrowers
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="space-y-8">
-              <div className="border border-white/10 bg-white/5 p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+            <div className="space-y-6 md:space-y-8">
+              <div className="border border-white/10 bg-white/5 p-4 md:p-8">
                 <div className="mb-6">
                   <div className="text-gray-400 text-sm mb-2">Your Lent Balance</div>
-                  <div className="text-white text-6xl font-bold mb-1">
+                  <div className="text-white text-4xl md:text-6xl font-bold mb-1">
                     ${lentBalance.toLocaleString()}
                   </div>
                   <div className="text-gray-500 text-sm">{lentBalance.toLocaleString()} ckUSDC</div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/10">
+                <div className="grid grid-cols-2 gap-3 md:gap-4 pt-6 border-t border-white/10">
                   <div>
                     <div className="text-gray-400 text-xs mb-1">Current APY</div>
-                    <div className="text-green-400 text-2xl font-bold flex items-center gap-2">
+                    <div className="text-green-400 text-xl md:text-2xl font-bold flex items-center gap-2">
                       {currentAPY}%
-                      <TrendingUp className="w-5 h-5" />
+                      <TrendingUp className="w-4 h-4 md:w-5 md:h-5" />
                     </div>
                   </div>
                   <div>
                     <div className="text-gray-400 text-xs mb-1">Earnings (30d)</div>
-                    <div className="text-white text-2xl font-bold">
+                    <div className="text-white text-xl md:text-2xl font-bold">
                       ${((lentBalance * currentAPY / 100) / 12).toFixed(2)}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="border border-white/10 bg-white/5 p-8">
+              <div className="border border-white/10 bg-white/5 p-4 md:p-8">
                 <h2 className="text-2xl font-bold text-white mb-6">Pool Statistics</h2>
 
                 <div className="space-y-6">
@@ -172,9 +172,9 @@ export default function Lend() {
               </div>
             </div>
 
-            <div className="space-y-8">
-              <div className="border border-white/10 bg-white/5 sticky top-8">
-                <div className="p-6 border-b border-white/10">
+            <div className="space-y-6 md:space-y-8">
+              <div className="border border-white/10 bg-white/5 md:sticky md:top-8">
+                <div className="p-4 md:p-6 border-b border-white/10">
                   <div className="flex gap-2">
                     <button
                       onClick={() => setMode('lend')}
@@ -199,7 +199,7 @@ export default function Lend() {
                   </div>
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="p-4 md:p-8 space-y-6">
                   {mode === 'lend' ? (
                     <>
                       <div>

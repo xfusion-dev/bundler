@@ -90,7 +90,7 @@ export default function Borrow() {
   if (loading) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-20">
               <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
@@ -108,7 +108,7 @@ export default function Borrow() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-20">
               <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
@@ -153,45 +153,45 @@ export default function Borrow() {
 
   return (
     <div className="min-h-screen bg-black">
-      <div className="px-6 py-16">
+      <div className="px-6 py-8 md:py-16">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-12 flex items-end justify-between">
-            <div>
-              <h1 className="text-6xl font-bold text-white mb-4">Borrow ckUSDC</h1>
-              <p className="text-gray-400 text-lg">
+          <div className="mb-8 md:mb-12">
+            <div className="mb-6 md:mb-0">
+              <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 md:mb-4">Borrow ckUSDC</h1>
+              <p className="text-gray-400 text-base md:text-lg">
                 Borrow ckUSDC against your bundle collateral at {borrowAPR}% APR
               </p>
             </div>
-            <div className="text-right">
-              <div className="text-gray-500 text-xs font-mono uppercase mb-2 tracking-wider">Health Factor</div>
-              <div className="flex items-center justify-end gap-3">
-                <span className={`text-7xl font-bold tabular-nums ${getHealthColor(healthFactor)}`}>
+            <div className="border border-white/10 bg-white/5 p-4 mt-6 md:mt-8">
+              <div className="text-gray-500 text-xs font-mono uppercase mb-3 tracking-wider">Health Factor</div>
+              <div className="flex items-center gap-3">
+                <span className={`text-5xl md:text-7xl font-bold tabular-nums ${getHealthColor(healthFactor)}`}>
                   {healthFactor.toFixed(2)}
                 </span>
                 {healthFactor >= 2 ? (
-                  <Shield className="w-10 h-10 text-green-400" />
+                  <Shield className="w-8 h-8 md:w-10 md:h-10 text-green-400" />
                 ) : healthFactor >= 1.5 ? (
-                  <AlertTriangle className="w-10 h-10 text-yellow-400" />
+                  <AlertTriangle className="w-8 h-8 md:w-10 md:h-10 text-yellow-400" />
                 ) : (
-                  <AlertTriangle className="w-10 h-10 text-red-400" />
+                  <AlertTriangle className="w-8 h-8 md:w-10 md:h-10 text-red-400" />
                 )}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="space-y-8">
-              <div className="border border-white/10 bg-white/5 p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+            <div className="space-y-6 md:space-y-8">
+              <div className="border border-white/10 bg-white/5 p-4 md:p-8">
                 <div className="flex items-end justify-between mb-6">
                   <div>
                     <div className="text-gray-400 text-xs font-mono uppercase mb-2">Current Debt</div>
-                    <div className="text-white text-4xl font-bold">
+                    <div className="text-white text-2xl md:text-4xl font-bold">
                       ${currentDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-gray-400 text-xs font-mono uppercase mb-2">Available</div>
-                    <div className="text-green-400 text-4xl font-bold">
+                    <div className="text-green-400 text-2xl md:text-4xl font-bold">
                       ${availableToBorrow.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   </div>
@@ -220,7 +220,7 @@ export default function Borrow() {
                 </div>
               </div>
 
-              <div className="border border-white/10 bg-white/5 p-8">
+              <div className="border border-white/10 bg-white/5 p-4 md:p-8">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold text-white">Your Collateral</h2>
                   <button
@@ -279,9 +279,9 @@ export default function Borrow() {
               </div>
             </div>
 
-            <div className="space-y-8">
-              <div className="border border-white/10 bg-white/5 sticky top-8">
-                <div className="p-6 border-b border-white/10">
+            <div className="space-y-6 md:space-y-8">
+              <div className="border border-white/10 bg-white/5 md:sticky md:top-8">
+                <div className="p-4 md:p-6 border-b border-white/10">
                   <div className="flex gap-2">
                     <button
                       onClick={() => setMode('borrow')}
@@ -306,7 +306,7 @@ export default function Borrow() {
                   </div>
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="p-4 md:p-8 space-y-6">
                   {mode === 'borrow' ? (
                     <>
                       <div className="border border-green-400/20 bg-green-400/5 p-4">

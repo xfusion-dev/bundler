@@ -145,7 +145,7 @@ export default function BundleBuilder() {
   if (loading) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-20">
               <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
@@ -163,7 +163,7 @@ export default function BundleBuilder() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-20">
               <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
@@ -328,7 +328,7 @@ export default function BundleBuilder() {
         keywords="create crypto bundle, custom token portfolio, DeFi portfolio builder, crypto index creator"
       />
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8 md:mb-16">
               <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 md:mb-4">Create Bundle</h1>

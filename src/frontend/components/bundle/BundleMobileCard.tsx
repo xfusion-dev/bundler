@@ -34,10 +34,48 @@ export default function BundleMobileCard({ bundle }: BundleMobileCardProps) {
               <span className="text-white font-bold text-sm">{symbol}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-white text-lg font-bold mb-1 truncate">
+              <h3 className="text-white text-lg font-bold mb-2 truncate">
                 {bundle.name}
               </h3>
-              <p className="text-gray-500 text-xs line-clamp-2">{bundle.description}</p>
+              <div className="flex -space-x-1.5 mb-2">
+                {bundle.tokens.slice(0, 4).map((token, idx) => (
+                  <div
+                    key={idx}
+                    className="w-6 h-6 rounded-full bg-white/10 border-2 border-black flex items-center justify-center overflow-hidden"
+                    style={{ zIndex: bundle.tokens.length - idx }}
+                    title={token.name}
+                  >
+                    {token.logo ? (
+                      <img
+                        src={token.logo}
+                        alt={token.symbol}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.innerHTML = `<span class="text-[9px] text-white font-bold">${token.symbol.slice(0, 2)}</span>`;
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span className="text-[9px] text-white font-bold">
+                        {token.symbol.slice(0, 2)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {bundle.tokens.length > 4 && (
+                  <div
+                    className="w-6 h-6 rounded-full bg-white/10 border-2 border-black flex items-center justify-center text-[9px] text-gray-400"
+                    style={{ zIndex: 0 }}
+                  >
+                    +{bundle.tokens.length - 4}
+                  </div>
+                )}
+              </div>
+              <p className="text-gray-500 text-xs line-clamp-1">{bundle.description}</p>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 ml-2" />

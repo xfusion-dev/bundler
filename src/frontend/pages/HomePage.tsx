@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { backendService } from '../lib/backend';
 import BundleRow from '../components/bundle/BundleRow';
+import BundleMobileCard from '../components/bundle/BundleMobileCard';
 import TVLHero from '../components/hero/TVLHero';
 import BundlesIntroSection from '../components/hero/BundleDetailsSection';
 interface Bundle {
@@ -91,16 +92,16 @@ export default function HomePage() {
 
       <BundlesIntroSection />
 
-      <section id="bundles" className="px-6 py-24 bg-black">
+      <section id="bundles" className="px-6 py-8 md:py-24 bg-black">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 md:mb-8 gap-4">
             <div>
-              <h2 className="text-3xl font-bold text-white mb-2">Featured Bundles</h2>
-              <p className="text-gray-400">
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">Featured Bundles</h2>
+              <p className="text-gray-400 text-sm md:text-base">
                 Popular token bundles created by the community
               </p>
             </div>
-            <Link to="/bundles" className="btn-outline-unique">
+            <Link to="/bundles" className="btn-outline-unique w-fit">
               View All Bundles
             </Link>
           </div>
@@ -112,20 +113,28 @@ export default function HomePage() {
               ))}
             </div>
           ) : featuredBundles.length > 0 ? (
-            <div className="border border-white/10 rounded-lg overflow-hidden bg-black">
-              <div className="flex items-center justify-between py-3 px-6 border-b border-white/10 bg-white/5">
-                <div className="text-sm text-gray-400 font-medium">Name</div>
-                <div className="flex items-center gap-8">
-                  <div className="text-sm text-gray-400 font-medium min-w-[120px]">Backing</div>
-                  <div className="text-sm text-gray-400 font-medium min-w-[120px]">Tags</div>
-                  <div className="text-sm text-gray-400 font-medium min-w-[140px]">Performance (Last 7 Days)</div>
-                  <div className="text-sm text-gray-400 font-medium min-w-[120px]">Market Cap</div>
+            <>
+              <div className="hidden md:block border border-white/10 rounded-lg overflow-hidden bg-black">
+                <div className="flex items-center justify-between py-3 px-6 border-b border-white/10 bg-white/5">
+                  <div className="text-sm text-gray-400 font-medium">Name</div>
+                  <div className="flex items-center gap-8">
+                    <div className="text-sm text-gray-400 font-medium min-w-[120px]">Backing</div>
+                    <div className="text-sm text-gray-400 font-medium min-w-[120px]">Tags</div>
+                    <div className="text-sm text-gray-400 font-medium min-w-[140px]">Performance (Last 7 Days)</div>
+                    <div className="text-sm text-gray-400 font-medium min-w-[120px]">Market Cap</div>
+                  </div>
                 </div>
+                {featuredBundles.map((bundle) => (
+                  <BundleRow key={bundle.id} bundle={bundle} />
+                ))}
               </div>
-              {featuredBundles.map((bundle) => (
-                <BundleRow key={bundle.id} bundle={bundle} />
-              ))}
-            </div>
+
+              <div className="md:hidden space-y-4">
+                {featuredBundles.map((bundle) => (
+                  <BundleMobileCard key={bundle.id} bundle={bundle} />
+                ))}
+              </div>
+            </>
           ) : (
             <div className="text-center py-12">
               <p className="text-gray-400 mb-4">No featured bundles available yet.</p>

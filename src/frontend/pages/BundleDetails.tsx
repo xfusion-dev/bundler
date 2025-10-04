@@ -260,7 +260,7 @@ export default function BundleDetails() {
   if (error || !bundle) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="px-6 py-16">
+        <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-20">
               <div className="w-24 h-24 bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
@@ -340,15 +340,15 @@ export default function BundleDetails() {
     <div className="min-h-screen bg-black">
       <div className="px-6 py-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-white/20 to-white/5 border border-white/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-xl">
+          <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
+            <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-white/20 to-white/5 border border-white/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-base md:text-xl">
                 {bundleDetails.symbol}
               </span>
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-white">{bundleDetails.name}</h1>
-              <div className="flex items-center gap-3 text-gray-400 text-sm mt-1">
+              <h1 className="text-2xl md:text-4xl font-bold text-white">{bundleDetails.name}</h1>
+              <div className="flex items-center gap-2 md:gap-3 text-gray-400 text-xs md:text-sm mt-1">
                 <span>Bundle Token</span>
                 <span>•</span>
                 <span>Created {bundleDetails.createdAt}</span>
@@ -356,18 +356,18 @@ export default function BundleDetails() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              <div className="border border-white/10 bg-white/5 p-8">
-                <div className="flex items-start justify-between mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="lg:col-span-2 space-y-6 md:space-y-8">
+              <div className="border border-white/10 bg-white/5 p-4 md:p-8">
+                <div className="flex items-start justify-between mb-6 md:mb-8">
                   <div>
-                    <div className="text-5xl font-bold text-white mb-3">
+                    <div className="text-3xl md:text-5xl font-bold text-white mb-2 md:mb-3">
                       ${bundleDetails.price.toFixed(2)}
                     </div>
-                    <div className={`flex items-center gap-2 text-lg font-semibold ${
+                    <div className={`flex items-center gap-2 text-base md:text-lg font-semibold ${
                       isPositive ? 'text-green-400' : 'text-red-400'
                     }`}>
-                      <TrendIcon className="w-5 h-5" />
+                      <TrendIcon className="w-4 h-4 md:w-5 md:h-5" />
                       {isPositive ? '+' : ''}{bundleDetails.change24h.toFixed(2)}% (24h)
                     </div>
                   </div>
@@ -377,7 +377,7 @@ export default function BundleDetails() {
                       <button
                         key={period}
                         onClick={() => setSelectedPeriod(period as any)}
-                        className={`px-3 py-1 text-xs font-mono transition-colors ${
+                        className={`px-2 md:px-3 py-1 text-xs font-mono transition-colors ${
                           selectedPeriod === period
                             ? 'bg-white text-black'
                             : 'text-gray-400 hover:text-white border border-white/10'
@@ -389,7 +389,7 @@ export default function BundleDetails() {
                   </div>
                 </div>
 
-                <div className="h-64">
+                <div className="h-48 md:h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={bundleDetails.priceHistory}>
                       <XAxis
@@ -419,7 +419,7 @@ export default function BundleDetails() {
               </div>
 
               <div className="border border-white/10 bg-white/5">
-                <div className="border-b border-white/10">
+                <div className="border-b border-white/10 overflow-x-auto">
                   <div className="flex">
                     {[
                       { key: 'composition', label: 'Composition', icon: PieChart },
@@ -429,7 +429,7 @@ export default function BundleDetails() {
                       <button
                         key={key}
                         onClick={() => setActiveTab(key as any)}
-                        className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors ${
+                        className={`flex items-center gap-2 px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                           activeTab === key
                             ? 'text-white border-b-2 border-white'
                             : 'text-gray-400 hover:text-white'
@@ -442,7 +442,7 @@ export default function BundleDetails() {
                   </div>
                 </div>
 
-                <div className="p-8">
+                <div className="p-4 md:p-8">
                   {activeTab === 'statistics' && (
                     <div className="space-y-8">
                       <div className="grid grid-cols-2 gap-6">
@@ -590,8 +590,7 @@ export default function BundleDetails() {
             </div>
 
             <div className="space-y-6">
-              {/* Trading Widget */}
-              <div className="border border-white/10 bg-white/5 sticky top-6">
+              <div className="border border-white/10 bg-white/5 md:sticky md:top-6">
                 <div className="flex border-b border-white/10">
                   {['buy', 'sell'].map((mode) => (
                     <button
@@ -610,7 +609,7 @@ export default function BundleDetails() {
                   ))}
                 </div>
 
-                <div className="p-6">
+                <div className="p-4 md:p-6">
                   <div className="space-y-4">
                 {/* Balance Display */}
                 {isAuthenticated && tradeTab === 'buy' && (
