@@ -345,17 +345,17 @@ pub async fn execute_quote(request_id: u64) -> Result<u64, String> {
         return Err("Only the quote requester can execute".to_string());
     }
 
-    validate_buy_transaction_preconditions(&request, &assignment)?;
+    validate_buy_transaction_preconditions(&request, &assignment).await?;
 
     let transaction_id = crate::transaction_manager::create_transaction(request_id)?;
 
     match request.operation {
         OperationType::Buy => initiate_buy_transaction(transaction_id, &request, &assignment).await,
-        OperationType::Sell => Ok(initiate_sell_transaction(transaction_id, &request, &assignment)?),
+        OperationType::Sell => Ok(initiate_sell_transaction(transaction_id, &request, &assignment).await?),
     }
 }
 
-fn validate_buy_transaction_preconditions(request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<(), String> {
+async fn validate_buy_transaction_preconditions(request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<(), String> {
     if assignment.valid_until <= time() {
         return Err("Quote assignment expired".to_string());
     }
@@ -380,7 +380,7 @@ fn validate_buy_transaction_preconditions(request: &QuoteRequest, assignment: &Q
                 return Err("Sell amount mismatch".to_string());
             }
 
-            let user_nav_balance = crate::nav_token::get_user_nav_token_balance(request.user, request.bundle_id)?;
+            let user_nav_balance = crate::nav_token::get_user_nav_token_balance(request.user, request.bundle_id).await?;
             if user_nav_balance < assignment.nav_tokens {
                 return Err("Insufficient NAV token balance".to_string());
             }
@@ -407,11 +407,11 @@ async fn initiate_buy_transaction(transaction_id: u64, request: &QuoteRequest, a
     Ok(transaction_id)
 }
 
-fn initiate_sell_transaction(transaction_id: u64, request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<u64, String> {
+async fn initiate_sell_transaction(transaction_id: u64, request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<u64, String> {
     validate_sell_transaction_safety(request, assignment)?;
 
     let fund_type = LockedFundType::NAVTokens { bundle_id: request.bundle_id };
-    crate::transaction_manager::lock_user_funds_with_validation(transaction_id, fund_type, assignment.nav_tokens)?;
+    crate::transaction_manager::lock_user_funds_with_validation(transaction_id, fund_type, assignment.nav_tokens).await?;
 
     crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::FundsLocked)?;
 
@@ -470,53 +470,6 @@ pub async fn confirm_ckusdc_payment(request_id: u64) -> Result<(), String> {
     crate::sell_flow::confirm_resolver_payment_and_complete_sell(request_id).await
 }
 
-
-async fn complete_buy_transaction(transaction_id: u64, assignment: &QuoteAssignment, deposits: Vec<(AssetId, u64)>) -> Result<(), String> {
-    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::InProgress)?;
-
-    let transaction = crate::transaction_manager::get_transaction(transaction_id)?;
-
-    for (asset_id, amount) in deposits {
-        crate::holdings_tracker::update_bundle_holdings(transaction.bundle_id, &asset_id, amount as i64)?;
-    }
-
-    crate::nav_token::mint_nav_tokens(transaction.user, transaction.bundle_id, assignment.nav_tokens)?;
-
-    crate::transaction_manager::pay_resolver_ckusdc(transaction_id, assignment.resolver, assignment.ckusdc_amount).await?;
-
-    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::Completed)?;
-
-    Ok(())
-}
-
-fn complete_sell_transaction(transaction_id: u64, assignment: &QuoteAssignment) -> Result<(), String> {
-    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::InProgress)?;
-
-    let transaction = crate::transaction_manager::get_transaction(transaction_id)?;
-    let withdrawals = crate::holdings_tracker::calculate_proportional_withdrawal(
-        transaction.bundle_id,
-        assignment.nav_tokens
-    )?;
-
-    for withdrawal in withdrawals {
-        crate::holdings_tracker::update_bundle_holdings(
-            transaction.bundle_id,
-            &withdrawal.asset_id,
-            -(withdrawal.amount as i64)
-        )?;
-    }
-
-    crate::nav_token::burn_nav_tokens(transaction.user, transaction.bundle_id, assignment.nav_tokens)?;
-
-    let _nav_tokens = crate::transaction_manager::unlock_user_funds(
-        transaction_id,
-        &LockedFundType::NAVTokens { bundle_id: transaction.bundle_id }
-    )?;
-
-    crate::transaction_manager::update_transaction_status(transaction_id, TransactionStatus::Completed)?;
-
-    Ok(())
-}
 
 fn validate_assignment_against_request(request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<(), String> {
     if request.request_id != assignment.request_id {

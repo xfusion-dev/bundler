@@ -108,36 +108,7 @@ async fn recover_buy_transaction(tx: &Transaction) -> Result<(), String> {
     Ok(())
 }
 
-async fn recover_sell_transaction(tx: &Transaction) -> Result<(), String> {
-    if let Ok(nav_balance) = crate::nav_token::get_user_nav_token_balance(tx.user, tx.bundle_id) {
-        if nav_balance < tx.nav_tokens {
-            ic_cdk::println!("User {} already spent NAV tokens for tx {}", tx.user, tx.id);
-            return Ok(());
-        }
-    }
-
-    let bundle_holdings = crate::holdings_tracker::get_all_bundle_holdings(tx.bundle_id);
-    let mut has_assets = false;
-
-    for holding in &bundle_holdings {
-        let asset_id = &holding.asset_id;
-        if let Ok(balance) = crate::icrc2_client::get_asset_balance(asset_id, tx.user).await {
-            if balance > 0 {
-                has_assets = true;
-                break;
-            }
-        }
-    }
-
-    if !has_assets {
-        crate::nav_token::mint_nav_tokens(
-            tx.user,
-            tx.bundle_id,
-            tx.nav_tokens
-        )?;
-        ic_cdk::println!("Restored {} NAV tokens to user {}", tx.nav_tokens, tx.user);
-    }
-
+async fn recover_sell_transaction(_tx: &Transaction) -> Result<(), String> {
     Ok(())
 }
 

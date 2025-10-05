@@ -74,8 +74,8 @@ async fn get_portfolio_value(user: Option<Principal>) -> Result<u64, String> {
 }
 
 #[query]
-fn validate_total_supply_consistency(bundle_id: u64) -> Result<SupplyValidationResult, String> {
-    nav_calculator::validate_total_supply_consistency(bundle_id)
+async fn validate_total_supply_consistency(bundle_id: u64) -> Result<SupplyValidationResult, String> {
+    nav_calculator::validate_total_supply_consistency(bundle_id).await
 }
 
 #[update]
@@ -273,8 +273,8 @@ fn get_recent_transactions(limit: usize) -> Vec<TransactionSummary> {
 
 
 #[query]
-fn validate_sufficient_balance(user: Principal, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
-    transaction_manager::validate_sufficient_balance(user, &fund_type, amount)
+async fn validate_sufficient_balance(user: Principal, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
+    transaction_manager::validate_sufficient_balance(user, &fund_type, amount).await
 }
 
 #[query]
@@ -283,8 +283,8 @@ fn get_user_total_locked_amount(user: Principal, fund_type: LockedFundType) -> u
 }
 
 #[update]
-fn lock_user_funds_with_validation(transaction_id: u64, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
-    transaction_manager::lock_user_funds_with_validation(transaction_id, fund_type, amount)
+async fn lock_user_funds_with_validation(transaction_id: u64, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
+    transaction_manager::lock_user_funds_with_validation(transaction_id, fund_type, amount).await
 }
 
 #[update]

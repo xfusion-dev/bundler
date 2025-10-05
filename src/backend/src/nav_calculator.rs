@@ -11,7 +11,7 @@ pub async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
         return Err("Bundle is not active".to_string());
     }
 
-    let total_nav_tokens = get_total_tokens_for_bundle(bundle_id);
+    let total_nav_tokens = get_total_tokens_for_bundle(bundle_id).await?;
 
     if total_nav_tokens == 0 {
         return Ok(BundleNAV {
@@ -260,8 +260,8 @@ pub fn format_nav_with_precision(nav_value: u64, precision_decimals: u8) -> Stri
     }
 }
 
-pub fn validate_total_supply_consistency(bundle_id: u64) -> Result<SupplyValidationResult, String> {
-    let recorded_total = crate::nav_token::get_total_tokens_for_bundle(bundle_id);
+pub async fn validate_total_supply_consistency(bundle_id: u64) -> Result<SupplyValidationResult, String> {
+    let recorded_total = crate::nav_token::get_total_tokens_for_bundle(bundle_id).await?;
     let calculated_total = calculate_total_supply_from_holders(bundle_id);
 
     let is_consistent = recorded_total == calculated_total;
@@ -300,7 +300,7 @@ fn calculate_total_supply_from_holders(bundle_id: u64) -> u64 {
 
 pub async fn calculate_nav_with_full_precision_report(bundle_id: u64) -> Result<NAVPrecisionReport, String> {
     let bundle = crate::bundle_manager::get_bundle(bundle_id)?;
-    let total_tokens = crate::nav_token::get_total_tokens_for_bundle(bundle_id);
+    let total_tokens = crate::nav_token::get_total_tokens_for_bundle(bundle_id).await?;
 
     if total_tokens == 0 {
         return Ok(NAVPrecisionReport {

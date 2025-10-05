@@ -47,7 +47,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
     let withdrawals = crate::holdings_tracker::calculate_proportional_withdrawal(
         request.bundle_id,
         assignment.nav_tokens,
-    )?;
+    ).await?;
 
     for asset_withdrawal in &withdrawals {
         let asset = crate::asset_registry::get_asset(asset_withdrawal.asset_id.clone())?;

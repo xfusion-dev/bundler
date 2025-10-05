@@ -139,7 +139,7 @@ pub async fn validate_sufficient_balance_async(user: Principal, fund_type: &Lock
             }
         }
         LockedFundType::NAVTokens { bundle_id } => {
-            let user_balance = crate::nav_token::get_user_nav_token_balance(user, *bundle_id)?;
+            let user_balance = crate::nav_token::get_user_nav_token_balance(user, *bundle_id).await?;
             let locked_amount = get_user_total_locked_amount(user, fund_type);
             let available_balance = user_balance.saturating_sub(locked_amount);
 
@@ -151,13 +151,13 @@ pub async fn validate_sufficient_balance_async(user: Principal, fund_type: &Lock
     Ok(())
 }
 
-pub fn validate_sufficient_balance(user: Principal, fund_type: &LockedFundType, amount: u64) -> Result<(), String> {
+pub async fn validate_sufficient_balance(user: Principal, fund_type: &LockedFundType, amount: u64) -> Result<(), String> {
     match fund_type {
         LockedFundType::CkUSDC => {
             Ok(())
         }
         LockedFundType::NAVTokens { bundle_id } => {
-            let user_balance = crate::nav_token::get_user_nav_token_balance(user, *bundle_id)?;
+            let user_balance = crate::nav_token::get_user_nav_token_balance(user, *bundle_id).await?;
             let locked_amount = get_user_total_locked_amount(user, fund_type);
             let available_balance = user_balance.saturating_sub(locked_amount);
 
@@ -178,10 +178,10 @@ pub fn get_user_total_locked_amount(user: Principal, fund_type: &LockedFundType)
         .sum()
 }
 
-pub fn lock_user_funds_with_validation(transaction_id: u64, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
+pub async fn lock_user_funds_with_validation(transaction_id: u64, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
     let transaction = get_transaction(transaction_id)?;
 
-    validate_sufficient_balance(transaction.user, &fund_type, amount)?;
+    validate_sufficient_balance(transaction.user, &fund_type, amount).await?;
 
     if is_fund_already_locked(transaction_id, &fund_type) {
         return Err("Funds already locked for this transaction".to_string());

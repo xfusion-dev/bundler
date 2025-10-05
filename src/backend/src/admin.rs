@@ -76,26 +76,36 @@ fn get_memory_usage() -> MemoryUsage {
 }
 
 #[update]
-pub fn cleanup_inactive_bundles() -> Result<u32, String> {
+pub async fn cleanup_inactive_bundles() -> Result<u32, String> {
     let _admin = require_admin()?;
 
-    let mut removed_count = 0;
-
-    BUNDLE_STORAGE.with(|storage| {
-        let mut storage = storage.borrow_mut();
-        let inactive_bundles: Vec<u64> = storage.iter()
+    let inactive_bundles: Vec<u64> = BUNDLE_STORAGE.with(|storage| {
+        storage.borrow().iter()
             .filter_map(|(id, bundle)| {
-                if !bundle.is_active && crate::nav_token::get_total_tokens_for_bundle(id) == 0 {
+                if !bundle.is_active {
                     Some(id)
                 } else {
                     None
                 }
             })
-            .collect();
+            .collect()
+    });
 
-        for bundle_id in inactive_bundles {
+    let mut bundles_to_remove = Vec::new();
+    for bundle_id in inactive_bundles {
+        if let Ok(total_tokens) = crate::nav_token::get_total_tokens_for_bundle(bundle_id).await {
+            if total_tokens == 0 {
+                bundles_to_remove.push(bundle_id);
+            }
+        }
+    }
+
+    let removed_count = bundles_to_remove.len() as u32;
+
+    BUNDLE_STORAGE.with(|storage| {
+        let mut storage = storage.borrow_mut();
+        for bundle_id in bundles_to_remove {
             storage.remove(&bundle_id);
-            removed_count += 1;
         }
     });
 

@@ -90,11 +90,11 @@ pub fn get_all_bundle_holdings(bundle_id: u64) -> Vec<BundleHolding> {
     })
 }
 
-pub fn calculate_proportional_withdrawal(
+pub async fn calculate_proportional_withdrawal(
     bundle_id: u64,
     nav_tokens_to_redeem: u64,
 ) -> Result<Vec<AssetWithdrawal>, String> {
-    let total_nav_tokens = crate::nav_token::get_total_tokens_for_bundle(bundle_id);
+    let total_nav_tokens = crate::nav_token::get_total_tokens_for_bundle(bundle_id).await?;
 
     if total_nav_tokens == 0 {
         return Err("No NAV tokens exist for this bundle".to_string());
@@ -128,10 +128,9 @@ pub async fn simulate_proportional_withdrawal(
     bundle_id: u64,
     nav_tokens_to_redeem: u64,
 ) -> Result<WithdrawalSimulation, String> {
-    let withdrawals = calculate_proportional_withdrawal(bundle_id, nav_tokens_to_redeem)?;
+    let withdrawals = calculate_proportional_withdrawal(bundle_id, nav_tokens_to_redeem).await?;
 
-    // Calculate estimated USD value of withdrawal
-    let total_nav_tokens = crate::nav_token::get_total_tokens_for_bundle(bundle_id);
+    let total_nav_tokens = crate::nav_token::get_total_tokens_for_bundle(bundle_id).await?;
     let withdrawal_percentage = (nav_tokens_to_redeem as f64) / (total_nav_tokens as f64);
 
     let mut estimated_usd_value = 0u64;
@@ -167,21 +166,18 @@ pub async fn simulate_proportional_withdrawal(
     })
 }
 
-pub fn execute_proportional_withdrawal(
+pub async fn execute_proportional_withdrawal(
     bundle_id: u64,
     user: candid::Principal,
     nav_tokens_to_redeem: u64,
 ) -> Result<Vec<AssetWithdrawal>, String> {
-    // First verify user has enough NAV tokens
-    let user_balance = crate::nav_token::get_nav_token_balance(user, bundle_id);
+    let user_balance = crate::nav_token::get_user_nav_token_balance(user, bundle_id).await?;
     if user_balance < nav_tokens_to_redeem {
         return Err("Insufficient NAV token balance".to_string());
     }
 
-    // Calculate withdrawals
-    let withdrawals = calculate_proportional_withdrawal(bundle_id, nav_tokens_to_redeem)?;
+    let withdrawals = calculate_proportional_withdrawal(bundle_id, nav_tokens_to_redeem).await?;
 
-    // Execute the withdrawal - update holdings
     for withdrawal in &withdrawals {
         update_bundle_holdings(
             bundle_id,
@@ -189,9 +185,6 @@ pub fn execute_proportional_withdrawal(
             -(withdrawal.amount as i64),
         )?;
     }
-
-    // Burn the NAV tokens
-    crate::nav_token::burn_nav_tokens(user, bundle_id, nav_tokens_to_redeem)?;
 
     Ok(withdrawals)
 }
