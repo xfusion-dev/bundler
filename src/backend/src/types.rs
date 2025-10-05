@@ -3,6 +3,53 @@ use serde::Serialize;
 use ic_stable_structures::{Storable, storable::Bound};
 use std::borrow::Cow;
 
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct GlobalState {
+    pub version: u32,
+    pub bundle_counter: u64,
+    pub quote_counter: u64,
+    pub transaction_counter: u64,
+    pub admin_principal: Option<Principal>,
+    pub oracle_config: Option<OracleConfig>,
+    pub lending_canister: Option<Principal>,
+    pub wrapper_canister: Option<Principal>,
+    pub icrc151_ledger: Option<Principal>,
+    pub icrc2_ckusdc_ledger: Option<Principal>,
+}
+
+impl Default for GlobalState {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            bundle_counter: 0,
+            quote_counter: 0,
+            transaction_counter: 0,
+            admin_principal: None,
+            oracle_config: None,
+            lending_canister: None,
+            wrapper_canister: None,
+            icrc151_ledger: None,
+            icrc2_ckusdc_ledger: None,
+        }
+    }
+}
+
+impl Storable for GlobalState {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        let serialized = encode_one(self).expect("Failed to serialize GlobalState");
+        Cow::Owned(serialized)
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        decode_one(&bytes).expect("Failed to deserialize GlobalState")
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 1024,
+        is_fixed_size: false,
+    };
+}
+
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum AssetStandard {
     ICRC2, // Includes ICP, ckBTC, ckUSDC, GLDT, etc. - all use ICRC-1 interface
