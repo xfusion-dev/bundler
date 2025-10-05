@@ -15,6 +15,7 @@ mod holdings_tracker;
 mod quote_manager;
 mod transaction_manager;
 mod icrc2_client;
+mod icrc151_client;
 mod resolver_manager;
 mod sell_flow;
 mod buy_flow;
