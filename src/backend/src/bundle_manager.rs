@@ -29,11 +29,7 @@ pub fn create_bundle(mut config: BundleConfig) -> Result<u64, String> {
         })?;
     }
 
-    let bundle_id = BUNDLE_COUNTER.with(|counter| {
-        let mut counter = counter.borrow_mut();
-        *counter += 1;
-        *counter
-    });
+    let bundle_id = get_next_bundle_id();
 
     config.id = bundle_id;
     config.creator = msg_caller();
