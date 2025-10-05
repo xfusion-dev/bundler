@@ -91,14 +91,33 @@ pub struct AssetInfo {
     pub id: AssetId,
     pub symbol: String,
     pub name: String,
-    pub standard: AssetStandard,
-    pub ledger_canister: Principal,
-    pub minter_canister: Option<Principal>,
-    pub oracle_ticker: Option<String>,
+    pub token_location: TokenLocation,
     pub decimals: u8,
     pub is_active: bool,
     pub added_at: u64,
     pub metadata: AssetMetadata,
+}
+
+impl AssetInfo {
+    pub fn is_payment_token(&self) -> bool {
+        matches!(self.token_location, TokenLocation::ICRC2 { .. })
+    }
+
+    pub fn get_icrc2_ledger(&self) -> Result<Principal, String> {
+        match &self.token_location {
+            TokenLocation::ICRC2 { ledger } => Ok(*ledger),
+            _ => Err("Asset is not ICRC-2".to_string()),
+        }
+    }
+
+    pub fn get_icrc151_location(&self) -> Result<(Principal, Vec<u8>), String> {
+        match &self.token_location {
+            TokenLocation::ICRC151 { ledger, token_id } => {
+                Ok((*ledger, token_id.clone()))
+            }
+            _ => Err("Asset is not ICRC-151".to_string()),
+        }
+    }
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
