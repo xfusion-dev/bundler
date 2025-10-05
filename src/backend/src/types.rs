@@ -173,6 +173,7 @@ pub struct AssetFilter {
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct AssetAllocation {
     pub asset_id: AssetId,
+    pub token_location: TokenLocation,
     pub percentage: u8,
 }
 
@@ -180,6 +181,8 @@ pub struct AssetAllocation {
 pub struct BundleConfig {
     pub id: u64,
     pub name: String,
+    pub symbol: String,
+    pub token_location: TokenLocation,
     pub description: Option<String>,
     pub creator: Principal,
     pub allocations: Vec<AssetAllocation>,
@@ -201,6 +204,17 @@ impl Storable for BundleConfig {
         max_size: 4096,
         is_fixed_size: false,
     };
+}
+
+impl BundleConfig {
+    pub fn get_token_location(&self) -> Result<(Principal, Vec<u8>), String> {
+        match &self.token_location {
+            TokenLocation::ICRC151 { ledger, token_id } => {
+                Ok((*ledger, token_id.clone()))
+            }
+            _ => Err("Bundle token must be ICRC-151".to_string()),
+        }
+    }
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]

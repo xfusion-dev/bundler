@@ -62,6 +62,11 @@ pub fn get_user_portfolio(user: Principal) -> UserPortfolio {
             .unwrap_or_else(|_| BundleConfig {
                 id: token.bundle_id,
                 name: "Unknown Bundle".to_string(),
+                symbol: "UNKNOWN".to_string(),
+                token_location: TokenLocation::ICRC151 {
+                    ledger: Principal::anonymous(),
+                    token_id: vec![0u8; 32],
+                },
                 description: None,
                 creator: Principal::anonymous(),
                 allocations: vec![],
