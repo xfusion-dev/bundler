@@ -1,3 +1,4 @@
+use candid::Principal;
 use ic_cdk::api::time;
 use ic_cdk_macros::*;
 use crate::types::*;
@@ -5,17 +6,48 @@ use crate::memory::*;
 use crate::admin::require_admin;
 
 #[update]
-pub fn add_asset(mut asset_info: AssetInfo) -> Result<(), String> {
+pub fn add_asset(
+    id: AssetId,
+    symbol: String,
+    name: String,
+    token_location: TokenLocation,
+    oracle_ticker: Option<String>,
+    decimals: u8,
+    metadata: AssetMetadata,
+) -> Result<(), String> {
     let _admin = require_admin()?;
 
-    asset_info.added_at = time();
+    match &token_location {
+        TokenLocation::ICRC2 { ledger: _ } => {
+            if id.0 != "ckUSDC" {
+                return Err("Only ckUSDC should use ICRC-2".to_string());
+            }
+        }
+        TokenLocation::ICRC151 { ledger: _, token_id } => {
+            if token_id.len() != 32 {
+                return Err("ICRC-151 token_id must be 32 bytes".to_string());
+            }
+        }
+    }
+
+    let asset = AssetInfo {
+        id: id.clone(),
+        symbol,
+        name,
+        token_location,
+        oracle_ticker,
+        decimals,
+        is_active: true,
+        added_at: time(),
+        metadata,
+    };
 
     ASSET_REGISTRY.with(|registry| {
         let mut registry = registry.borrow_mut();
-        if registry.contains_key(&asset_info.id) {
-            return Err(format!("Asset {} already exists", asset_info.id.0));
+        if registry.contains_key(&id) {
+            return Err(format!("Asset {} already exists", id.0));
         }
-        registry.insert(asset_info.id.clone(), asset_info);
+        registry.insert(id, asset);
         Ok(())
     })
 }
@@ -113,5 +145,15 @@ pub fn deactivate_asset(asset_id: AssetId) -> Result<(), String> {
 pub fn get_asset_count() -> u64 {
     ASSET_REGISTRY.with(|registry| {
         registry.borrow().len()
+    })
+}
+
+pub fn get_asset_icrc151_location(asset_id: &AssetId) -> Result<(Principal, Vec<u8>), String> {
+    ASSET_REGISTRY.with(|registry| {
+        let asset = registry.borrow()
+            .get(asset_id)
+            .ok_or_else(|| format!("Asset {} not found", asset_id.0))?;
+
+        asset.get_icrc151_location()
     })
 }
