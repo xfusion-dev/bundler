@@ -260,44 +260,6 @@ pub fn format_nav_with_precision(nav_value: u64, precision_decimals: u8) -> Stri
     }
 }
 
-pub async fn validate_total_supply_consistency(bundle_id: u64) -> Result<SupplyValidationResult, String> {
-    let recorded_total = crate::nav_token::get_total_tokens_for_bundle(bundle_id).await?;
-    let calculated_total = calculate_total_supply_from_holders(bundle_id);
-
-    let is_consistent = recorded_total == calculated_total;
-    let discrepancy = if recorded_total > calculated_total {
-        recorded_total - calculated_total
-    } else {
-        calculated_total - recorded_total
-    };
-
-    Ok(SupplyValidationResult {
-        bundle_id,
-        recorded_total_supply: recorded_total,
-        calculated_total_supply: calculated_total,
-        is_consistent,
-        discrepancy,
-        validation_timestamp: time(),
-    })
-}
-
-fn calculate_total_supply_from_holders(bundle_id: u64) -> u64 {
-    let bundle_suffix = format!(":{}", bundle_id);
-
-    crate::memory::NAV_TOKEN_STORAGE.with(|tokens| {
-        let tokens = tokens.borrow();
-        tokens.iter()
-            .filter_map(|(key, token)| {
-                if key.ends_with(&bundle_suffix) {
-                    Some(token.amount)
-                } else {
-                    None
-                }
-            })
-            .sum()
-    })
-}
-
 pub async fn calculate_nav_with_full_precision_report(bundle_id: u64) -> Result<NAVPrecisionReport, String> {
     let bundle = crate::bundle_manager::get_bundle(bundle_id)?;
     let total_tokens = crate::nav_token::get_total_tokens_for_bundle(bundle_id).await?;

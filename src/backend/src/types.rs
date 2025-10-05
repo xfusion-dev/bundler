@@ -321,7 +321,6 @@ pub struct CanisterStatus {
 pub struct MemoryUsage {
     pub asset_registry_entries: u64,
     pub bundle_storage_entries: u64,
-    pub nav_token_storage_entries: u64,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -444,16 +443,6 @@ pub struct HoldingDrift {
     pub drift_percentage: f64,
     pub holding_amount: u64,
     pub usd_value: u64,
-}
-
-#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
-pub struct SupplyValidationResult {
-    pub bundle_id: u64,
-    pub recorded_total_supply: u64,
-    pub calculated_total_supply: u64,
-    pub is_consistent: bool,
-    pub discrepancy: u64,
-    pub validation_timestamp: u64,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]

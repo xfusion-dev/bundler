@@ -71,7 +71,6 @@ fn get_memory_usage() -> MemoryUsage {
     MemoryUsage {
         asset_registry_entries: ASSET_REGISTRY.with(|r| r.borrow().len()),
         bundle_storage_entries: BUNDLE_STORAGE.with(|r| r.borrow().len()),
-        nav_token_storage_entries: NAV_TOKEN_STORAGE.with(|r| r.borrow().len()),
     }
 }
 
