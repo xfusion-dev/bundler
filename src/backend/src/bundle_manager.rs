@@ -5,8 +5,8 @@ use crate::types::*;
 use crate::memory::*;
 
 #[update]
-pub fn create_bundle(mut config: BundleConfig) -> Result<u64, String> {
-    let total_percentage: u32 = config.allocations.iter()
+pub fn create_bundle(request: BundleCreationRequest) -> Result<u64, String> {
+    let total_percentage: u32 = request.allocations.iter()
         .map(|a| a.percentage as u32)
         .sum();
 
@@ -14,27 +14,48 @@ pub fn create_bundle(mut config: BundleConfig) -> Result<u64, String> {
         return Err(format!("Allocations must sum to 100%, got {}%", total_percentage));
     }
 
-    for allocation in &config.allocations {
-        ASSET_REGISTRY.with(|registry| {
+    let mut allocations_with_location = Vec::new();
+
+    for allocation_input in &request.allocations {
+        let asset_info = ASSET_REGISTRY.with(|registry| {
             let registry = registry.borrow();
-            match registry.get(&allocation.asset_id) {
+            match registry.get(&allocation_input.asset_id) {
                 Some(asset_info) if !asset_info.is_active => {
-                    return Err(format!("Asset {} is not active", allocation.asset_id.0));
+                    Err(format!("Asset {} is not active", allocation_input.asset_id.0))
                 }
                 None => {
-                    return Err(format!("Asset {} not found", allocation.asset_id.0));
+                    Err(format!("Asset {} not found", allocation_input.asset_id.0))
                 }
-                _ => Ok(())
+                Some(asset_info) => Ok(asset_info.clone())
             }
         })?;
+
+        allocations_with_location.push(AssetAllocation {
+            asset_id: allocation_input.asset_id.clone(),
+            token_location: asset_info.token_location,
+            percentage: allocation_input.percentage,
+        });
     }
 
     let bundle_id = get_next_bundle_id();
 
-    config.id = bundle_id;
-    config.creator = msg_caller();
-    config.created_at = time();
-    config.is_active = true;
+    let mut token_id = vec![0u8; 32];
+    token_id[..8].copy_from_slice(&bundle_id.to_be_bytes());
+
+    let config = BundleConfig {
+        id: bundle_id,
+        name: request.name,
+        symbol: request.symbol,
+        token_location: TokenLocation::ICRC151 {
+            ledger: request.icrc151_ledger,
+            token_id,
+        },
+        description: request.description,
+        creator: msg_caller(),
+        allocations: allocations_with_location,
+        created_at: time(),
+        is_active: true,
+    };
 
     BUNDLE_STORAGE.with(|storage| {
         storage.borrow_mut().insert(bundle_id, config)

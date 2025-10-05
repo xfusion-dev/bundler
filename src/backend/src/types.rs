@@ -171,10 +171,25 @@ pub struct AssetFilter {
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct AssetAllocationInput {
+    pub asset_id: AssetId,
+    pub percentage: u8,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct AssetAllocation {
     pub asset_id: AssetId,
     pub token_location: TokenLocation,
     pub percentage: u8,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct BundleCreationRequest {
+    pub name: String,
+    pub symbol: String,
+    pub description: Option<String>,
+    pub allocations: Vec<AssetAllocationInput>,
+    pub icrc151_ledger: Principal,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
