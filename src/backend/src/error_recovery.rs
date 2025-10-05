@@ -44,8 +44,8 @@ async fn recover_transaction(tx_id: u64, tx: Transaction) -> Result<(), String> 
     }
 
     match tx.operation {
-        OperationType::Buy => recover_buy_transaction(&tx).await?,
-        OperationType::Sell => recover_sell_transaction(&tx).await?,
+        OperationType::InitialBuy { .. } | OperationType::Buy { .. } => recover_buy_transaction(&tx).await?,
+        OperationType::Sell { .. } => recover_sell_transaction(&tx).await?,
     }
 
     record_recovery_event(tx_id, &tx)?;
@@ -138,12 +138,12 @@ pub fn validate_transaction_integrity(tx_id: u64) -> Result<(), String> {
     });
 
     match tx.operation {
-        OperationType::Buy => {
+        OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {
             if !locked_funds.iter().any(|l| matches!(&l.fund_type, LockedFundType::CkUSDC)) {
                 return Err("Missing ckUSDC lock".to_string());
             }
         },
-        OperationType::Sell => {
+        OperationType::Sell { .. } => {
             if !locked_funds.iter().any(|l| matches!(&l.fund_type, LockedFundType::NAVTokens { .. })) {
                 return Err("Missing NAV token lock".to_string());
             }

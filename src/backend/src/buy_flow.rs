@@ -14,23 +14,29 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
     }
 
     match request.operation {
-        OperationType::Buy => {},
+        OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {},
         _ => return Err("This function is only for buy operations".to_string()),
     }
 
     let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
     let bundle = crate::bundle_manager::get_bundle(request.bundle_id)?;
 
-    let bundle_nav = crate::nav_calculator::calculate_bundle_nav(request.bundle_id).await?;
-    let nav_token_percentage = (assignment.nav_tokens as f64) / (bundle_nav.total_tokens as f64);
-
     for allocation in &bundle.allocations {
-        let current_holding = crate::holdings_tracker::get_bundle_holding(
-            request.bundle_id,
-            &allocation.asset_id
-        );
+        let usd_amount = match &request.operation {
+            OperationType::InitialBuy { usd_amount, .. } => *usd_amount,
+            OperationType::Buy { .. } => assignment.ckusdc_amount,
+            _ => unreachable!()
+        };
 
-        let required_amount = (current_holding as f64 * nav_token_percentage) as u64;
+        let asset_price = crate::oracle::get_asset_price(allocation.asset_id.clone()).await?;
+        let asset_info = crate::asset_registry::get_asset(allocation.asset_id.clone())?;
+
+        let usd_for_asset = (usd_amount as f64 * allocation.percentage as f64) / 100.0;
+        let price_in_usd = asset_price.price_usd as f64 / 1e8;
+        let amount_in_tokens = usd_for_asset / price_in_usd;
+        let amount_in_base_units = amount_in_tokens * 10u64.pow(asset_info.decimals as u32) as f64;
+
+        let required_amount = amount_in_base_units as u64;
 
         if required_amount > 0 {
             let (ledger, token_id) = match &allocation.token_location {

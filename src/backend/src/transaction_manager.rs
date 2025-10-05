@@ -345,7 +345,7 @@ pub async fn cleanup_expired_transactions() -> u32 {
         if let Ok(transaction) = get_transaction(transaction_id) {
             // Refund locked funds to users
             match transaction.operation {
-                OperationType::Buy => {
+                OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {
                     if let Ok(locked_amount) = unlock_user_funds(transaction_id, &LockedFundType::CkUSDC) {
                         if locked_amount > 0 {
                             if let Err(e) = transfer_ckusdc_from_canister(transaction.user, locked_amount, transaction_id).await {
@@ -357,7 +357,7 @@ pub async fn cleanup_expired_transactions() -> u32 {
                         }
                     }
                 }
-                OperationType::Sell => {
+                OperationType::Sell { .. } => {
                     let _ = unlock_user_funds(transaction_id, &LockedFundType::NAVTokens {
                         bundle_id: transaction.bundle_id
                     });
@@ -484,10 +484,10 @@ pub fn get_transaction_stats() -> TransactionStats {
             stats.total_volume_ckusdc += transaction.ckusdc_amount;
 
             match transaction.operation {
-                OperationType::Buy => {
+                OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {
                     stats.total_nav_tokens_minted += transaction.nav_tokens;
                 }
-                OperationType::Sell => {
+                OperationType::Sell { .. } => {
                     stats.total_nav_tokens_burned += transaction.nav_tokens;
                 }
             }
@@ -535,13 +535,13 @@ pub fn get_bundle_transaction_history(bundle_id: u64) -> BundleTransactionHistor
             }
 
             match transaction.operation {
-                OperationType::Buy => {
+                OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {
                     history.total_buy_transactions += 1;
                     if matches!(transaction.status, TransactionStatus::Completed) {
                         history.total_volume_bought += transaction.ckusdc_amount;
                     }
                 }
-                OperationType::Sell => {
+                OperationType::Sell { .. } => {
                     history.total_sell_transactions += 1;
                     if matches!(transaction.status, TransactionStatus::Completed) {
                         history.total_volume_sold += transaction.ckusdc_amount;
@@ -582,10 +582,10 @@ pub fn get_user_transaction_summary(user: Principal) -> UserTransactionSummary {
             summary.total_transactions += 1;
 
             match transaction.operation {
-                OperationType::Buy => {
+                OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {
                     summary.buy_transactions += 1;
                 }
-                OperationType::Sell => {
+                OperationType::Sell { .. } => {
                     summary.sell_transactions += 1;
                 }
             }

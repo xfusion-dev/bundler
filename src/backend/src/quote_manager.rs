@@ -295,8 +295,25 @@ fn validate_quote_request(request: &QuoteRequest) -> Result<(), String> {
         return Err("Invalid bundle ID".to_string());
     }
 
-    if request.amount == 0 {
-        return Err("Amount must be greater than zero".to_string());
+    match &request.operation {
+        OperationType::InitialBuy { usd_amount, nav_tokens } => {
+            if *usd_amount == 0 {
+                return Err("USD amount must be greater than zero".to_string());
+            }
+            if *nav_tokens == 0 {
+                return Err("NAV tokens must be greater than zero".to_string());
+            }
+        }
+        OperationType::Buy { nav_tokens } => {
+            if *nav_tokens == 0 {
+                return Err("NAV tokens must be greater than zero".to_string());
+            }
+        }
+        OperationType::Sell { nav_tokens } => {
+            if *nav_tokens == 0 {
+                return Err("NAV tokens must be greater than zero".to_string());
+            }
+        }
     }
 
     if request.max_slippage > 100 {
@@ -350,8 +367,8 @@ pub async fn execute_quote(request_id: u64) -> Result<u64, String> {
     let transaction_id = crate::transaction_manager::create_transaction(request_id)?;
 
     match request.operation {
-        OperationType::Buy => initiate_buy_transaction(transaction_id, &request, &assignment).await,
-        OperationType::Sell => Ok(initiate_sell_transaction(transaction_id, &request, &assignment).await?),
+        OperationType::InitialBuy { .. } | OperationType::Buy { .. } => initiate_buy_transaction(transaction_id, &request, &assignment).await,
+        OperationType::Sell { .. } => Ok(initiate_sell_transaction(transaction_id, &request, &assignment).await?),
     }
 }
 
@@ -367,21 +384,27 @@ async fn validate_buy_transaction_preconditions(request: &QuoteRequest, assignme
         return Err("Bundle is not active".to_string());
     }
 
-    match request.operation {
-        OperationType::Buy => {
-            if request.amount != assignment.ckusdc_amount {
-                return Err("Buy amount mismatch".to_string());
+    match &request.operation {
+        OperationType::InitialBuy { usd_amount, nav_tokens } => {
+            if *usd_amount != assignment.ckusdc_amount {
+                return Err("Initial buy USD amount mismatch".to_string());
             }
-
-            // Balance validation will be done during the actual transfer
+            if *nav_tokens != assignment.nav_tokens {
+                return Err("Initial buy NAV tokens mismatch".to_string());
+            }
         }
-        OperationType::Sell => {
-            if request.amount != assignment.nav_tokens {
-                return Err("Sell amount mismatch".to_string());
+        OperationType::Buy { nav_tokens } => {
+            if *nav_tokens != assignment.nav_tokens {
+                return Err("Buy NAV tokens mismatch".to_string());
+            }
+        }
+        OperationType::Sell { nav_tokens } => {
+            if *nav_tokens != assignment.nav_tokens {
+                return Err("Sell NAV tokens mismatch".to_string());
             }
 
             let user_nav_balance = crate::nav_token::get_user_nav_token_balance(request.user, request.bundle_id).await?;
-            if user_nav_balance < assignment.nav_tokens {
+            if user_nav_balance < *nav_tokens {
                 return Err("Insufficient NAV token balance".to_string());
             }
         }
@@ -476,15 +499,23 @@ fn validate_assignment_against_request(request: &QuoteRequest, assignment: &Quot
         return Err("Request ID mismatch".to_string());
     }
 
-    match request.operation {
-        OperationType::Buy => {
-            if request.amount != assignment.ckusdc_amount {
-                return Err("Buy amount mismatch".to_string());
+    match &request.operation {
+        OperationType::InitialBuy { usd_amount, nav_tokens } => {
+            if *usd_amount != assignment.ckusdc_amount {
+                return Err("Initial buy USD amount mismatch".to_string());
+            }
+            if *nav_tokens != assignment.nav_tokens {
+                return Err("Initial buy NAV tokens mismatch".to_string());
             }
         }
-        OperationType::Sell => {
-            if request.amount != assignment.nav_tokens {
-                return Err("Sell amount mismatch".to_string());
+        OperationType::Buy { nav_tokens } => {
+            if *nav_tokens != assignment.nav_tokens {
+                return Err("Buy NAV tokens mismatch".to_string());
+            }
+        }
+        OperationType::Sell { nav_tokens } => {
+            if *nav_tokens != assignment.nav_tokens {
+                return Err("Sell NAV tokens mismatch".to_string());
             }
         }
     }

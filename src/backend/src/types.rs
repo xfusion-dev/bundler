@@ -463,7 +463,6 @@ pub struct QuoteRequest {
     pub user: Principal,
     pub bundle_id: u64,
     pub operation: OperationType,
-    pub amount: u64,
     pub max_slippage: u8,
     pub expires_at: u64,
     pub created_at: u64,
@@ -471,8 +470,9 @@ pub struct QuoteRequest {
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub enum OperationType {
-    Buy,
-    Sell,
+    InitialBuy { usd_amount: u64, nav_tokens: u64 },
+    Buy { nav_tokens: u64 },
+    Sell { nav_tokens: u64 },
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]

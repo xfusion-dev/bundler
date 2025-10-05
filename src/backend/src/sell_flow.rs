@@ -14,7 +14,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
     }
 
     match request.operation {
-        OperationType::Sell => {},
+        OperationType::Sell { .. } => {},
         _ => return Err("This function is only for sell operations".to_string()),
     }
 

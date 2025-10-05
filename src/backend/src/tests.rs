@@ -179,15 +179,21 @@ mod tests {
     }
     #[test]
     fn test_operation_types() {
-        let buy_op = OperationType::Buy;
-        let sell_op = OperationType::Sell;
+        let buy_op = OperationType::Buy { nav_tokens: 100 };
+        let sell_op = OperationType::Sell { nav_tokens: 50 };
+        let initial_buy_op = OperationType::InitialBuy { usd_amount: 1000, nav_tokens: 500 };
+
         match buy_op {
-            OperationType::Buy => assert!(true),
-            OperationType::Sell => assert!(false),
+            OperationType::Buy { .. } => assert!(true),
+            _ => assert!(false),
         }
         match sell_op {
-            OperationType::Sell => assert!(true),
-            OperationType::Buy => assert!(false),
+            OperationType::Sell { .. } => assert!(true),
+            _ => assert!(false),
+        }
+        match initial_buy_op {
+            OperationType::InitialBuy { .. } => assert!(true),
+            _ => assert!(false),
         }
     }
     #[test]
@@ -228,8 +234,7 @@ mod tests {
             request_id: 1,
             user,
             bundle_id: 1,
-            operation: OperationType::Buy,
-            amount: 1000_00000000u64,
+            operation: OperationType::Buy { nav_tokens: 100 },
             max_slippage: 5,
             created_at: 1699000000000000000,
             expires_at: 1699000300000000000,
@@ -237,8 +242,7 @@ mod tests {
         assert_eq!(quote_request.request_id, 1);
         assert_eq!(quote_request.user, user);
         assert_eq!(quote_request.bundle_id, 1);
-        assert!(matches!(quote_request.operation, OperationType::Buy));
-        assert_eq!(quote_request.amount, 1000_00000000u64);
+        assert!(matches!(quote_request.operation, OperationType::Buy { .. }));
         assert_eq!(quote_request.max_slippage, 5);
         assert!(quote_request.expires_at > quote_request.created_at);
     }
@@ -275,7 +279,7 @@ mod tests {
             user,
             resolver,
             bundle_id: 1,
-            operation: OperationType::Buy,
+            operation: OperationType::Buy { nav_tokens: 500_00000000u64 },
             status: TransactionStatus::Pending,
             nav_tokens: 500_00000000u64,
             ckusdc_amount: 1000_00000000u64,
@@ -289,7 +293,7 @@ mod tests {
         assert_eq!(transaction.user, user);
         assert_eq!(transaction.resolver, resolver);
         assert_eq!(transaction.bundle_id, 1);
-        assert!(matches!(transaction.operation, OperationType::Buy));
+        assert!(matches!(transaction.operation, OperationType::Buy { .. }));
         assert!(matches!(transaction.status, TransactionStatus::Pending));
         assert_eq!(transaction.nav_tokens, 500_00000000u64);
         assert_eq!(transaction.ckusdc_amount, 1000_00000000u64);
@@ -429,7 +433,7 @@ mod tests {
             user: mock_principal(),
             resolver: mock_principal(),
             bundle_id: 1,
-            operation: OperationType::Buy,
+            operation: OperationType::Buy { nav_tokens: 100_00000000u64 },
             status: TransactionStatus::FundsLocked,
             nav_tokens: 100_00000000u64,
             ckusdc_amount: 200_00000000u64,
@@ -528,7 +532,7 @@ mod tests {
             user,
             resolver: mock_principal(),
             bundle_id: 1,
-            operation: OperationType::Buy,
+            operation: OperationType::Buy { nav_tokens: 100_00000000u64 },
             status: TransactionStatus::Failed,
             nav_tokens: 100_00000000u64,
             ckusdc_amount: 200_00000000u64,
@@ -559,8 +563,7 @@ mod tests {
             request_id: 1,
             user: mock_principal(),
             bundle_id: 1,
-            operation: OperationType::Buy,
-            amount: 200_00000000u64,
+            operation: OperationType::Buy { nav_tokens: 200_00000000u64 },
             max_slippage: 5,
             created_at: base_time,
             expires_at: base_time + quote_duration,
