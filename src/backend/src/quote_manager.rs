@@ -18,8 +18,8 @@ pub fn request_quote(mut request: QuoteRequest) -> Result<u64, String> {
 }
 
 pub fn submit_quote_assignment(assignment: QuoteAssignment) -> Result<(), String> {
-    if !is_authorized_quote_api(msg_caller()) {
-        return Err("Only authorized quote API can submit assignments".to_string());
+    if !is_authorized_quote_service(msg_caller()) {
+        return Err("Only authorized quote service can submit assignments".to_string());
     }
 
     validate_quote_assignment(&assignment)?;
@@ -260,18 +260,6 @@ pub fn cleanup_all_expired() -> (u32, u32, u32) {
     (expired_quotes, expired_assignments, expired_locks)
 }
 
-pub fn set_quote_api_principal(api_principal: candid::Principal) -> Result<(), String> {
-    if !is_admin(msg_caller()) {
-        return Err("Only admin can set quote API principal".to_string());
-    }
-
-    QUOTE_API_PRINCIPAL.with(|api| {
-        *api.borrow_mut() = Some(api_principal);
-    });
-
-    Ok(())
-}
-
 fn generate_request_id() -> u64 {
     get_next_quote_id()
 }
@@ -288,10 +276,18 @@ fn quote_assignment_exists(request_id: u64) -> bool {
     })
 }
 
-fn is_authorized_quote_api(caller: candid::Principal) -> bool {
-    QUOTE_API_PRINCIPAL.with(|api| {
-        api.borrow().map_or(false, |api_principal| api_principal == caller)
-    })
+fn is_authorized_quote_service(caller: candid::Principal) -> bool {
+    get_quote_service_principal().map_or(false, |service| service == caller)
+}
+
+pub fn set_quote_service_principal(principal: candid::Principal) -> Result<(), String> {
+    if !is_admin(msg_caller()) {
+        return Err("Only admin can set quote service principal".to_string());
+    }
+
+    crate::memory::set_quote_service_principal(principal);
+
+    Ok(())
 }
 
 fn validate_quote_request(request: &QuoteRequest) -> Result<(), String> {

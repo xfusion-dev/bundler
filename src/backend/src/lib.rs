@@ -166,8 +166,8 @@ fn cleanup_all_expired() -> Result<(u32, u32, u32), String> {
 }
 
 #[update]
-fn set_quote_api_principal(api_principal: Principal) -> Result<(), String> {
-    quote_manager::set_quote_api_principal(api_principal)
+fn set_quote_service_principal(principal: Principal) -> Result<(), String> {
+    quote_manager::set_quote_service_principal(principal)
 }
 
 #[update]

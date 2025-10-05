@@ -42,8 +42,6 @@ thread_local! {
         )
     );
 
-    pub static BUNDLE_COUNTER: RefCell<u64> = RefCell::new(0);
-
     pub static PRICE_STORAGE: RefCell<StableBTreeMap<AssetId, AssetPrice, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(PRICE_STORAGE_MEMORY_ID))
@@ -55,10 +53,6 @@ thread_local! {
             MEMORY_MANAGER.with(|m| m.borrow().get(BUNDLE_HOLDINGS_MEMORY_ID))
         )
     );
-
-    pub static ADMIN_PRINCIPAL: RefCell<Option<candid::Principal>> = RefCell::new(None);
-
-    pub static ORACLE_CONFIG: RefCell<Option<OracleConfig>> = RefCell::new(None);
 
     pub static QUOTE_REQUESTS: RefCell<StableBTreeMap<u64, QuoteRequest, Memory>> = RefCell::new(
         StableBTreeMap::init(
@@ -72,10 +66,6 @@ thread_local! {
         )
     );
 
-    pub static QUOTE_COUNTER: RefCell<u64> = RefCell::new(0);
-
-    pub static QUOTE_API_PRINCIPAL: RefCell<Option<Principal>> = RefCell::new(None);
-
     pub static TRANSACTIONS: RefCell<StableBTreeMap<u64, Transaction, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(TRANSACTION_STORAGE_MEMORY_ID))
@@ -87,8 +77,6 @@ thread_local! {
             MEMORY_MANAGER.with(|m| m.borrow().get(LOCKED_FUNDS_MEMORY_ID))
         )
     );
-
-    pub static TRANSACTION_COUNTER: RefCell<u64> = RefCell::new(0);
 
     pub static RESOLVER_REGISTRY: RefCell<StableBTreeMap<Principal, crate::resolver_manager::ResolverInfo, Memory>> = RefCell::new(
         StableBTreeMap::init(
@@ -179,5 +167,17 @@ pub fn set_icrc2_ckusdc_ledger(principal: Principal) {
         let mut s = state.borrow().get().clone();
         s.icrc2_ckusdc_ledger = Some(principal);
         state.borrow_mut().set(s).expect("Failed to set ICRC-2 ckUSDC ledger");
+    })
+}
+
+pub fn get_quote_service_principal() -> Option<Principal> {
+    GLOBAL_STATE.with(|state| state.borrow().get().quote_service_principal)
+}
+
+pub fn set_quote_service_principal(principal: Principal) {
+    GLOBAL_STATE.with(|state| {
+        let mut s = state.borrow().get().clone();
+        s.quote_service_principal = Some(principal);
+        state.borrow_mut().set(s).expect("Failed to set quote service principal");
     })
 }

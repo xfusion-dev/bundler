@@ -42,8 +42,8 @@ pub fn register_resolver(
 ) -> Result<(), String> {
     let caller = msg_caller();
 
-    if !is_admin(caller) && !is_quote_api(caller) {
-        return Err("Unauthorized: Only admin or quote API can register resolvers".to_string());
+    if !is_admin(caller) && !is_quote_service(caller) {
+        return Err("Unauthorized: Only admin or quote service can register resolvers".to_string());
     }
 
     if fee_rate > 1000 {
@@ -151,12 +151,8 @@ pub fn is_resolver_active(principal: Principal) -> bool {
     })
 }
 
-fn is_quote_api(principal: Principal) -> bool {
-    QUOTE_API_PRINCIPAL.with(|api| {
-        api.borrow()
-            .map(|p| p == principal)
-            .unwrap_or(false)
-    })
+fn is_quote_service(principal: Principal) -> bool {
+    get_quote_service_principal().map_or(false, |service| service == principal)
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
