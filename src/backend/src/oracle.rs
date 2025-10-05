@@ -22,18 +22,14 @@ const DEFAULT_MAX_STALENESS_NS: u64 = 300_000_000_000;
 pub fn set_oracle_config(config: OracleConfig) -> Result<(), String> {
     let _admin = require_admin()?;
 
-    ORACLE_CONFIG.with(|oracle_config| {
-        *oracle_config.borrow_mut() = Some(config);
-    });
+    crate::memory::set_oracle_config(config);
 
     Ok(())
 }
 
 #[query]
 pub fn get_oracle_config() -> Option<OracleConfig> {
-    ORACLE_CONFIG.with(|oracle_config| {
-        oracle_config.borrow().clone()
-    })
+    crate::memory::get_oracle_config()
 }
 
 // This is now exported from lib.rs

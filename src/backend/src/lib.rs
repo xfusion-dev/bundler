@@ -27,7 +27,7 @@ use memory::*;
 #[init]
 fn init() {
     let caller = msg_caller();
-    ADMIN_PRINCIPAL.with(|admin| *admin.borrow_mut() = Some(caller));
+    set_admin_principal(caller);
     ic_cdk::println!("XFusion backend canister initialized with admin: {}", caller);
 }
 
@@ -38,7 +38,20 @@ fn pre_upgrade() {
 
 #[post_upgrade]
 fn post_upgrade() {
-    ic_cdk::println!("Upgrade completed");
+    GLOBAL_STATE.with(|cell| {
+        let state = cell.borrow().get().clone();
+
+        match state.version {
+            1 => {
+                ic_cdk::println!("GlobalState V1 - no migration required");
+            }
+            _ => {
+                ic_cdk::println!("Unknown GlobalState version: {}", state.version);
+            }
+        }
+    });
+
+    ic_cdk::println!("Upgrade completed successfully");
 }
 
 

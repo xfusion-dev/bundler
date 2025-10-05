@@ -14,9 +14,7 @@ pub struct AdminAction {
 }
 
 pub fn is_admin(caller: Principal) -> bool {
-    ADMIN_PRINCIPAL.with(|admin| {
-        admin.borrow().map_or(false, |admin_principal| admin_principal == caller)
-    })
+    get_admin_principal().map_or(false, |admin_principal| admin_principal == caller)
 }
 
 pub fn require_admin() -> Result<Principal, String> {
@@ -29,14 +27,14 @@ pub fn require_admin() -> Result<Principal, String> {
 
 #[query]
 pub fn get_admin() -> Option<Principal> {
-    ADMIN_PRINCIPAL.with(|admin| *admin.borrow())
+    get_admin_principal()
 }
 
 #[update]
 pub fn set_admin(new_admin: Principal) -> Result<(), String> {
     let _admin = require_admin()?;
 
-    ADMIN_PRINCIPAL.with(|admin| *admin.borrow_mut() = Some(new_admin));
+    set_admin_principal(new_admin);
 
     ic_cdk::println!("Admin changed to: {}", new_admin);
     Ok(())
@@ -61,7 +59,7 @@ pub fn emergency_unpause_canister() -> Result<(), String> {
 #[query]
 pub fn get_canister_status() -> CanisterStatus {
     CanisterStatus {
-        is_admin_set: ADMIN_PRINCIPAL.with(|admin| admin.borrow().is_some()),
+        is_admin_set: get_admin_principal().is_some(),
         total_assets: crate::asset_registry::get_asset_count(),
         total_bundles: crate::bundle_manager::get_bundle_count(),
         total_nav_tokens: crate::nav_token::get_total_nav_token_supply(),
