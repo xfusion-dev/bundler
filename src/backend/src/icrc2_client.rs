@@ -291,7 +291,7 @@ pub async fn get_ckusdc_balance(account: Principal) -> Result<u64, String> {
 
 pub async fn get_asset_balance(asset_id: &AssetId, account: Principal) -> Result<u64, String> {
     let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
-    let ledger = asset_info.ledger_canister;
+    let ledger = asset_info.get_icrc2_ledger()?;
 
     icrc1_balance_of(ledger, account).await
 }
@@ -305,24 +305,16 @@ pub async fn pull_asset_from_user(
     memo: Option<Vec<u8>>,
 ) -> Result<u64, String> {
     let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
+    let ledger = asset_info.get_icrc2_ledger()?;
     let canister_id = ic_cdk::api::id();
 
-    match asset_info.standard {
-        AssetStandard::ICRC2 => {
-            // Check allowance
-            let allowance = icrc2_allowance(asset_info.ledger_canister, from, canister_id).await?;
-            if allowance.allowance < amount {
-                return Err(format!("Insufficient allowance for {}: {} < {}",
-                    asset_id.0, allowance.allowance, amount));
-            }
-
-            // Pull tokens
-            icrc2_transfer_from(asset_info.ledger_canister, from, canister_id, amount, memo).await
-        }
-        AssetStandard::MTLS { .. } => {
-            Err("MTLS transfers not yet implemented".to_string())
-        }
+    let allowance = icrc2_allowance(ledger, from, canister_id).await?;
+    if allowance.allowance < amount {
+        return Err(format!("Insufficient allowance for {}: {} < {}",
+            asset_id.0, allowance.allowance, amount));
     }
+
+    icrc2_transfer_from(ledger, from, canister_id, amount, memo).await
 }
 
 pub async fn send_asset_to_user(
@@ -332,15 +324,9 @@ pub async fn send_asset_to_user(
     memo: Option<Vec<u8>>,
 ) -> Result<u64, String> {
     let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
+    let ledger = asset_info.get_icrc2_ledger()?;
 
-    match asset_info.standard {
-        AssetStandard::ICRC2 => {
-            icrc1_transfer(asset_info.ledger_canister, to, amount, memo).await
-        }
-        AssetStandard::MTLS { .. } => {
-            Err("MTLS transfers not yet implemented".to_string())
-        }
-    }
+    icrc1_transfer(ledger, to, amount, memo).await
 }
 
 pub async fn check_user_allowance(
@@ -348,15 +334,9 @@ pub async fn check_user_allowance(
     owner: Principal,
 ) -> Result<u64, String> {
     let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
+    let ledger = asset_info.get_icrc2_ledger()?;
     let canister_id = ic_cdk::api::id();
 
-    match asset_info.standard {
-        AssetStandard::ICRC2 => {
-            let allowance = icrc2_allowance(asset_info.ledger_canister, owner, canister_id).await?;
-            Ok(allowance.allowance)
-        }
-        AssetStandard::MTLS { .. } => {
-            Err("MTLS allowance check not yet implemented".to_string())
-        }
-    }
+    let allowance = icrc2_allowance(ledger, owner, canister_id).await?;
+    Ok(allowance.allowance)
 }

@@ -20,7 +20,7 @@ pub fn get_asset_summary() -> Vec<AssetSummary> {
     let assets = asset_registry::list_assets(Some(AssetFilter {
         active_only: true,
         category: None,
-        standard: None,
+        payment_tokens_only: None,
     }));
 
     assets.into_iter().map(|asset| AssetSummary {
@@ -28,7 +28,7 @@ pub fn get_asset_summary() -> Vec<AssetSummary> {
         symbol: asset.symbol,
         name: asset.name,
         category: asset.metadata.category,
-        standard: asset.standard,
+        token_location: asset.token_location,
         is_active: asset.is_active,
         bundles_using: bundle_manager::get_bundles_using_asset(&asset.id).len() as u32,
     }).collect()

@@ -34,9 +34,6 @@ pub fn update_asset(asset_id: AssetId, updates: AssetInfoUpdate) -> Result<(), S
                 if let Some(oracle_ticker) = updates.oracle_ticker {
                     asset_info.oracle_ticker = Some(oracle_ticker);
                 }
-                if let Some(minter_canister) = updates.minter_canister {
-                    asset_info.minter_canister = Some(minter_canister);
-                }
                 if let Some(is_active) = updates.is_active {
                     asset_info.is_active = is_active;
                 }
@@ -80,8 +77,8 @@ pub fn list_assets(filter: Option<AssetFilter>) -> Vec<AssetInfo> {
                     }
                 }
 
-                if let Some(ref standard) = filter.standard {
-                    if std::mem::discriminant(&asset_info.standard) != std::mem::discriminant(standard) {
+                if let Some(payment_tokens_only) = filter.payment_tokens_only {
+                    if payment_tokens_only && !asset_info.is_payment_token() {
                         include = false;
                     }
                 }

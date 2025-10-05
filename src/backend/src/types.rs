@@ -92,6 +92,7 @@ pub struct AssetInfo {
     pub symbol: String,
     pub name: String,
     pub token_location: TokenLocation,
+    pub oracle_ticker: Option<String>,
     pub decimals: u8,
     pub is_active: bool,
     pub added_at: u64,
@@ -158,7 +159,6 @@ impl Storable for AssetInfo {
 pub struct AssetInfoUpdate {
     pub name: Option<String>,
     pub oracle_ticker: Option<String>,
-    pub minter_canister: Option<Principal>,
     pub is_active: Option<bool>,
     pub metadata: Option<AssetMetadata>,
 }
@@ -167,7 +167,7 @@ pub struct AssetInfoUpdate {
 pub struct AssetFilter {
     pub active_only: bool,
     pub category: Option<AssetCategory>,
-    pub standard: Option<AssetStandard>,
+    pub payment_tokens_only: Option<bool>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -245,7 +245,7 @@ pub struct AssetSummary {
     pub symbol: String,
     pub name: String,
     pub category: AssetCategory,
-    pub standard: AssetStandard,
+    pub token_location: TokenLocation,
     pub is_active: bool,
     pub bundles_using: u32,
 }
