@@ -103,3 +103,81 @@ thread_local! {
         ).expect("Failed to initialize GLOBAL_STATE")
     );
 }
+
+pub fn get_next_bundle_id() -> u64 {
+    GLOBAL_STATE.with(|state| {
+        let mut s = state.borrow().get().clone();
+        let id = s.bundle_counter;
+        s.bundle_counter += 1;
+        state.borrow_mut().set(s).expect("Failed to increment bundle counter");
+        id
+    })
+}
+
+pub fn get_next_quote_id() -> u64 {
+    GLOBAL_STATE.with(|state| {
+        let mut s = state.borrow().get().clone();
+        let id = s.quote_counter;
+        s.quote_counter += 1;
+        state.borrow_mut().set(s).expect("Failed to increment quote counter");
+        id
+    })
+}
+
+pub fn get_next_transaction_id() -> u64 {
+    GLOBAL_STATE.with(|state| {
+        let mut s = state.borrow().get().clone();
+        let id = s.transaction_counter;
+        s.transaction_counter += 1;
+        state.borrow_mut().set(s).expect("Failed to increment transaction counter");
+        id
+    })
+}
+
+pub fn get_admin_principal() -> Option<Principal> {
+    GLOBAL_STATE.with(|state| state.borrow().get().admin_principal)
+}
+
+pub fn set_admin_principal(principal: Principal) {
+    GLOBAL_STATE.with(|state| {
+        let mut s = state.borrow().get().clone();
+        s.admin_principal = Some(principal);
+        state.borrow_mut().set(s).expect("Failed to set admin principal");
+    })
+}
+
+pub fn get_oracle_config() -> Option<OracleConfig> {
+    GLOBAL_STATE.with(|state| state.borrow().get().oracle_config.clone())
+}
+
+pub fn set_oracle_config(config: OracleConfig) {
+    GLOBAL_STATE.with(|state| {
+        let mut s = state.borrow().get().clone();
+        s.oracle_config = Some(config);
+        state.borrow_mut().set(s).expect("Failed to set oracle config");
+    })
+}
+
+pub fn get_icrc151_ledger() -> Option<Principal> {
+    GLOBAL_STATE.with(|state| state.borrow().get().icrc151_ledger)
+}
+
+pub fn set_icrc151_ledger(principal: Principal) {
+    GLOBAL_STATE.with(|state| {
+        let mut s = state.borrow().get().clone();
+        s.icrc151_ledger = Some(principal);
+        state.borrow_mut().set(s).expect("Failed to set ICRC-151 ledger");
+    })
+}
+
+pub fn get_icrc2_ckusdc_ledger() -> Option<Principal> {
+    GLOBAL_STATE.with(|state| state.borrow().get().icrc2_ckusdc_ledger)
+}
+
+pub fn set_icrc2_ckusdc_ledger(principal: Principal) {
+    GLOBAL_STATE.with(|state| {
+        let mut s = state.borrow().get().clone();
+        s.icrc2_ckusdc_ledger = Some(principal);
+        state.borrow_mut().set(s).expect("Failed to set ICRC-2 ckUSDC ledger");
+    })
+}
