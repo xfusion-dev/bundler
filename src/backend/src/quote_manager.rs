@@ -273,11 +273,7 @@ pub fn set_quote_api_principal(api_principal: candid::Principal) -> Result<(), S
 }
 
 fn generate_request_id() -> u64 {
-    QUOTE_COUNTER.with(|counter| {
-        let mut counter = counter.borrow_mut();
-        *counter += 1;
-        *counter
-    })
+    get_next_quote_id()
 }
 
 fn quote_request_exists(request_id: u64) -> bool {

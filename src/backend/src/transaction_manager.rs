@@ -404,11 +404,7 @@ pub fn validate_resolver_for_transaction(transaction_id: u64) -> Result<(), Stri
 }
 
 fn generate_transaction_id() -> u64 {
-    TRANSACTION_COUNTER.with(|counter| {
-        let mut counter = counter.borrow_mut();
-        *counter += 1;
-        *counter
-    })
+    get_next_transaction_id()
 }
 
 fn generate_lock_key(user: &Principal, transaction_id: u64, fund_type: &LockedFundType) -> String {
