@@ -52,9 +52,20 @@ impl Storable for GlobalState {
     };
 }
 
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub enum TokenLocation {
+    ICRC2 {
+        ledger: Principal,
+    },
+    ICRC151 {
+        ledger: Principal,
+        token_id: Vec<u8>,
+    },
+}
+
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum AssetStandard {
-    ICRC2, // Includes ICP, ckBTC, ckUSDC, GLDT, etc. - all use ICRC-1 interface
+    ICRC2,
     MTLS { asset_id: u64 },
 }
 
