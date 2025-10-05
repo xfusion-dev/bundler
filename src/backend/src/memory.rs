@@ -1,4 +1,4 @@
-use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap};
+use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use std::cell::RefCell;
 use candid::Principal;
@@ -17,6 +17,7 @@ pub const RESOLVER_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(7);
 pub const QUOTE_ASSIGNMENT_MEMORY_ID: MemoryId = MemoryId::new(8);
 pub const LOCKED_FUNDS_MEMORY_ID: MemoryId = MemoryId::new(9);
 pub const RESOLVER_REGISTRY_MEMORY_ID: MemoryId = MemoryId::new(10);
+pub const GLOBAL_STATE_MEMORY_ID: MemoryId = MemoryId::new(11);
 
 thread_local! {
     pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
@@ -93,5 +94,12 @@ thread_local! {
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(RESOLVER_REGISTRY_MEMORY_ID))
         )
+    );
+
+    pub static GLOBAL_STATE: RefCell<StableCell<GlobalState, Memory>> = RefCell::new(
+        StableCell::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(GLOBAL_STATE_MEMORY_ID)),
+            GlobalState::default()
+        ).expect("Failed to initialize GLOBAL_STATE")
     );
 }
