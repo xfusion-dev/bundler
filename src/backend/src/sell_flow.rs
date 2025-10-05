@@ -1,119 +1,148 @@
 use ic_cdk::api::msg_caller;
-
 use crate::types::*;
-pub async fn confirm_resolver_payment_and_complete_sell(
-    request_id: u64,
-) -> Result<(), String> {
+use crate::{icrc151_client, icrc2_client};
+
+pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Result<(), String> {
     let caller = msg_caller();
-    let request = crate::quote_manager::get_quote_request(request_id)?;
+
     let assignment = crate::quote_manager::get_quote_assignment(request_id)?
         .ok_or("No quote assignment found")?;
+    let request = crate::quote_manager::get_quote_request(request_id)?;
 
-    // Step 1: Verify resolver is calling
     if assignment.resolver != caller {
         return Err("Only assigned resolver can confirm payment".to_string());
     }
 
-    // Step 2: Verify it's a sell operation
     match request.operation {
         OperationType::Sell => {},
         _ => return Err("This function is only for sell operations".to_string()),
     }
 
-    // Step 3: Pull ckUSDC from resolver to canister using ICRC-2
-    // The resolver must have approved the canister to pull these tokens
-    let memo = format!("Sell payment for request {}", request_id).into_bytes();
+    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
+    let bundle = crate::bundle_manager::get_bundle(request.bundle_id)?;
 
-    let payment_result = crate::icrc2_client::pull_ckusdc_from_user(
+    let ckusdc_ledger = candid::Principal::from_text(icrc2_client::CKUSDC_LEDGER_CANISTER)
+        .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
+
+    let pull_memo = format!(
+        "Sell tx {} - resolver payment",
+        transaction.id
+    ).into_bytes();
+
+    let pull_result = icrc2_client::icrc2_transfer_from(
+        ckusdc_ledger,
         assignment.resolver,
+        ic_cdk::api::id(),
         assignment.ckusdc_amount,
-        Some(memo),
+        Some(pull_memo),
     ).await?;
 
     ic_cdk::println!(
-        "Received {} ckUSDC from resolver {} for request {} (block: {})",
+        "Pulled {} ICRC-2 ckUSDC from resolver {} (tx: {})",
         assignment.ckusdc_amount,
         assignment.resolver,
-        request_id,
-        payment_result
+        pull_result
     );
 
-    // Step 4: Get transaction
-    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
-
-    // Step 5: Calculate proportional withdrawals
     let withdrawals = crate::holdings_tracker::calculate_proportional_withdrawal(
-        transaction.bundle_id,
+        request.bundle_id,
         assignment.nav_tokens,
     )?;
 
-    // Step 6: Transfer assets from canister to resolver
-    for withdrawal in &withdrawals {
-        let asset_memo = format!("Sell tx {} asset {}", transaction.id, withdrawal.asset_id.0).into_bytes();
+    for asset_withdrawal in &withdrawals {
+        let asset = crate::asset_registry::get_asset(asset_withdrawal.asset_id.clone())?;
 
-        let transfer_result = crate::icrc2_client::send_asset_to_user(
-            &withdrawal.asset_id,
-            assignment.resolver,
-            withdrawal.amount,
-            Some(asset_memo),
+        let (ledger, token_id) = asset.get_icrc151_location()?;
+
+        let transfer_memo = format!(
+            "Sell tx {} - transfer {} {}",
+            transaction.id,
+            asset_withdrawal.amount,
+            asset_withdrawal.asset_id.0
+        ).into_bytes();
+
+        let transfer_result = icrc151_client::transfer_icrc151(
+            ledger,
+            token_id,
+            icrc151_client::Account {
+                owner: assignment.resolver,
+                subaccount: None,
+            },
+            asset_withdrawal.amount,
+            Some(transfer_memo),
         ).await?;
 
         ic_cdk::println!(
-            "Transferred {} units of {} to resolver {} (block: {})",
-            withdrawal.amount,
-            withdrawal.asset_id.0,
+            "Transferred {} ICRC-151 {} to resolver {} via ledger {} (tx: {})",
+            asset_withdrawal.amount,
+            asset_withdrawal.asset_id.0,
             assignment.resolver,
+            ledger,
             transfer_result
         );
 
-        // Update bundle holdings
-        crate::holdings_tracker::reduce_bundle_holding(
-            transaction.bundle_id,
-            &withdrawal.asset_id,
-            withdrawal.amount,
+        crate::holdings_tracker::update_bundle_holdings(
+            request.bundle_id,
+            &asset_withdrawal.asset_id,
+            -(asset_withdrawal.amount as i64),
         )?;
     }
 
-    // Step 7: Transfer ckUSDC from canister to user
-    let user_memo = format!("Sell proceeds for tx {}", transaction.id).into_bytes();
-    let user_payment = crate::icrc2_client::send_ckusdc_to_user(
-        request.user,
-        assignment.ckusdc_amount,
-        Some(user_memo),
+    let (bundle_ledger, bundle_token_id) = bundle.get_token_location()?;
+
+    let burn_memo = format!(
+        "Sell tx {} - burn {} bundle tokens",
+        transaction.id,
+        assignment.nav_tokens
+    ).into_bytes();
+
+    let burn_tx_id = icrc151_client::burn_icrc151(
+        bundle_ledger,
+        bundle_token_id,
+        icrc151_client::Account {
+            owner: request.user,
+            subaccount: None,
+        },
+        assignment.nav_tokens,
+        Some(burn_memo),
     ).await?;
 
     ic_cdk::println!(
-        "Paid {} ckUSDC to user {} (block: {})",
-        assignment.ckusdc_amount,
+        "Burned {} ICRC-151 bundle tokens from user {} via ledger {} (tx: {})",
+        assignment.nav_tokens,
         request.user,
-        user_payment
+        bundle_ledger,
+        burn_tx_id
     );
 
-    // Step 8: Burn NAV tokens
-    crate::nav_token::burn_nav_tokens(
-        request.user,
-        transaction.bundle_id,
-        assignment.nav_tokens,
-    )?;
+    let user_payment_memo = format!(
+        "Sell tx {} - user proceeds",
+        transaction.id
+    ).into_bytes();
 
-    // Step 9: Unlock and clean up
+    let user_payment_result = icrc2_client::icrc1_transfer(
+        ckusdc_ledger,
+        request.user,
+        assignment.ckusdc_amount,
+        Some(user_payment_memo),
+    ).await?;
+
+    ic_cdk::println!(
+        "Paid {} ICRC-2 ckUSDC to user {} (tx: {})",
+        assignment.ckusdc_amount,
+        request.user,
+        user_payment_result
+    );
+
     crate::transaction_manager::unlock_user_funds(
         transaction.id,
-        &LockedFundType::NAVTokens { bundle_id: transaction.bundle_id },
+        &LockedFundType::NAVTokens { bundle_id: request.bundle_id },
     )?;
 
-    // Step 10: Mark transaction complete
     crate::transaction_manager::update_transaction_status(
         transaction.id,
         TransactionStatus::Completed,
     )?;
-
-    ic_cdk::println!(
-        "Sell transaction {} completed successfully: {} NAV tokens → {} ckUSDC",
-        transaction.id,
-        assignment.nav_tokens,
-        assignment.ckusdc_amount
-    );
 
     Ok(())
 }

@@ -463,7 +463,7 @@ fn validate_sell_transaction_safety(request: &QuoteRequest, assignment: &QuoteAs
 }
 
 pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
-    crate::buy_flow::confirm_asset_deposit_icrc2(request_id).await
+    crate::buy_flow::confirm_asset_deposit(request_id).await
 }
 
 pub async fn confirm_ckusdc_payment(request_id: u64) -> Result<(), String> {
