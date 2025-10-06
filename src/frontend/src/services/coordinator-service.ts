@@ -1,22 +1,27 @@
 import axios, { AxiosInstance } from 'axios';
 
-interface QuoteRequest {
-  quoteId: string;
+interface GetQuoteRequest {
+  bundleId: number;
+  operation: any;
+  user: string;
 }
 
-interface QuoteResponse {
-  success: boolean;
-  quoteId: string;
+interface QuoteObject {
+  bundle_id: number;
+  operation: any;
   resolver: string;
-  price: number;
-  validUntil: string;
+  nav_tokens: number;
+  ckusdc_amount: number;
+  asset_amounts: Array<{ asset_id: string; amount: number }>;
+  fees: number;
+  valid_until: number;
+  nonce: number;
+  coordinator_signature: number[];
 }
 
-interface QuoteStatus {
-  success: boolean;
-  quoteId: string;
-  status: string;
-  quote?: any;
+interface NotifyAcceptedRequest {
+  assignmentId: number;
+  resolverPrincipal: string;
 }
 
 class CoordinatorService {
@@ -56,43 +61,39 @@ class CoordinatorService {
     );
   }
 
-  async processQuote(quoteId: string): Promise<QuoteResponse> {
+  async getQuote(bundleId: number, operation: any, user: string): Promise<QuoteObject> {
     try {
-      const response = await this.client.post<QuoteResponse>(`/quote/process/${quoteId}`);
+      const response = await this.client.post<QuoteObject>('/quote/get', {
+        bundleId,
+        operation,
+        user,
+      });
       return response.data;
     } catch (error: any) {
-      console.error('Failed to process quote:', error);
-      throw new Error(error.response?.data?.message || 'Failed to process quote');
+      console.error('Failed to get quote:', error);
+      throw new Error(error.response?.data?.message || 'Failed to get quote');
     }
   }
 
-  async getQuoteStatus(quoteId: string): Promise<QuoteStatus> {
+  async notifyAccepted(assignmentId: number, resolverPrincipal: string): Promise<void> {
     try {
-      const response = await this.client.get<QuoteStatus>(`/quote/${quoteId}/status`);
-      return response.data;
+      await this.client.post('/quote/accepted', {
+        assignmentId,
+        resolverPrincipal,
+      });
     } catch (error: any) {
-      console.error('Failed to get quote status:', error);
-      throw new Error(error.response?.data?.message || 'Failed to get quote status');
+      console.error('Failed to notify coordinator of quote acceptance:', error);
+      throw new Error(error.response?.data?.message || 'Failed to notify acceptance');
     }
   }
 
   async getHealth(): Promise<boolean> {
     try {
-      await this.client.get('/');
+      await this.client.get('/health');
       return true;
     } catch (error) {
       console.error('Coordinator health check failed:', error);
       return false;
-    }
-  }
-
-  async getResolverStatus(): Promise<any> {
-    try {
-      const response = await this.client.get('/quote/health');
-      return response.data;
-    } catch (error: any) {
-      console.error('Failed to get resolver status:', error);
-      throw new Error(error.response?.data?.message || 'Failed to get resolver status');
     }
   }
 }
