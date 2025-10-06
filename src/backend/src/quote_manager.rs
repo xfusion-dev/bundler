@@ -2,6 +2,113 @@ use ic_cdk::api::{time, msg_caller};
 use crate::types::*;
 use crate::memory::*;
 use crate::admin::is_admin;
+use candid::Principal;
+
+pub fn get_assignment(assignment_id: u64) -> Result<QuoteAssignment, String> {
+    QUOTE_ASSIGNMENTS.with(|assignments| {
+        assignments.borrow()
+            .get(&assignment_id)
+            .ok_or_else(|| "Assignment not found".to_string())
+    })
+}
+
+pub fn set_coordinator_public_key(public_key_hex: String) -> Result<(), String> {
+    let _admin = crate::admin::require_admin()?;
+
+    let public_key_bytes = hex_to_bytes(&public_key_hex)?;
+
+    if public_key_bytes.len() != 32 {
+        return Err("Ed25519 public key must be 32 bytes".to_string());
+    }
+
+    GLOBAL_STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let mut global_state = state.get().clone();
+
+        global_state.coordinator_public_key = Some(public_key_bytes);
+
+        state.set(global_state)
+            .map_err(|_| "Failed to update global state".to_string())
+    })
+}
+
+fn get_coordinator_public_key() -> Result<Vec<u8>, String> {
+    GLOBAL_STATE.with(|state| {
+        let state = state.borrow();
+        let global_state = state.get();
+
+        global_state.coordinator_public_key
+            .clone()
+            .ok_or_else(|| "Coordinator public key not configured".to_string())
+    })
+}
+
+fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
+    let hex = hex.trim_start_matches("0x");
+
+    if hex.len() % 2 != 0 {
+        return Err("Hex string must have even length".to_string());
+    }
+
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| {
+            u8::from_str_radix(&hex[i..i + 2], 16)
+                .map_err(|_| format!("Invalid hex at position {}", i))
+        })
+        .collect()
+}
+
+fn serialize_quote_for_signing(quote: &QuoteObject) -> Vec<u8> {
+    let asset_amounts_str = quote.asset_amounts
+        .iter()
+        .map(|a| format!("{}:{}", a.asset_id.0, a.amount))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    format!(
+        "{}:{}:{}:{}:{}:{}:{}:{}",
+        quote.bundle_id,
+        quote.resolver,
+        quote.nav_tokens,
+        quote.ckusdc_amount,
+        asset_amounts_str,
+        quote.fees,
+        quote.nonce,
+        quote.valid_until
+    )
+    .into_bytes()
+}
+
+fn consume_nonce(nonce: u64, timestamp: u64) -> Result<(), String> {
+    USED_NONCES.with(|nonces| {
+        let mut nonces = nonces.borrow_mut();
+        if nonces.contains_key(&nonce) {
+            return Err("Nonce already used (replay attack prevented)".to_string());
+        }
+        nonces.insert(nonce, timestamp);
+        Ok(())
+    })
+}
+
+fn validate_coordinator_signature(quote: &QuoteObject) -> Result<(), String> {
+    use ic_crypto_ed25519::{PublicKey as Ed25519PublicKey, Signature as Ed25519Signature};
+
+    let public_key_bytes = get_coordinator_public_key()?;
+    let public_key = Ed25519PublicKey::try_from(public_key_bytes.as_slice())
+        .map_err(|_| "Invalid Ed25519 public key format")?;
+
+    let message = serialize_quote_for_signing(quote);
+
+    let signature = Ed25519Signature::try_from(quote.coordinator_signature.as_slice())
+        .map_err(|_| "Invalid Ed25519 signature format")?;
+
+    public_key
+        .verify_signature(&message, &signature)
+        .map_err(|_| "Ed25519 signature verification failed - quote has been tampered with")?;
+
+    Ok(())
+}
 
 pub fn request_quote(mut request: QuoteRequest) -> Result<u64, String> {
     validate_quote_request(&request)?;
