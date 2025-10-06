@@ -16,6 +16,7 @@ pub struct GlobalState {
     pub wrapper_canister: Option<Principal>,
     pub icrc151_ledger: Option<Principal>,
     pub icrc2_ckusdc_ledger: Option<Principal>,
+    pub coordinator_public_key: Option<Vec<u8>>,
 }
 
 impl Default for GlobalState {
@@ -32,6 +33,7 @@ impl Default for GlobalState {
             wrapper_canister: None,
             icrc151_ledger: None,
             icrc2_ckusdc_ledger: None,
+            coordinator_public_key: None,
         }
     }
 }
@@ -479,6 +481,20 @@ pub enum OperationType {
 pub struct AssetAmount {
     pub asset_id: AssetId,
     pub amount: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct QuoteObject {
+    pub bundle_id: u64,
+    pub operation: OperationType,
+    pub resolver: Principal,
+    pub nav_tokens: u64,
+    pub ckusdc_amount: u64,
+    pub asset_amounts: Vec<AssetAmount>,
+    pub fees: u64,
+    pub valid_until: u64,
+    pub nonce: u64,
+    pub coordinator_signature: Vec<u8>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
