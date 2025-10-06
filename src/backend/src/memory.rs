@@ -17,6 +17,7 @@ pub const QUOTE_ASSIGNMENT_MEMORY_ID: MemoryId = MemoryId::new(8);
 pub const LOCKED_FUNDS_MEMORY_ID: MemoryId = MemoryId::new(9);
 pub const RESOLVER_REGISTRY_MEMORY_ID: MemoryId = MemoryId::new(10);
 pub const GLOBAL_STATE_MEMORY_ID: MemoryId = MemoryId::new(11);
+pub const USED_NONCES_MEMORY_ID: MemoryId = MemoryId::new(14);
 
 thread_local! {
     pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
@@ -47,12 +48,6 @@ thread_local! {
         )
     );
 
-    pub static QUOTE_REQUESTS: RefCell<StableBTreeMap<u64, QuoteRequest, Memory>> = RefCell::new(
-        StableBTreeMap::init(
-            MEMORY_MANAGER.with(|m| m.borrow().get(QUOTE_STORAGE_MEMORY_ID))
-        )
-    );
-
     pub static QUOTE_ASSIGNMENTS: RefCell<StableBTreeMap<u64, QuoteAssignment, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(QUOTE_ASSIGNMENT_MEMORY_ID))
@@ -74,6 +69,12 @@ thread_local! {
     pub static RESOLVER_REGISTRY: RefCell<StableBTreeMap<Principal, crate::resolver_manager::ResolverInfo, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(RESOLVER_REGISTRY_MEMORY_ID))
+        )
+    );
+
+    pub static USED_NONCES: RefCell<StableBTreeMap<u64, u64, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(USED_NONCES_MEMORY_ID))
         )
     );
 

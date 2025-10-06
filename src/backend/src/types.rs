@@ -460,17 +460,6 @@ pub struct NAVPrecisionReport {
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
-pub struct QuoteRequest {
-    pub request_id: u64,
-    pub user: Principal,
-    pub bundle_id: u64,
-    pub operation: OperationType,
-    pub max_slippage: u8,
-    pub expires_at: u64,
-    pub created_at: u64,
-}
-
-#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub enum OperationType {
     InitialBuy { usd_amount: u64, nav_tokens: u64 },
     Buy { nav_tokens: u64 },
@@ -508,22 +497,6 @@ pub struct QuoteAssignment {
     pub fees: u64,
     pub valid_until: u64,
     pub assigned_at: u64,
-}
-
-impl Storable for QuoteRequest {
-    fn to_bytes(&self) -> Cow<'_, [u8]> {
-        let serialized = encode_one(self).expect("Failed to serialize QuoteRequest");
-        Cow::Owned(serialized)
-    }
-
-    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        decode_one(&bytes).expect("Failed to deserialize QuoteRequest")
-    }
-
-    const BOUND: Bound = Bound::Bounded {
-        max_size: 512,
-        is_fixed_size: false,
-    };
 }
 
 impl Storable for QuoteAssignment {
@@ -669,7 +642,6 @@ pub struct UserTransactionSummary {
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct QuoteStatistics {
     pub total_requests: u32,
-    pub pending_requests: u32,
     pub assigned_requests: u32,
     pub expired_requests: u32,
     pub expired_assignments: u32,
