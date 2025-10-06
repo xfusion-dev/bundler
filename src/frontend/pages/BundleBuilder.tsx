@@ -5,6 +5,8 @@ import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, D
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
+import { coordinatorService } from '../src/services/coordinator-service';
+import { authService } from '../lib/auth';
 import SEO from '../components/SEO';
 
 interface AssetMetadata {
@@ -64,6 +66,7 @@ export default function BundleBuilder() {
   const [quoteExpiresAt, setQuoteExpiresAt] = useState<number>(0);
   const [quoteExpired, setQuoteExpired] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [createdBundleId, setCreatedBundleId] = useState<number | null>(null);
 
   const navigate = useNavigate();
 
@@ -263,6 +266,51 @@ export default function BundleBuilder() {
     setTimeRemaining(0);
   };
 
+  const handleAcceptQuote = async () => {
+    if (!currentQuote || !createdBundleId) return;
+
+    const now = Date.now() * 1000000;
+    if (now >= quoteExpiresAt) {
+      setError('Quote expired. Please get a new quote.');
+      setCurrentQuote(null);
+      return;
+    }
+
+    try {
+      setCreating(true);
+      setCreationStep(3);
+
+      const assignmentId = await backendService.executeQuote(currentQuote);
+
+      setCreationStep(4);
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      setSuccess(`Bundle "${bundleName}" created successfully with ${navTokenAmount} NAV tokens!`);
+      toast.success(`Bundle "${bundleName}" created successfully!`);
+
+      setTimeout(() => {
+        resetAllocations();
+        setCreationStep(0);
+        setIsCreationModalOpen(false);
+        setUsdcAmount('');
+        setNavTokenAmount('');
+        setCurrentQuote(null);
+        setCreatedBundleId(null);
+        navigate(`/bundles/${createdBundleId}`);
+      }, 2000);
+
+    } catch (error) {
+      console.error('Failed to execute quote:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to execute quote. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setCreationStep(0);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleCreateBundle = async () => {
     if (!usdcAmount || !navTokenAmount || parseFloat(usdcAmount) <= 0 || parseFloat(navTokenAmount) <= 0) {
       toast.error('Please enter valid USDC and NAV token amounts');
@@ -286,34 +334,30 @@ export default function BundleBuilder() {
         allocations
       );
 
+      setCreatedBundleId(bundleId);
       setCreationStep(2);
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      setCreationStep(3);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const userPrincipal = await authService.getPrincipal();
+      const quote = await coordinatorService.getQuote(
+        bundleId,
+        { InitialBuy: { usd_amount: parseFloat(usdcAmount) * 1e8, nav_tokens: parseFloat(navTokenAmount) * 1e8 } },
+        userPrincipal?.toString() || ''
+      );
 
-      setCreationStep(4);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setCurrentQuote(quote);
+      setQuoteExpiresAt(quote.valid_until);
+      setQuoteExpired(false);
+      setCreationStep(0);
+      setCreating(false);
 
-      setSuccess(`Bundle "${bundleName}" created successfully with ${navTokenAmount} NAV tokens!`);
-      toast.success(`Bundle "${bundleName}" created successfully!`);
-
-      setTimeout(() => {
-        resetAllocations();
-        setCreationStep(0);
-        setIsCreationModalOpen(false);
-        setUsdcAmount('');
-        setNavTokenAmount('');
-        navigate(`/bundles/${bundleId}`);
-      }, 2000);
+      toast.success('Quote received! Review and accept to complete.');
 
     } catch (error) {
-      console.error('Failed to create bundle:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create bundle. Please try again.';
+      console.error('Failed to get quote:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get quote. Please try again.';
       setError(errorMessage);
       toast.error(errorMessage);
       setCreationStep(0);
-    } finally {
       setCreating(false);
     }
   };
