@@ -701,7 +701,72 @@ export default function BundleBuilder() {
                     Set the initial price and supply for your NAV token by specifying how much USDC you're contributing and how many tokens to mint.
                   </p>
 
-                  {!creating ? (
+                  {currentQuote && !creating ? (
+                    <div className="space-y-6">
+                      <div className="border border-green-400/20 bg-green-400/5 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="text-green-400 font-mono uppercase text-sm">Quote Received</div>
+                          <div className="text-white font-mono text-lg">
+                            {quoteExpired ? (
+                              <span className="text-red-400">EXPIRED</span>
+                            ) : (
+                              <span>{getTimeRemaining(timeRemaining)}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <div className="text-gray-400 text-sm mb-1">You will receive</div>
+                            <div className="text-white text-3xl font-bold">
+                              {(currentQuote.nav_tokens / 1e8).toLocaleString()} NAV Tokens
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-gray-400 text-sm mb-1">For</div>
+                            <div className="text-white text-xl font-bold">
+                              ${(currentQuote.ckusdc_amount / 1e8).toLocaleString()} USDC
+                            </div>
+                          </div>
+
+                          <div className="border-t border-white/10 pt-4">
+                            <div className="text-gray-400 text-sm mb-2">Initial Price per NAV Token</div>
+                            <div className="text-white text-2xl font-bold">
+                              ${((currentQuote.ckusdc_amount / currentQuote.nav_tokens)).toFixed(4)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {quoteExpired ? (
+                        <button
+                          onClick={() => void handleCreateBundle()}
+                          className="w-full btn-unique py-4"
+                        >
+                          GET NEW QUOTE
+                        </button>
+                      ) : (
+                        <div className="flex gap-4">
+                          <button
+                            onClick={() => {
+                              setCurrentQuote(null);
+                              setQuoteExpiresAt(0);
+                            }}
+                            className="flex-1 border border-white/20 p-4 text-white hover:bg-white/10 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => void handleAcceptQuote()}
+                            className="flex-1 btn-unique py-4"
+                          >
+                            ACCEPT QUOTE
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : !creating ? (
                     <div className="space-y-8">
                       <div>
                         <label className="block text-gray-400 text-sm font-mono uppercase mb-3">USDC Amount</label>
@@ -792,9 +857,9 @@ export default function BundleBuilder() {
                     <div className="space-y-4">
                       {[
                         { step: 1, label: 'Creating bundle configuration', desc: 'Saving bundle details and allocations' },
-                        { step: 2, label: 'Approving USDC payment', desc: `Approving $${parseFloat(usdcAmount).toFixed(2)} USDC` },
-                        { step: 3, label: 'Funding bundle treasury', desc: 'Purchasing underlying assets' },
-                        { step: 4, label: 'Minting NAV tokens', desc: `Minting ${parseFloat(navTokenAmount).toLocaleString()} NAV tokens` }
+                        { step: 2, label: 'Fetching quote from coordinator', desc: 'Getting signed quote with asset prices' },
+                        { step: 3, label: 'Executing quote on-chain', desc: 'Locking USDC and creating assignment' },
+                        { step: 4, label: 'Completing transaction', desc: 'Assets deposited, NAV tokens minted' }
                       ].map((item) => (
                         <div key={item.step} className="flex items-start gap-4">
                           <div className={`w-8 h-8 flex items-center justify-center border-2 ${
