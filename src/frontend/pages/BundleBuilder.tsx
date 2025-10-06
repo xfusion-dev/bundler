@@ -60,6 +60,10 @@ export default function BundleBuilder() {
   const [usdcAmount, setUsdcAmount] = useState('');
   const [navTokenAmount, setNavTokenAmount] = useState('');
   const [creationStep, setCreationStep] = useState<number>(0);
+  const [currentQuote, setCurrentQuote] = useState<any>(null);
+  const [quoteExpiresAt, setQuoteExpiresAt] = useState<number>(0);
+  const [quoteExpired, setQuoteExpired] = useState<boolean>(false);
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
 
   const navigate = useNavigate();
 
@@ -123,6 +127,31 @@ export default function BundleBuilder() {
     const total = selectedAssets.reduce((sum, allocation) => sum + allocation.percentage, 0);
     setTotalPercentage(total);
   }, [selectedAssets]);
+
+  useEffect(() => {
+    if (!quoteExpiresAt) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, quoteExpiresAt - now);
+      setTimeRemaining(remaining);
+
+      if (remaining === 0 && !quoteExpired && currentQuote) {
+        setQuoteExpired(true);
+        toast('Quote expired, fetching new quote...', { icon: '🔄' });
+        void requestNewQuote();
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [quoteExpiresAt, quoteExpired, currentQuote]);
+
+  const getTimeRemaining = (ms: number): string => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const initialNavPrice = (() => {
     if (!usdcAmount || !navTokenAmount || parseFloat(usdcAmount) <= 0 || parseFloat(navTokenAmount) <= 0) {
@@ -225,6 +254,13 @@ export default function BundleBuilder() {
     setBundleDescription('');
     setError(null);
     setSuccess(null);
+  };
+
+  const requestNewQuote = async () => {
+    setQuoteExpired(false);
+    setCurrentQuote(null);
+    setQuoteExpiresAt(0);
+    setTimeRemaining(0);
   };
 
   const handleCreateBundle = async () => {
