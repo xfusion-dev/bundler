@@ -83,88 +83,16 @@ fn format_nav_display(nav_value: u64, precision_decimals: u8) -> String {
     nav_calculator::format_nav_with_precision(nav_value, precision_decimals)
 }
 
-#[update]
-fn request_quote(request: QuoteRequest) -> Result<u64, String> {
-    quote_manager::request_quote(request)
-}
-
-#[update]
-async fn submit_quote_assignment(assignment: QuoteAssignment) -> Result<(), String> {
-    quote_manager::submit_quote_assignment(assignment).await
-}
-
 #[query]
-fn get_quote_request(request_id: u64) -> Result<QuoteRequest, String> {
-    quote_manager::get_quote_request(request_id)
-}
-
-#[query]
-fn get_quote_assignment(request_id: u64) -> Result<Option<QuoteAssignment>, String> {
-    quote_manager::get_quote_assignment(request_id)
-}
-
-#[query]
-fn get_pending_quote_requests() -> Vec<QuoteRequest> {
-    quote_manager::get_pending_quote_requests()
+fn get_assignment(assignment_id: u64) -> Result<QuoteAssignment, String> {
+    quote_manager::get_assignment(assignment_id)
 }
 
 #[update]
-fn cleanup_expired_quotes() -> Result<u32, String> {
-    let _admin = admin::require_admin()?;
-    Ok(quote_manager::cleanup_expired_quotes())
+fn set_coordinator_public_key(public_key_hex: String) -> Result<(), String> {
+    quote_manager::set_coordinator_public_key(public_key_hex)
 }
 
-#[update]
-fn cleanup_expired_assignments() -> Result<u32, String> {
-    let _admin = admin::require_admin()?;
-    Ok(quote_manager::cleanup_expired_assignments())
-}
-
-#[query]
-fn get_quotes_expiring_soon(threshold_seconds: u64) -> Vec<QuoteRequest> {
-    quote_manager::get_quotes_expiring_soon(threshold_seconds)
-}
-
-#[query]
-fn get_assignments_expiring_soon(threshold_seconds: u64) -> Vec<QuoteAssignment> {
-    quote_manager::get_assignments_expiring_soon(threshold_seconds)
-}
-
-#[query]
-fn is_quote_request_expired(request_id: u64) -> Result<bool, String> {
-    quote_manager::is_quote_request_expired(request_id)
-}
-
-#[query]
-fn is_quote_assignment_expired(request_id: u64) -> Result<bool, String> {
-    quote_manager::is_quote_assignment_expired(request_id)
-}
-
-#[update]
-fn extend_quote_expiration(request_id: u64, additional_seconds: u64) -> Result<(), String> {
-    quote_manager::extend_quote_expiration(request_id, additional_seconds)
-}
-
-#[update]
-fn extend_assignment_validity(request_id: u64, additional_seconds: u64) -> Result<(), String> {
-    quote_manager::extend_assignment_validity(request_id, additional_seconds)
-}
-
-#[query]
-fn get_quote_statistics() -> QuoteStatistics {
-    quote_manager::get_quote_statistics()
-}
-
-#[update]
-fn cleanup_all_expired() -> Result<(u32, u32, u32), String> {
-    let _admin = admin::require_admin()?;
-    Ok(quote_manager::cleanup_all_expired())
-}
-
-#[update]
-fn set_quote_service_principal(principal: Principal) -> Result<(), String> {
-    quote_manager::set_quote_service_principal(principal)
-}
 
 #[update]
 fn register_resolver(
@@ -222,8 +150,8 @@ async fn cleanup_expired_transactions() -> Result<u32, String> {
 }
 
 #[update]
-async fn execute_quote(request_id: u64) -> Result<u64, String> {
-    quote_manager::execute_quote(request_id).await
+async fn execute_quote(quote: QuoteObject) -> Result<u64, String> {
+    quote_manager::execute_quote(quote).await
 }
 
 #[update]
