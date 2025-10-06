@@ -89,8 +89,8 @@ fn request_quote(request: QuoteRequest) -> Result<u64, String> {
 }
 
 #[update]
-fn submit_quote_assignment(assignment: QuoteAssignment) -> Result<(), String> {
-    quote_manager::submit_quote_assignment(assignment)
+async fn submit_quote_assignment(assignment: QuoteAssignment) -> Result<(), String> {
+    quote_manager::submit_quote_assignment(assignment).await
 }
 
 #[query]

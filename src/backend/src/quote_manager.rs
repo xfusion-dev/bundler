@@ -17,12 +17,10 @@ pub fn request_quote(mut request: QuoteRequest) -> Result<u64, String> {
     Ok(request_id)
 }
 
-pub fn submit_quote_assignment(assignment: QuoteAssignment) -> Result<(), String> {
+pub async fn submit_quote_assignment(mut assignment: QuoteAssignment) -> Result<(), String> {
     if !is_authorized_quote_service(msg_caller()) {
         return Err("Only authorized quote service can submit assignments".to_string());
     }
-
-    validate_quote_assignment(&assignment)?;
 
     if !quote_request_exists(assignment.request_id) {
         return Err("Quote request not found".to_string());
@@ -31,6 +29,51 @@ pub fn submit_quote_assignment(assignment: QuoteAssignment) -> Result<(), String
     if quote_assignment_exists(assignment.request_id) {
         return Err("Quote already assigned".to_string());
     }
+
+    let request = get_quote_request(assignment.request_id)?;
+    let bundle = crate::bundle_manager::get_bundle(request.bundle_id)?;
+
+    let asset_amounts = match &request.operation {
+        OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {
+            let usd_amount = match &request.operation {
+                OperationType::InitialBuy { usd_amount, .. } => *usd_amount,
+                OperationType::Buy { .. } => assignment.ckusdc_amount,
+                _ => unreachable!()
+            };
+
+            let mut amounts = Vec::new();
+            for allocation in &bundle.allocations {
+                let asset_price = crate::oracle::get_asset_price(allocation.asset_id.clone()).await?;
+                let asset_info = crate::asset_registry::get_asset(allocation.asset_id.clone())?;
+
+                let usd_for_asset = (usd_amount as f64 * allocation.percentage as f64) / 100.0;
+                let price_in_usd = asset_price.price_usd as f64 / 1e8;
+                let amount_in_tokens = usd_for_asset / price_in_usd;
+                let amount_in_base_units = amount_in_tokens * 10u64.pow(asset_info.decimals as u32) as f64;
+
+                amounts.push(AssetAmount {
+                    asset_id: allocation.asset_id.clone(),
+                    amount: amount_in_base_units as u64,
+                });
+            }
+            amounts
+        }
+        OperationType::Sell { .. } => {
+            let withdrawals = crate::holdings_tracker::calculate_proportional_withdrawal(
+                request.bundle_id,
+                assignment.nav_tokens,
+            ).await?;
+
+            withdrawals.iter().map(|w| AssetAmount {
+                asset_id: w.asset_id.clone(),
+                amount: w.amount,
+            }).collect()
+        }
+    };
+
+    assignment.asset_amounts = asset_amounts;
+
+    validate_quote_assignment(&assignment)?;
 
     QUOTE_ASSIGNMENTS.with(|assignments| {
         assignments.borrow_mut().insert(assignment.request_id, assignment)

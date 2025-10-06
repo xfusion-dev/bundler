@@ -476,11 +476,18 @@ pub enum OperationType {
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct AssetAmount {
+    pub asset_id: AssetId,
+    pub amount: u64,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct QuoteAssignment {
     pub request_id: u64,
     pub resolver: Principal,
     pub nav_tokens: u64,
     pub ckusdc_amount: u64,
+    pub asset_amounts: Vec<AssetAmount>,
     pub estimated_nav: u64,
     pub fees: u64,
     pub valid_until: u64,

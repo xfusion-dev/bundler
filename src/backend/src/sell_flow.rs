@@ -18,6 +18,11 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         _ => return Err("This function is only for sell operations".to_string()),
     }
 
+    let current_time = ic_cdk::api::time();
+    if assignment.valid_until < current_time {
+        return Err("Quote assignment has expired".to_string());
+    }
+
     let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
     let bundle = crate::bundle_manager::get_bundle(request.bundle_id)?;
 
@@ -44,21 +49,16 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         pull_result
     );
 
-    let withdrawals = crate::holdings_tracker::calculate_proportional_withdrawal(
-        request.bundle_id,
-        assignment.nav_tokens,
-    ).await?;
-
-    for asset_withdrawal in &withdrawals {
-        let asset = crate::asset_registry::get_asset(asset_withdrawal.asset_id.clone())?;
+    for asset_amount in &assignment.asset_amounts {
+        let asset = crate::asset_registry::get_asset(asset_amount.asset_id.clone())?;
 
         let (ledger, token_id) = asset.get_icrc151_location()?;
 
         let transfer_memo = format!(
             "Sell tx {} - transfer {} {}",
             transaction.id,
-            asset_withdrawal.amount,
-            asset_withdrawal.asset_id.0
+            asset_amount.amount,
+            asset_amount.asset_id.0
         ).into_bytes();
 
         let transfer_result = icrc151_client::transfer_icrc151(
@@ -68,14 +68,14 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
                 owner: assignment.resolver,
                 subaccount: None,
             },
-            asset_withdrawal.amount,
+            asset_amount.amount,
             Some(transfer_memo),
         ).await?;
 
         ic_cdk::println!(
             "Transferred {} ICRC-151 {} to resolver {} via ledger {} (tx: {})",
-            asset_withdrawal.amount,
-            asset_withdrawal.asset_id.0,
+            asset_amount.amount,
+            asset_amount.asset_id.0,
             assignment.resolver,
             ledger,
             transfer_result
@@ -83,8 +83,8 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
 
         crate::holdings_tracker::update_bundle_holdings(
             request.bundle_id,
-            &asset_withdrawal.asset_id,
-            -(asset_withdrawal.amount as i64),
+            &asset_amount.asset_id,
+            -(asset_amount.amount as i64),
         )?;
     }
 
