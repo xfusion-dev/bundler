@@ -2,7 +2,6 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { idlFactory } from '../../backend/declarations/backend.did.js';
 import { authService } from './auth';
-import { coordinatorService } from '../src/services/coordinator-service';
 
 const BACKEND_CANISTER_ID = 'dk3fi-vyaaa-aaaae-qfycq-cai';
 
@@ -84,63 +83,13 @@ class BackendService {
     }
   }
 
-  async requestBuyQuote(bundleId: number, amount: number) {
+  async executeQuote(quote: any): Promise<number> {
     try {
       const actor = await this.getActor();
-      const result = await actor.request_buy_quote(bundleId, amount);
+      const result = await actor.execute_quote(quote);
 
       if ('Ok' in result) {
-        const quote = result.Ok;
-
-        try {
-          const coordinatorResult = await coordinatorService.processQuote(quote.id.toString());
-          console.log('Quote processed by coordinator:', coordinatorResult);
-        } catch (coordError) {
-          console.error('Failed to process quote with coordinator:', coordError);
-        }
-
-        return quote;
-      } else {
-        throw new Error(result.Err || 'Failed to get quote');
-      }
-    } catch (e) {
-      console.error('requestBuyQuote failed:', e);
-      throw e;
-    }
-  }
-
-  async requestSellQuote(bundleId: number, navTokens: number) {
-    try {
-      const actor = await this.getActor();
-      const result = await actor.request_sell_quote(bundleId, navTokens);
-
-      if ('Ok' in result) {
-        const quote = result.Ok;
-
-        try {
-          const coordinatorResult = await coordinatorService.processQuote(quote.id.toString());
-          console.log('Quote processed by coordinator:', coordinatorResult);
-        } catch (coordError) {
-          console.error('Failed to process quote with coordinator:', coordError);
-        }
-
-        return quote;
-      } else {
-        throw new Error(result.Err || 'Failed to get quote');
-      }
-    } catch (e) {
-      console.error('requestSellQuote failed:', e);
-      throw e;
-    }
-  }
-
-  async executeQuote(quoteId: number) {
-    try {
-      const actor = await this.getActor();
-      const result = await actor.execute_quote(quoteId);
-
-      if ('Ok' in result) {
-        return result.Ok;
+        return Number(result.Ok);
       } else {
         throw new Error(result.Err || 'Failed to execute quote');
       }
