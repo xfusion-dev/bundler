@@ -502,24 +502,75 @@ fn validate_quote_assignment(assignment: &QuoteAssignment) -> Result<(), String>
     Ok(())
 }
 
-pub async fn execute_quote(request_id: u64) -> Result<u64, String> {
-    let caller = msg_caller();
-    let request = get_quote_request(request_id)?;
-    let assignment = get_quote_assignment(request_id)?
-        .ok_or_else(|| "No quote assignment found".to_string())?;
+pub async fn execute_quote(quote: QuoteObject) -> Result<u64, String> {
+    let user = msg_caller();
 
-    if request.user != caller {
-        return Err("Only the quote requester can execute".to_string());
+    validate_coordinator_signature(&quote)?;
+
+    let current_time = time();
+    if current_time > quote.valid_until {
+        return Err(format!(
+            "Quote expired at {}, current time is {}",
+            quote.valid_until,
+            current_time
+        ));
     }
 
-    validate_buy_transaction_preconditions(&request, &assignment).await?;
+    consume_nonce(quote.nonce, current_time)?;
 
-    let transaction_id = crate::transaction_manager::create_transaction(request_id)?;
+    let _bundle = crate::bundle_manager::get_bundle(quote.bundle_id)?;
 
-    match request.operation {
-        OperationType::InitialBuy { .. } | OperationType::Buy { .. } => initiate_buy_transaction(transaction_id, &request, &assignment).await,
-        OperationType::Sell { .. } => Ok(initiate_sell_transaction(transaction_id, &request, &assignment).await?),
+    let transaction_id = crate::transaction_manager::create_transaction_from_quote(&quote, user)?;
+
+    match &quote.operation {
+        OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {
+            crate::transaction_manager::lock_user_funds_with_validation(
+                transaction_id,
+                LockedFundType::CkUSDC,
+                quote.ckusdc_amount,
+            ).await?;
+        }
+        OperationType::Sell { .. } => {
+            crate::transaction_manager::lock_user_funds_with_validation(
+                transaction_id,
+                LockedFundType::NAVTokens { bundle_id: quote.bundle_id },
+                quote.nav_tokens,
+            ).await?;
+        }
     }
+
+    if matches!(quote.operation, OperationType::InitialBuy { .. } | OperationType::Buy { .. }) {
+        let ckusdc_ledger = candid::Principal::from_text(crate::icrc2_client::CKUSDC_LEDGER_CANISTER)
+            .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
+
+        let pull_memo = format!("Lock ckUSDC for tx {}", transaction_id).into_bytes();
+
+        crate::icrc2_client::icrc2_transfer_from(
+            ckusdc_ledger,
+            user,
+            ic_cdk::api::id(),
+            quote.ckusdc_amount,
+            Some(pull_memo),
+        ).await?;
+    }
+
+    let assignment = QuoteAssignment {
+        request_id: transaction_id,
+        resolver: quote.resolver,
+        nav_tokens: quote.nav_tokens,
+        ckusdc_amount: quote.ckusdc_amount,
+        asset_amounts: quote.asset_amounts.clone(),
+        estimated_nav: 0,
+        fees: quote.fees,
+        valid_until: quote.valid_until,
+        assigned_at: current_time,
+    };
+
+    QUOTE_ASSIGNMENTS.with(|assignments| {
+        assignments.borrow_mut().insert(transaction_id, assignment);
+    });
+
+    Ok(transaction_id)
 }
 
 async fn validate_buy_transaction_preconditions(request: &QuoteRequest, assignment: &QuoteAssignment) -> Result<(), String> {
