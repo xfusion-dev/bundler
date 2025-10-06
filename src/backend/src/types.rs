@@ -205,6 +205,7 @@ pub struct BundleConfig {
     pub allocations: Vec<AssetAllocation>,
     pub created_at: u64,
     pub is_active: bool,
+    pub platform_fee_bps: u64,
 }
 
 impl Storable for BundleConfig {
@@ -462,7 +463,7 @@ pub struct NAVPrecisionReport {
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub enum OperationType {
     InitialBuy { usd_amount: u64, nav_tokens: u64 },
-    Buy { nav_tokens: u64 },
+    Buy { ckusdc_amount: u64 },
     Sell { nav_tokens: u64 },
 }
 

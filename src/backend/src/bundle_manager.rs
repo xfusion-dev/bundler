@@ -55,6 +55,7 @@ pub fn create_bundle(request: BundleCreationRequest) -> Result<u64, String> {
         allocations: allocations_with_location,
         created_at: time(),
         is_active: true,
+        platform_fee_bps: 50,
     };
 
     BUNDLE_STORAGE.with(|storage| {
@@ -113,5 +114,24 @@ pub fn get_bundles_using_asset(asset_id: &AssetId) -> Vec<u64> {
                 }
             })
             .collect()
+    })
+}
+
+#[update]
+pub fn set_bundle_platform_fee(bundle_id: u64, fee_bps: u64) -> Result<(), String> {
+    let _admin = crate::admin::require_admin()?;
+
+    if fee_bps > 10000 {
+        return Err("Fee cannot exceed 100% (10000 bps)".to_string());
+    }
+
+    BUNDLE_STORAGE.with(|storage| {
+        let mut storage = storage.borrow_mut();
+        let mut bundle = storage.get(&bundle_id)
+            .ok_or_else(|| format!("Bundle {} not found", bundle_id))?;
+
+        bundle.platform_fee_bps = fee_bps;
+        storage.insert(bundle_id, bundle);
+        Ok(())
     })
 }

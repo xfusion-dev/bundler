@@ -141,7 +141,9 @@ pub async fn execute_quote(quote: QuoteObject) -> Result<u64, String> {
 
     consume_nonce(quote.nonce, current_time)?;
 
-    let _bundle = crate::bundle_manager::get_bundle(quote.bundle_id)?;
+    let bundle = crate::bundle_manager::get_bundle(quote.bundle_id)?;
+
+    let platform_fee = (quote.ckusdc_amount as u128 * bundle.platform_fee_bps as u128 / 10000) as u64;
 
     let transaction_id = crate::transaction_manager::create_transaction_from_quote(&quote, user)?;
 
@@ -184,7 +186,7 @@ pub async fn execute_quote(quote: QuoteObject) -> Result<u64, String> {
         ckusdc_amount: quote.ckusdc_amount,
         asset_amounts: quote.asset_amounts.clone(),
         estimated_nav: 0,
-        fees: quote.fees,
+        fees: platform_fee,
         valid_until: quote.valid_until,
         assigned_at: current_time,
     };
