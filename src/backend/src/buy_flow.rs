@@ -5,15 +5,14 @@ use crate::{icrc151_client, icrc2_client};
 pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
     let caller = msg_caller();
 
-    let assignment = crate::quote_manager::get_quote_assignment(request_id)?
-        .ok_or("No quote assignment found")?;
-    let request = crate::quote_manager::get_quote_request(request_id)?;
+    let assignment = crate::quote_manager::get_assignment(request_id)?;
+    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
 
     if assignment.resolver != caller {
         return Err("Only assigned resolver can confirm deposits".to_string());
     }
 
-    match request.operation {
+    match transaction.operation {
         OperationType::InitialBuy { .. } | OperationType::Buy { .. } => {},
         _ => return Err("This function is only for buy operations".to_string()),
     }
@@ -23,8 +22,7 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
         return Err("Quote assignment has expired".to_string());
     }
 
-    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
-    let bundle = crate::bundle_manager::get_bundle(request.bundle_id)?;
+    let bundle = crate::bundle_manager::get_bundle(transaction.bundle_id)?;
 
     for asset_amount in &assignment.asset_amounts {
         let allocation = bundle.allocations.iter()
@@ -70,7 +68,7 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
             );
 
             crate::holdings_tracker::update_bundle_holdings(
-                request.bundle_id,
+                transaction.bundle_id,
                 &allocation.asset_id,
                 required_amount as i64,
             )?;
@@ -89,7 +87,7 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
         bundle_ledger,
         bundle_token_id,
         icrc151_client::Account {
-            owner: request.user,
+            owner: transaction.user,
             subaccount: None,
         },
         assignment.nav_tokens,
@@ -99,7 +97,7 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
     ic_cdk::println!(
         "Minted {} ICRC-151 bundle tokens to user {} via ledger {} (tx: {})",
         assignment.nav_tokens,
-        request.user,
+        transaction.user,
         bundle_ledger,
         mint_tx_id
     );

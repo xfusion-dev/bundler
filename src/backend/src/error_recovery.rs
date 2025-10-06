@@ -54,7 +54,7 @@ async fn recover_transaction(tx_id: u64, tx: Transaction) -> Result<(), String> 
 }
 
 async fn unlock_all_transaction_funds_safe(tx_id: u64) -> Result<Vec<(LockedFundType, u64)>, String> {
-    let tx = transaction_manager::get_transaction(tx_id)?;
+    let _tx = transaction_manager::get_transaction(tx_id)?;
     let mut unlocked = Vec::new();
 
     let locked_funds = LOCKED_FUNDS.with(|locks| {
@@ -82,25 +82,23 @@ async fn unlock_all_transaction_funds_safe(tx_id: u64) -> Result<Vec<(LockedFund
 async fn recover_buy_transaction(tx: &Transaction) -> Result<(), String> {
     if matches!(tx.status, TransactionStatus::InProgress) {
         let request_id = tx.request_id;
-        if let Ok(assignment) = crate::quote_manager::get_quote_assignment(request_id) {
-            if let Some(assignment) = assignment {
-                let canister_id = ic_cdk::api::id();
+        if let Ok(assignment) = crate::quote_manager::get_assignment(request_id) {
+            let canister_id = ic_cdk::api::id();
 
-                let ckusdc_ledger = Principal::from_text(crate::icrc2_client::CKUSDC_LEDGER_CANISTER)
-                    .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
+            let ckusdc_ledger = Principal::from_text(crate::icrc2_client::CKUSDC_LEDGER_CANISTER)
+                .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
 
-                let balance = crate::icrc2_client::icrc1_balance_of(
-                    ckusdc_ledger,
-                    canister_id
-                ).await?;
+            let balance = crate::icrc2_client::icrc1_balance_of(
+                ckusdc_ledger,
+                canister_id
+            ).await?;
 
-                if balance >= assignment.ckusdc_amount {
-                    return crate::icrc2_client::send_ckusdc_to_user(
-                        tx.user,
-                        assignment.ckusdc_amount,
-                        Some(format!("Refund for failed tx {}", tx.id).into_bytes())
-                    ).await.map(|_| ());
-                }
+            if balance >= assignment.ckusdc_amount {
+                return crate::icrc2_client::send_ckusdc_to_user(
+                    tx.user,
+                    assignment.ckusdc_amount,
+                    Some(format!("Refund for failed tx {}", tx.id).into_bytes())
+                ).await.map(|_| ());
             }
         }
     }
@@ -163,7 +161,7 @@ pub async fn perform_emergency_recovery(user: Principal) -> Result<RecoveryRepor
     let user_transactions = transaction_manager::get_user_transactions(user);
     let mut recovered_ckusdc = 0u64;
     let mut recovered_nav = 0u64;
-    let mut recovered_assets = Vec::new();
+    let recovered_assets = Vec::new();
 
     for tx in user_transactions.iter() {
         if matches!(tx.status, TransactionStatus::Pending | TransactionStatus::FundsLocked | TransactionStatus::InProgress) {

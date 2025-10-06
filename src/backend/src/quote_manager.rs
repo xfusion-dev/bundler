@@ -1,8 +1,6 @@
 use ic_cdk::api::{time, msg_caller};
 use crate::types::*;
 use crate::memory::*;
-use crate::admin::is_admin;
-use candid::Principal;
 
 pub fn get_assignment(assignment_id: u64) -> Result<QuoteAssignment, String> {
     QUOTE_ASSIGNMENTS.with(|assignments| {
@@ -29,6 +27,7 @@ pub fn set_coordinator_public_key(public_key_hex: String) -> Result<(), String> 
 
         state.set(global_state)
             .map_err(|_| "Failed to update global state".to_string())
+            .map(|_| ())
     })
 }
 
@@ -92,19 +91,33 @@ fn consume_nonce(nonce: u64, timestamp: u64) -> Result<(), String> {
 }
 
 fn validate_coordinator_signature(quote: &QuoteObject) -> Result<(), String> {
-    use ic_crypto_ed25519::{PublicKey as Ed25519PublicKey, Signature as Ed25519Signature};
+    use ed25519_dalek::{Verifier, VerifyingKey, Signature};
 
     let public_key_bytes = get_coordinator_public_key()?;
-    let public_key = Ed25519PublicKey::try_from(public_key_bytes.as_slice())
+
+    if public_key_bytes.len() != 32 {
+        return Err("Ed25519 public key must be 32 bytes".to_string());
+    }
+
+    let mut key_array = [0u8; 32];
+    key_array.copy_from_slice(&public_key_bytes);
+
+    let public_key = VerifyingKey::from_bytes(&key_array)
         .map_err(|_| "Invalid Ed25519 public key format")?;
 
     let message = serialize_quote_for_signing(quote);
 
-    let signature = Ed25519Signature::try_from(quote.coordinator_signature.as_slice())
-        .map_err(|_| "Invalid Ed25519 signature format")?;
+    if quote.coordinator_signature.len() != 64 {
+        return Err("Ed25519 signature must be 64 bytes".to_string());
+    }
+
+    let mut sig_array = [0u8; 64];
+    sig_array.copy_from_slice(&quote.coordinator_signature);
+
+    let signature = Signature::from_bytes(&sig_array);
 
     public_key
-        .verify_signature(&message, &signature)
+        .verify(&message, &signature)
         .map_err(|_| "Ed25519 signature verification failed - quote has been tampered with")?;
 
     Ok(())

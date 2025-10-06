@@ -3,29 +3,22 @@ use candid::Principal;
 use crate::types::*;
 use crate::memory::*;
 
-const TRANSACTION_TIMEOUT_NS: u64 = 1_800_000_000_000; // 30 minutes
+const TRANSACTION_TIMEOUT_NS: u64 = 1_800_000_000_000;
 
-pub fn create_transaction(request_id: u64) -> Result<u64, String> {
-    let assignment = get_quote_assignment_internal(request_id)?;
-    let request = get_quote_request_internal(request_id)?;
-
-    if assignment.assigned_at + assignment.valid_until < time() {
-        return Err("Quote assignment expired".to_string());
-    }
-
+pub fn create_transaction_from_quote(quote: &QuoteObject, user: Principal) -> Result<u64, String> {
     let transaction_id = generate_transaction_id();
     let current_time = time();
 
     let transaction = Transaction {
         id: transaction_id,
-        request_id,
-        user: request.user,
-        resolver: assignment.resolver,
-        bundle_id: request.bundle_id,
-        operation: request.operation,
+        request_id: transaction_id,
+        user,
+        resolver: quote.resolver,
+        bundle_id: quote.bundle_id,
+        operation: quote.operation.clone(),
         status: TransactionStatus::Pending,
-        nav_tokens: assignment.nav_tokens,
-        ckusdc_amount: assignment.ckusdc_amount,
+        nav_tokens: quote.nav_tokens,
+        ckusdc_amount: quote.ckusdc_amount,
         created_at: current_time,
         updated_at: current_time,
         completed_at: None,
@@ -419,12 +412,7 @@ fn generate_lock_key(user: &Principal, transaction_id: u64, fund_type: &LockedFu
 }
 
 fn get_quote_assignment_internal(request_id: u64) -> Result<QuoteAssignment, String> {
-    crate::quote_manager::get_quote_assignment(request_id)?
-        .ok_or_else(|| "No quote assignment found".to_string())
-}
-
-fn get_quote_request_internal(request_id: u64) -> Result<QuoteRequest, String> {
-    crate::quote_manager::get_quote_request(request_id)
+    crate::quote_manager::get_assignment(request_id)
 }
 
 pub fn get_transaction_by_request(request_id: u64) -> Result<Transaction, String> {

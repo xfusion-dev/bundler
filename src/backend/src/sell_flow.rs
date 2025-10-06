@@ -5,15 +5,14 @@ use crate::{icrc151_client, icrc2_client};
 pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Result<(), String> {
     let caller = msg_caller();
 
-    let assignment = crate::quote_manager::get_quote_assignment(request_id)?
-        .ok_or("No quote assignment found")?;
-    let request = crate::quote_manager::get_quote_request(request_id)?;
+    let assignment = crate::quote_manager::get_assignment(request_id)?;
+    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
 
     if assignment.resolver != caller {
         return Err("Only assigned resolver can confirm payment".to_string());
     }
 
-    match request.operation {
+    match transaction.operation {
         OperationType::Sell { .. } => {},
         _ => return Err("This function is only for sell operations".to_string()),
     }
@@ -23,8 +22,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         return Err("Quote assignment has expired".to_string());
     }
 
-    let transaction = crate::transaction_manager::get_transaction_by_request(request_id)?;
-    let bundle = crate::bundle_manager::get_bundle(request.bundle_id)?;
+    let bundle = crate::bundle_manager::get_bundle(transaction.bundle_id)?;
 
     let ckusdc_ledger = candid::Principal::from_text(icrc2_client::CKUSDC_LEDGER_CANISTER)
         .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
@@ -82,7 +80,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         );
 
         crate::holdings_tracker::update_bundle_holdings(
-            request.bundle_id,
+            transaction.bundle_id,
             &asset_amount.asset_id,
             -(asset_amount.amount as i64),
         )?;
@@ -100,7 +98,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         bundle_ledger,
         bundle_token_id,
         icrc151_client::Account {
-            owner: request.user,
+            owner: transaction.user,
             subaccount: None,
         },
         assignment.nav_tokens,
@@ -110,7 +108,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
     ic_cdk::println!(
         "Burned {} ICRC-151 bundle tokens from user {} via ledger {} (tx: {})",
         assignment.nav_tokens,
-        request.user,
+        transaction.user,
         bundle_ledger,
         burn_tx_id
     );
@@ -122,7 +120,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
 
     let user_payment_result = icrc2_client::icrc1_transfer(
         ckusdc_ledger,
-        request.user,
+        transaction.user,
         assignment.ckusdc_amount,
         Some(user_payment_memo),
     ).await?;
@@ -130,13 +128,13 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
     ic_cdk::println!(
         "Paid {} ICRC-2 ckUSDC to user {} (tx: {})",
         assignment.ckusdc_amount,
-        request.user,
+        transaction.user,
         user_payment_result
     );
 
     crate::transaction_manager::unlock_user_funds(
         transaction.id,
-        &LockedFundType::NAVTokens { bundle_id: request.bundle_id },
+        &LockedFundType::NAVTokens { bundle_id: transaction.bundle_id },
     )?;
 
     crate::transaction_manager::update_transaction_status(

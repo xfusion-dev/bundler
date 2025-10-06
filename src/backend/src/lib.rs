@@ -123,11 +123,6 @@ fn get_resolver_statistics() -> resolver_manager::ResolverStatistics {
     resolver_manager::get_resolver_statistics()
 }
 
-#[update]
-fn create_transaction(request_id: u64) -> Result<u64, String> {
-    transaction_manager::create_transaction(request_id)
-}
-
 #[query]
 fn get_transaction(transaction_id: u64) -> Result<Transaction, String> {
     transaction_manager::get_transaction(transaction_id)
