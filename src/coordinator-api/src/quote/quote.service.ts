@@ -16,6 +16,10 @@ export class QuoteService {
   ) {}
 
   async getQuote(bundleId: number, operation: any, user: string) {
+    const startTime = Date.now();
+    const operationType = Object.keys(operation)[0];
+    console.log(`[Quote] Request for bundle ${bundleId}, operation: ${operationType}, user: ${user.slice(0, 8)}...`);
+
     const bundle = await this.backendService.getBundle(bundleId);
 
     const quotes = await this.resolverService.queryAllResolvers(
@@ -24,15 +28,21 @@ export class QuoteService {
       user,
     );
 
+    console.log(`[Quote] Received ${quotes.length} quote(s) from resolvers`);
+
     if (quotes.length === 0) {
+      console.error('[Quote] No quotes available from any resolver');
       throw new Error('No quotes available from resolvers');
     }
 
     const bestQuote = this.selectorService.selectBestQuote(quotes, operation);
 
     if (!bestQuote) {
+      console.error('[Quote] Failed to select best quote');
       throw new Error('Failed to select best quote');
     }
+
+    console.log(`[Quote] Selected resolver: ${bestQuote.resolver}, NAV tokens: ${bestQuote.nav_tokens}, USDC: ${bestQuote.ckusdc_amount}`);
 
     const nonce = ++this.nonceCounter;
     const validUntil = Date.now() + 30000;
@@ -56,6 +66,9 @@ export class QuoteService {
 
     const signature = await this.signerService.signQuote(quoteObject);
     quoteObject.coordinator_signature = Array.from(signature);
+
+    const duration = Date.now() - startTime;
+    console.log(`[Quote] Generated quote in ${duration}ms, nonce: ${nonce}, fee: $${(platformFee / 1e8).toFixed(2)}`);
 
     return quoteObject;
   }

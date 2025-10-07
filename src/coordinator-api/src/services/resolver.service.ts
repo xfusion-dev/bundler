@@ -40,8 +40,12 @@ export class ResolverService implements OnModuleInit {
     operation: any,
     user: string,
   ): Promise<ResolverQuote[]> {
+    console.log(`[Resolver] Querying ${this.resolvers.length} resolver(s)...`);
+
     const promises = this.resolvers.map(async (resolver) => {
+      const startTime = Date.now();
       try {
+        console.log(`[Resolver] Querying ${resolver.name} at ${resolver.url}...`);
         const response = await axios.post(
           `${resolver.url}/quote`,
           {
@@ -52,18 +56,24 @@ export class ResolverService implements OnModuleInit {
           { timeout: 5000 },
         );
 
+        const duration = Date.now() - startTime;
+        console.log(`[Resolver] ${resolver.name} responded in ${duration}ms - NAV: ${response.data.nav_tokens}, USDC: ${response.data.ckusdc_amount}`);
+
         return {
           resolver: resolver.name,
           resolver_principal: resolver.principal,
           ...response.data,
         };
       } catch (error) {
-        console.error(`Resolver ${resolver.name} failed:`, error.message);
+        const duration = Date.now() - startTime;
+        console.error(`[Resolver] ${resolver.name} failed after ${duration}ms: ${error.message}`);
         return null;
       }
     });
 
     const results = await Promise.all(promises);
-    return results.filter((quote) => quote !== null);
+    const validQuotes = results.filter((quote) => quote !== null);
+    console.log(`[Resolver] ${validQuotes.length}/${this.resolvers.length} resolver(s) responded successfully`);
+    return validQuotes;
   }
 }
