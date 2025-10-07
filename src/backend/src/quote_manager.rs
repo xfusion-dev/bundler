@@ -143,7 +143,7 @@ pub async fn execute_quote(quote: QuoteObject) -> Result<u64, String> {
 
     let bundle = crate::bundle_manager::get_bundle(quote.bundle_id)?;
 
-    let platform_fee = (quote.ckusdc_amount as u128 * bundle.platform_fee_bps as u128 / 10000) as u64;
+    let platform_fee = (quote.ckusdc_amount as u128 * bundle.platform_fee_bps.unwrap_or(50) as u128 / 10000) as u64;
 
     let transaction_id = crate::transaction_manager::create_transaction_from_quote(&quote, user)?;
 

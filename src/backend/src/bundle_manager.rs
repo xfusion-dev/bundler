@@ -55,7 +55,7 @@ pub fn create_bundle(request: BundleCreationRequest) -> Result<u64, String> {
         allocations: allocations_with_location,
         created_at: time(),
         is_active: true,
-        platform_fee_bps: 50,
+        platform_fee_bps: Some(50),
     };
 
     BUNDLE_STORAGE.with(|storage| {
@@ -130,7 +130,7 @@ pub fn set_bundle_platform_fee(bundle_id: u64, fee_bps: u64) -> Result<(), Strin
         let mut bundle = storage.get(&bundle_id)
             .ok_or_else(|| format!("Bundle {} not found", bundle_id))?;
 
-        bundle.platform_fee_bps = fee_bps;
+        bundle.platform_fee_bps = Some(fee_bps);
         storage.insert(bundle_id, bundle);
         Ok(())
     })

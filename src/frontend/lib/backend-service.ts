@@ -50,15 +50,13 @@ class BackendService {
         canisterId: BACKEND_CANISTER_ID,
       });
 
+      // Pass empty array for no filter (opt parameter in Candid)
       const result = await actor.list_assets([]);
+      console.log('Assets from backend:', result);
       return result;
     } catch (e) {
       console.error('listAssets failed:', e);
-      return [
-        { id: 'ckBTC', symbol: 'ckBTC', name: 'Bitcoin', is_active: true },
-        { id: 'ckETH', symbol: 'ckETH', name: 'Ethereum', is_active: true },
-        { id: 'ckUSDC', symbol: 'ckUSDC', name: 'USD Coin', is_active: true },
-      ];
+      throw e;
     }
   }
 
@@ -119,29 +117,25 @@ class BackendService {
     }
   }
 
-  async createBundle(name: string, description: string | null, allocations: { asset_id: string; percentage: number }[]) {
+  async createBundle(name: string, symbol: string, description: string | null, allocations: { asset_id: string; percentage: number }[]) {
     try {
       const actor = await this.getActor();
 
-      // Get the current user's principal from the auth service
-      const userPrincipal = await authService.getPrincipal();
-      if (!userPrincipal) {
-        throw new Error('Not authenticated');
-      }
+      // ICRC-151 Multi-Token ledger canister (placeholder - replace with actual ledger)
+      // This should be the ICRC-151 ledger that will hold NAV tokens
+      const icrc151Ledger = Principal.fromText('mxzaz-hqaaa-aaaar-qaada-cai');
 
-      // Create bundle config - backend expects BundleConfig with Principal type
-      const bundleConfig = {
-        id: BigInt(Date.now()),
-        creator: userPrincipal,
+      // Create bundle request - backend expects BundleCreationRequest
+      const bundleRequest = {
         name: name,
+        symbol: symbol,
         description: description ? [description] : [],
-        created_at: BigInt(Date.now() * 1000000),
         allocations: allocations,
-        is_active: true
+        icrc151_ledger: icrc151Ledger,
       };
 
-      console.log('Creating bundle with config:', bundleConfig);
-      const result = await actor.create_bundle(bundleConfig);
+      console.log('Creating bundle with request:', bundleRequest);
+      const result = await actor.create_bundle(bundleRequest);
 
       if ('Ok' in result) {
         console.log('Bundle created successfully with ID:', result.Ok);

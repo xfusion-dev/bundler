@@ -157,3 +157,32 @@ pub fn get_asset_icrc151_location(asset_id: &AssetId) -> Result<(Principal, Vec<
         asset.get_icrc151_location()
     })
 }
+
+#[update]
+pub fn update_asset_token_location(asset_id: AssetId, new_token_location: TokenLocation) -> Result<(), String> {
+    let _admin = require_admin()?;
+
+    // Validate token_location
+    match &new_token_location {
+        TokenLocation::ICRC151 { ledger: _, token_id } => {
+            if token_id.len() != 32 {
+                return Err("ICRC-151 token_id must be 32 bytes".to_string());
+            }
+        }
+        TokenLocation::ICRC2 { ledger: _ } => {
+            // ICRC-2 is valid
+        }
+    }
+
+    ASSET_REGISTRY.with(|registry| {
+        let mut registry = registry.borrow_mut();
+        match registry.get(&asset_id) {
+            Some(mut asset_info) => {
+                asset_info.token_location = new_token_location;
+                registry.insert(asset_id, asset_info);
+                Ok(())
+            }
+            None => Err(format!("Asset {} not found", asset_id.0))
+        }
+    })
+}

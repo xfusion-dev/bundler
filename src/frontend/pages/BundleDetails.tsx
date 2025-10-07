@@ -41,7 +41,7 @@ export default function BundleDetails() {
     if (!quoteExpiresAt) return;
 
     const interval = setInterval(() => {
-      const now = Date.now();
+      const now = Date.now() * 1000000;
       const remaining = Math.max(0, quoteExpiresAt - now);
       setTimeRemaining(remaining);
 
@@ -54,7 +54,8 @@ export default function BundleDetails() {
     return () => clearInterval(interval);
   }, [quoteExpiresAt, quoteExpired, currentQuote]);
 
-  const getTimeRemaining = (ms: number): string => {
+  const getTimeRemaining = (ns: number): string => {
+    const ms = ns / 1000000;
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -265,7 +266,7 @@ export default function BundleDetails() {
   const handleExecuteTrade = async () => {
     if (!currentQuote) return;
 
-    const now = Date.now();
+    const now = Date.now() * 1000000;
     if (now >= quoteExpiresAt) {
       setError('Quote expired. Please get a new quote.');
       setCurrentQuote(null);
@@ -368,7 +369,7 @@ export default function BundleDetails() {
   const bundleDetails = {
     id: bundle.id,
     name: bundle.name,
-    symbol: bundle.name.replace(/\s+/g, '').substring(0, 4).toUpperCase(),
+    symbol: (bundle.symbol || bundle.name.replace(/\s+/g, '')).substring(0, 4).toUpperCase(),
     description: bundle.description,
     creator: bundle.creator,
     createdAt: bundle.created_at ? new Date(Number(bundle.created_at) / 1000000).toISOString().split('T')[0] : 'Unknown',
@@ -585,10 +586,32 @@ export default function BundleDetails() {
                         <div key={asset.symbol} className="space-y-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <div
-                                className="w-3 h-3"
-                                style={{ backgroundColor: asset.color }}
-                              />
+                              <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-lg flex-shrink-0">
+                                {asset.logo ? (
+                                  <img
+                                    src={asset.logo}
+                                    alt={asset.symbol}
+                                    className="w-full h-full object-cover rounded-lg"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.style.display = 'none';
+                                      const parent = target.parentElement;
+                                      if (parent) {
+                                        parent.innerHTML = `<div class="w-full h-full flex items-center justify-center rounded-lg" style="background-color: ${asset.color}"><span class="text-white font-bold text-xs">${asset.symbol.slice(0, 2)}</span></div>`;
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-full h-full flex items-center justify-center rounded-lg"
+                                    style={{ backgroundColor: asset.color }}
+                                  >
+                                    <span className="text-white font-bold text-xs">
+                                      {asset.symbol.slice(0, 2)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                               <div>
                                 <span className="text-white font-medium">{asset.name}</span>
                                 <span className="text-gray-500 text-sm ml-2 font-mono">{asset.symbol}</span>

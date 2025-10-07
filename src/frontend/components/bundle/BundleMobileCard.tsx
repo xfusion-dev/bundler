@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react';
 interface Bundle {
   id: number;
   name: string;
+  symbol?: string;
   description: string;
   tokens: Array<{
     symbol: string;
@@ -22,7 +23,7 @@ interface BundleMobileCardProps {
 }
 
 export default function BundleMobileCard({ bundle }: BundleMobileCardProps) {
-  const symbol = bundle.name.replace(/\s+/g, '').substring(0, 4).toUpperCase();
+  const symbol = (bundle.symbol || bundle.name.replace(/\s+/g, '')).substring(0, 4).toUpperCase();
   const price = bundle.totalValue.toFixed(2);
 
   return (

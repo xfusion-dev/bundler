@@ -5,6 +5,7 @@ import { useState } from 'react';
 interface Bundle {
   id: number;
   name: string;
+  symbol?: string;
   description: string;
   tokens: Array<{
     symbol: string;
@@ -24,7 +25,7 @@ interface BundleRowProps {
 
 export default function BundleRow({ bundle }: BundleRowProps) {
   const [hoveredToken, setHoveredToken] = useState<number | null>(null);
-  const symbol = bundle.name.replace(/\s+/g, '').substring(0, 4).toUpperCase();
+  const symbol = (bundle.symbol || bundle.name.replace(/\s+/g, '')).substring(0, 4).toUpperCase();
   const price = bundle.totalValue.toFixed(2);
   const marketCap = bundle.subscribers * parseFloat(price);
 
@@ -36,7 +37,7 @@ export default function BundleRow({ bundle }: BundleRowProps) {
 
   return (
     <Link to={`/bundle/${bundle.id}`} className="block">
-      <div className="border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.03] hover:from-white/[0.12] hover:to-white/[0.06] transition-all duration-300 group relative overflow-hidden p-5">
+      <div className="border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.03] hover:from-white/[0.12] hover:to-white/[0.06] transition-all duration-300 group relative overflow-visible p-5">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
         <div className="relative flex items-center justify-between gap-8">
@@ -55,7 +56,7 @@ export default function BundleRow({ bundle }: BundleRowProps) {
           </div>
 
           <div className="flex items-center gap-8 flex-shrink-0">
-            <div className="flex items-center gap-3 w-48 justify-center relative">
+            <div className="flex items-center gap-3 w-48 justify-center relative overflow-visible">
               <div className="flex -space-x-2.5">
                 {bundle.tokens.slice(0, 5).map((token, idx) => (
                   <div

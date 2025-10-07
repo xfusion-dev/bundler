@@ -6,7 +6,12 @@
       "candid": "src/backend/backend.did",
       "declarations": {
         "output": "src/backend/declarations"
-      }
+      },
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
     },
     "frontend": {
       "dependencies": [
@@ -21,6 +26,36 @@
     "internet_identity": {
       "type": "pull",
       "id": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+    },
+    "solana-ledger": {
+      "type": "custom",
+      "candid": "src/icrc151/icrc151.did",
+      "wasm": "src/icrc151/icrc151.wasm",
+      "build": []
+    },
+    "ethereum-ledger": {
+      "type": "custom",
+      "candid": "src/icrc151/icrc151.did",
+      "wasm": "src/icrc151/icrc151.wasm",
+      "build": []
+    },
+    "icp-wrapped-ledger": {
+      "type": "custom",
+      "candid": "src/icrc151/icrc151.did",
+      "wasm": "src/icrc151/icrc151.wasm",
+      "build": []
+    },
+    "others-ledger": {
+      "type": "custom",
+      "candid": "src/icrc151/icrc151.did",
+      "wasm": "src/icrc151/icrc151.wasm",
+      "build": []
+    },
+    "bundles-ledger": {
+      "type": "custom",
+      "candid": "src/icrc151/icrc151.did",
+      "wasm": "src/icrc151/icrc151.wasm",
+      "build": []
     }
   },
   "defaults": {

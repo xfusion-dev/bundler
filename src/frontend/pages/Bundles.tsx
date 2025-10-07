@@ -11,6 +11,7 @@ import SEO from '../components/SEO';
 interface Bundle {
   id: number;
   name: string;
+  symbol?: string;
   description: string;
   tokens: Array<{
     symbol: string;
@@ -54,6 +55,7 @@ export default function Bundles() {
         const transformedBundles: Bundle[] = backendBundles.map(bundle => ({
           id: bundle.id,
           name: bundle.name,
+          symbol: bundle.symbol,
           description: bundle.description || '',
           tokens: bundle.allocations.map(a => {
             const assetDetails = assetMap.get(a.asset_id);

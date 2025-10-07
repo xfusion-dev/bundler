@@ -78,6 +78,9 @@ pub enum AssetCategory {
     CommodityBacked,
     Stocks,
     Other(String),
+    RWA,
+    LiquidStaking,
+    Yield,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -205,7 +208,7 @@ pub struct BundleConfig {
     pub allocations: Vec<AssetAllocation>,
     pub created_at: u64,
     pub is_active: bool,
-    pub platform_fee_bps: u64,
+    pub platform_fee_bps: Option<u64>,
 }
 
 impl Storable for BundleConfig {

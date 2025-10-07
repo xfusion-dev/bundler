@@ -45,7 +45,7 @@ export class QuoteService {
     console.log(`[Quote] Selected resolver: ${bestQuote.resolver}, NAV tokens: ${bestQuote.nav_tokens}, USDC: ${bestQuote.ckusdc_amount}`);
 
     const nonce = ++this.nonceCounter;
-    const validUntil = Date.now() + 30000;
+    const validUntil = (Date.now() + 30000) * 1000000;
 
     const platformFee = Math.floor(
       (bestQuote.ckusdc_amount * (bundle.platform_fee_bps || 50)) / 10000,

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, Bitcoin, Coins, Building, DollarSign, Smile, Grid3X3, Search, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Bitcoin, Coins, Building, DollarSign, Smile, Grid3X3, Search, Loader2, Landmark, Droplets, TrendingUp as Percent } from 'lucide-react';
 import { backendService } from '../lib/backend-service';
 
 interface Asset {
@@ -9,14 +9,13 @@ interface Asset {
   name: string;
   decimals: number;
   is_active: boolean;
-  standard: any;
+  token_location: any;
   metadata?: {
     category?: any;
     logo_url?: string;
     website?: string;
     description?: string;
   };
-  ledger_canister: string;
   oracle_ticker?: string;
   added_at: number;
 }
@@ -53,8 +52,13 @@ export default function Assets() {
 
     // Check for Rust enum variant properties
     if ('Cryptocurrency' in category) return Bitcoin;
+    if ('RWA' in category) return Landmark;
+    if ('LiquidStaking' in category) return Droplets;
+    if ('Yield' in category) return Percent;
+    // Old categories (for backwards compatibility)
     if ('Stablecoin' in category) return DollarSign;
     if ('CommodityBacked' in category) return Building;
+    if ('Stocks' in category) return Building;
     return Coins;
   };
 
@@ -64,9 +68,13 @@ export default function Assets() {
 
     // Check for Rust enum variant properties
     if ('Cryptocurrency' in category) return 'Cryptocurrency';
-    if ('Stablecoin' in category) return 'Stablecoin';
-    if ('CommodityBacked' in category) return 'Commodity';
-    if ('Stocks' in category) return 'Stocks';
+    if ('RWA' in category) return 'RWA';
+    if ('LiquidStaking' in category) return 'Liquid Staking';
+    if ('Yield' in category) return 'Yield';
+    // Old categories (for backwards compatibility, but hidden from filters)
+    if ('Stablecoin' in category) return 'Cryptocurrency';
+    if ('CommodityBacked' in category) return 'RWA';
+    if ('Stocks' in category) return 'RWA';
     return 'Other';
   };
 
@@ -96,8 +104,9 @@ export default function Assets() {
   const categoryOptions = [
     { id: 'all', label: 'All Assets', icon: Grid3X3, description: 'All available tokens' },
     { id: 'cryptocurrency', label: 'Cryptocurrency', icon: Bitcoin, description: 'Digital currencies' },
-    { id: 'stablecoin', label: 'Stablecoins', icon: DollarSign, description: 'Stable value tokens' },
-    { id: 'commodity', label: 'Commodities', icon: Building, description: 'Physical asset backed' }
+    { id: 'rwa', label: 'RWA', icon: Landmark, description: 'Real World Assets' },
+    { id: 'liquid staking', label: 'Liquid Staking', icon: Droplets, description: 'Staking derivatives' },
+    { id: 'yield', label: 'Yield + LST', icon: Percent, description: 'Yield-generating assets' }
   ];
 
   return (
@@ -291,7 +300,7 @@ export default function Assets() {
                       <div className="flex items-center justify-between">
                         <span className="text-secondary text-sm">Standard</span>
                         <span className="text-primary font-medium">
-                          {asset.standard?.ICRC2 ? 'ICRC-2' : 'Other'}
+                          {asset.token_location?.ICRC2 ? 'ICRC-2' : asset.token_location?.ICRC151 ? 'ICRC-151' : 'Other'}
                         </span>
                       </div>
 

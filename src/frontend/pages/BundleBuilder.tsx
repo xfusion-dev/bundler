@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3, Sparkles } from 'lucide-react';
+import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3, Sparkles, Landmark, Droplets, TrendingUp as Percent } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
@@ -22,9 +22,8 @@ interface BackendAsset {
   name: string;
   decimals: number;
   is_active: boolean;
-  standard: any;
+  token_location: any;
   metadata?: AssetMetadata;
-  ledger_canister: string;
   oracle_ticker?: string;
   added_at: number;
 }
@@ -46,6 +45,7 @@ interface BundleAllocation {
 export default function BundleBuilder() {
   const { isAuthenticated, login, loading } = useAuth();
   const [bundleName, setBundleName] = useState('');
+  const [bundleSymbol, setBundleSymbol] = useState('');
   const [bundleDescription, setBundleDescription] = useState('');
   const [selectedAssets, setSelectedAssets] = useState<BundleAllocation[]>([]);
   const [totalPercentage, setTotalPercentage] = useState(0);
@@ -75,18 +75,22 @@ export default function BundleBuilder() {
     if (!category) return 'Other';
 
     if ('Cryptocurrency' in category) return 'Cryptocurrency';
-    if ('Stablecoin' in category) return 'Stablecoin';
-    if ('CommodityBacked' in category) return 'Commodity';
-    if ('Stocks' in category) return 'Stocks';
+    if ('RWA' in category) return 'RWA';
+    if ('LiquidStaking' in category) return 'Liquid Staking';
+    if ('Yield' in category) return 'Yield';
+    // Old categories (backwards compatibility)
+    if ('Stablecoin' in category) return 'Cryptocurrency';
+    if ('CommodityBacked' in category) return 'RWA';
+    if ('Stocks' in category) return 'RWA';
     return 'Other';
   };
 
   const getCategoryColor = (categoryName: string): string => {
     switch(categoryName) {
       case 'Cryptocurrency': return '#f59e0b';
-      case 'Stablecoin': return '#10b981';
-      case 'Commodity': return '#8b5cf6';
-      case 'Stocks': return '#ef4444';
+      case 'RWA': return '#8b5cf6';
+      case 'Liquid Staking': return '#06b6d4';
+      case 'Yield': return '#10b981';
       default: return '#6366f1';
     }
   };
@@ -135,7 +139,7 @@ export default function BundleBuilder() {
     if (!quoteExpiresAt) return;
 
     const interval = setInterval(() => {
-      const now = Date.now();
+      const now = Date.now() * 1000000;
       const remaining = Math.max(0, quoteExpiresAt - now);
       setTimeRemaining(remaining);
 
@@ -149,7 +153,8 @@ export default function BundleBuilder() {
     return () => clearInterval(interval);
   }, [quoteExpiresAt, quoteExpired, currentQuote]);
 
-  const getTimeRemaining = (ms: number): string => {
+  const getTimeRemaining = (ns: number): string => {
+    const ms = ns / 1000000;
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -254,6 +259,7 @@ export default function BundleBuilder() {
   const resetAllocations = () => {
     setSelectedAssets([]);
     setBundleName('');
+    setBundleSymbol('');
     setBundleDescription('');
     setError(null);
     setSuccess(null);
@@ -330,6 +336,7 @@ export default function BundleBuilder() {
 
       const bundleId = await backendService.createBundle(
         bundleName,
+        bundleSymbol,
         bundleDescription || null,
         allocations
       );
@@ -339,8 +346,8 @@ export default function BundleBuilder() {
 
       const userPrincipal = await authService.getPrincipal();
       const quote = await coordinatorService.getQuote(
-        bundleId,
-        { InitialBuy: { usd_amount: parseFloat(usdcAmount) * 1e8, nav_tokens: parseFloat(navTokenAmount) * 1e8 } },
+        Number(bundleId),
+        { InitialBuy: { usd_amount: Math.floor(parseFloat(usdcAmount) * 1e8), nav_tokens: Math.floor(parseFloat(navTokenAmount) * 1e8) } },
         userPrincipal?.toString() || ''
       );
 
@@ -365,9 +372,9 @@ export default function BundleBuilder() {
   const getCategoryIcon = (categoryName: string) => {
     switch(categoryName) {
       case 'Cryptocurrency': return Bitcoin;
-      case 'Stablecoin': return DollarSign;
-      case 'Commodity': return Building;
-      case 'Stocks': return Building;
+      case 'RWA': return Landmark;
+      case 'Liquid Staking': return Droplets;
+      case 'Yield': return Percent;
       default: return Coins;
     }
   };
@@ -375,8 +382,8 @@ export default function BundleBuilder() {
   const categoryOptions = [
     { id: 'all', name: 'All Assets', icon: Grid3X3 },
     { id: 'Cryptocurrency', name: 'Cryptocurrency', icon: Bitcoin },
-    { id: 'Stablecoin', name: 'Stablecoins', icon: DollarSign },
-    { id: 'Commodity', name: 'Commodities', icon: Building }
+    { id: 'RWA', name: 'RWA', icon: Landmark },
+    { id: 'Yield', name: 'Yield + LST', icon: Percent }
   ];
 
   const getFilteredAssets = () => {
@@ -398,7 +405,7 @@ export default function BundleBuilder() {
   };
 
   const availableAssetsToAdd = getFilteredAssets();
-  const isValid = totalPercentage === 100 && bundleName && selectedAssets.length >= 2;
+  const isValid = totalPercentage === 100 && bundleName && bundleSymbol.length === 4 && selectedAssets.length >= 2;
 
   return (
     <>
@@ -435,16 +442,38 @@ export default function BundleBuilder() {
                   <h2 className="text-2xl font-bold text-white mb-6">Bundle Details</h2>
 
                   <div className="space-y-6">
-                    <div>
-                      <label className="block text-gray-400 text-sm font-mono uppercase mb-3">Bundle Name</label>
-                      <input
-                        type="text"
-                        value={bundleName}
-                        onChange={(e) => { setBundleName(e.target.value); }}
-                        placeholder="e.g., DeFi Blue Chips"
-                        className="w-full bg-black border border-white/20 p-4 text-white text-lg focus:border-white focus:outline-none transition-colors"
-                        disabled={creating}
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="md:col-span-2">
+                        <label className="block text-gray-400 text-sm font-mono uppercase mb-3">Bundle Name</label>
+                        <input
+                          type="text"
+                          value={bundleName}
+                          onChange={(e) => { setBundleName(e.target.value); }}
+                          placeholder="e.g., DeFi Blue Chips"
+                          className="w-full bg-black border border-white/20 p-4 text-white text-lg focus:border-white focus:outline-none transition-colors"
+                          disabled={creating}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-gray-400 text-sm font-mono uppercase mb-3">
+                          Symbol
+                        </label>
+                        <input
+                          type="text"
+                          value={bundleSymbol}
+                          onChange={(e) => {
+                            const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                            if (value.length <= 4) {
+                              setBundleSymbol(value);
+                            }
+                          }}
+                          placeholder="DEFI"
+                          maxLength={4}
+                          className="w-full bg-black border border-white/20 p-4 text-white text-lg focus:border-white focus:outline-none transition-colors uppercase font-mono text-center"
+                          disabled={creating}
+                        />
+                      </div>
                     </div>
 
                     <div>
@@ -533,24 +562,24 @@ export default function BundleBuilder() {
                           <div key={allocation.asset.id} className="border border-white/10 bg-black p-6">
                             <div className="flex items-start justify-between mb-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 flex items-center justify-center overflow-hidden bg-white/10">
+                                <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-lg">
                                   {allocation.asset.logo ? (
                                     <img
                                       src={allocation.asset.logo}
                                       alt={allocation.asset.symbol}
-                                      className="w-full h-full object-cover"
+                                      className="w-full h-full object-cover rounded-lg"
                                       onError={(e) => {
                                         const target = e.target as HTMLImageElement;
                                         target.style.display = 'none';
                                         const parent = target.parentElement;
                                         if (parent) {
-                                          parent.innerHTML = `<div class="w-full h-full flex items-center justify-center" style="background-color: ${allocation.asset.color}"><span class="text-white font-bold">${allocation.asset.symbol.slice(0, 2)}</span></div>`;
+                                          parent.innerHTML = `<div class="w-full h-full flex items-center justify-center rounded-lg" style="background-color: ${allocation.asset.color}"><span class="text-white font-bold">${allocation.asset.symbol.slice(0, 2)}</span></div>`;
                                         }
                                       }}
                                     />
                                   ) : (
                                     <div
-                                      className="w-full h-full flex items-center justify-center"
+                                      className="w-full h-full flex items-center justify-center rounded-lg"
                                       style={{ backgroundColor: allocation.asset.color }}
                                     >
                                       <span className="text-white font-bold">
@@ -632,6 +661,13 @@ export default function BundleBuilder() {
                       </div>
                     </div>
 
+                    <div>
+                      <div className="text-gray-500 text-xs font-mono uppercase mb-2">Symbol</div>
+                      <div className="text-white font-bold text-lg font-mono">
+                        {bundleSymbol || <span className="text-gray-600">Not set</span>}
+                      </div>
+                    </div>
+
                     <div className="w-full h-px bg-white/10" />
 
                     <div>
@@ -665,6 +701,7 @@ export default function BundleBuilder() {
                       <div className="border border-red-400/20 bg-red-400/5 p-4">
                         <div className="text-red-400 text-sm space-y-1">
                           {!bundleName && <div>• Bundle name required</div>}
+                          {bundleSymbol.length !== 4 && <div>• 4-char symbol required</div>}
                           {selectedAssets.length < 2 && <div>• Min 2 assets required</div>}
                           {totalPercentage !== 100 && <div>• Allocation must = 100%</div>}
                         </div>
@@ -980,24 +1017,24 @@ export default function BundleBuilder() {
                         className="border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 p-6 transition-all text-left"
                       >
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 flex items-center justify-center overflow-hidden bg-white/10">
+                          <div className="w-12 h-12 flex items-center justify-center overflow-hidden rounded-lg">
                             {asset.logo ? (
                               <img
                                 src={asset.logo}
                                 alt={asset.symbol}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover rounded-lg"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
                                   const parent = target.parentElement;
                                   if (parent) {
-                                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center" style="background-color: ${asset.color}"><span class="text-white font-bold">${asset.symbol.slice(0, 2)}</span></div>`;
+                                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center rounded-lg" style="background-color: ${asset.color}"><span class="text-white font-bold">${asset.symbol.slice(0, 2)}</span></div>`;
                                   }
                                 }}
                               />
                             ) : (
                               <div
-                                className="w-full h-full flex items-center justify-center"
+                                className="w-full h-full flex items-center justify-center rounded-lg"
                                 style={{ backgroundColor: asset.color }}
                               >
                                 <span className="text-white font-bold">

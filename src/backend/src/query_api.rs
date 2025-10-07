@@ -72,7 +72,7 @@ pub fn get_user_portfolio(user: Principal) -> UserPortfolio {
                 allocations: vec![],
                 created_at: 0,
                 is_active: false,
-                platform_fee_bps: 50,
+                platform_fee_bps: Some(50),
             });
 
         NAVTokenHolding {

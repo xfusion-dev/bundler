@@ -28,7 +28,7 @@ class CoordinatorService {
   private client: AxiosInstance;
 
   constructor() {
-    const baseURL = import.meta.env.VITE_COORDINATOR_API_URL || 'http://localhost:3000';
+    const baseURL = import.meta.env.VITE_COORDINATOR_API_URL || 'http://localhost:3003';
 
     this.client = axios.create({
       baseURL,

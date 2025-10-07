@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import axios from 'axios';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -21,6 +22,8 @@ export interface ResolverQuote {
 @Injectable()
 export class ResolverService implements OnModuleInit {
   private resolvers: ResolverConfig[] = [];
+
+  constructor(private httpService: HttpService) {}
 
   onModuleInit() {
     const configPath = path.resolve(__dirname, '../../resolvers.config.json');
@@ -46,14 +49,16 @@ export class ResolverService implements OnModuleInit {
       const startTime = Date.now();
       try {
         console.log(`[Resolver] Querying ${resolver.name} at ${resolver.url}...`);
-        const response = await axios.post(
-          `${resolver.url}/quote`,
-          {
-            bundleId,
-            operation,
-            user,
-          },
-          { timeout: 5000 },
+        const response = await firstValueFrom(
+          this.httpService.post(
+            `${resolver.url}/quote`,
+            {
+              bundleId,
+              operation,
+              user,
+            },
+            { timeout: 5000 },
+          ),
         );
 
         const duration = Date.now() - startTime;

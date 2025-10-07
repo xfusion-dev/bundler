@@ -50,3 +50,4 @@ Cargo.lock
 *.rs.bk
 
 deps
+*.key
