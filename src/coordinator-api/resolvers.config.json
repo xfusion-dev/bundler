@@ -1,0 +1,9 @@
+{
+  "resolvers": [
+    {
+      "name": "Resolver 1",
+      "url": "http://localhost:3001",
+      "principal": "2vxsx-fae"
+    }
+  ]
+}
