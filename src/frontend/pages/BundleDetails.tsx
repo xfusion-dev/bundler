@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useParams } from 'react-router-dom';
-import { TrendingUp, TrendingDown, BarChart3, PieChart, ArrowUpDown, CheckCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, PieChart, ArrowUpDown, CheckCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
 import { icrc2Service } from '../lib/icrc2-service';
+import { coordinatorService } from '../src/services/coordinator-service';
+import { authService } from '../lib/auth';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import { BundleDetailsSkeleton } from '../components/ui/Skeleton';
 
@@ -27,7 +29,37 @@ export default function BundleDetails() {
   const [tradeStatus, setTradeStatus] = useState('');
   const [tradeStep, setTradeStep] = useState<'idle' | 'quote' | 'approve' | 'execute' | 'complete'>('idle');
   const [userUsdcBalance, setUserUsdcBalance] = useState<string>('0');
+  const [userNavBalance, setUserNavBalance] = useState<string>('0');
+  const [currentQuote, setCurrentQuote] = useState<any>(null);
+  const [quoteExpiresAt, setQuoteExpiresAt] = useState<number>(0);
+  const [quoteExpired, setQuoteExpired] = useState<boolean>(false);
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [fetchingQuote, setFetchingQuote] = useState<boolean>(false);
   const { isAuthenticated, login } = useAuth();
+
+  useEffect(() => {
+    if (!quoteExpiresAt) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, quoteExpiresAt - now);
+      setTimeRemaining(remaining);
+
+      if (remaining === 0 && !quoteExpired && currentQuote) {
+        setQuoteExpired(true);
+        toast('Quote expired, please request a new quote', { icon: '⏱️' });
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [quoteExpiresAt, quoteExpired, currentQuote]);
+
+  const getTimeRemaining = (ms: number): string => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     const loadBundleDetails = async () => {
@@ -132,7 +164,6 @@ export default function BundleDetails() {
       if (isAuthenticated) {
         try {
           const balance = await icrc2Service.getBalance();
-          // Convert from BigInt with 6 decimals to string (ckUSDC has 6 decimals)
           const formattedBalance = (Number(balance) / 1000000).toFixed(2);
           setUserUsdcBalance(formattedBalance);
         } catch (err) {
@@ -143,6 +174,79 @@ export default function BundleDetails() {
 
     void loadBalance();
   }, [isAuthenticated]);
+
+  // Load user's NAV token balance for this bundle
+  useEffect(() => {
+    const loadNavBalance = async () => {
+      if (isAuthenticated && id) {
+        try {
+          const userPrincipal = await authService.getPrincipal();
+          if (!userPrincipal) return;
+
+          const agent = await authService.getAgent();
+          if (!agent) return;
+
+          const actor = await backendService.getActor();
+          const result = await actor.get_user_portfolio(userPrincipal);
+
+          const holding = result.nav_token_holdings.find((h: any) => h.bundle_id.toString() === id);
+          if (holding) {
+            const formattedBalance = (Number(holding.amount) / 100000000).toFixed(4);
+            setUserNavBalance(formattedBalance);
+          } else {
+            setUserNavBalance('0');
+          }
+        } catch (err) {
+          console.error('Failed to load NAV token balance:', err);
+          setUserNavBalance('0');
+        }
+      }
+    };
+
+    void loadNavBalance();
+  }, [isAuthenticated, id]);
+
+  useEffect(() => {
+    if (!tradeAmount || parseFloat(tradeAmount) <= 0 || !isAuthenticated || !id) {
+      setCurrentQuote(null);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      void fetchQuote();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [tradeAmount, tradeTab, isAuthenticated, id]);
+
+  const fetchQuote = async () => {
+    if (!tradeAmount || parseFloat(tradeAmount) <= 0 || !id) return;
+
+    setFetchingQuote(true);
+    try {
+      const userPrincipal = await authService.getPrincipal();
+      if (!userPrincipal) return;
+
+      const operation = tradeTab === 'buy'
+        ? { Buy: { ckusdc_amount: Math.floor(parseFloat(tradeAmount) * 1e8) } }
+        : { Sell: { nav_tokens: Math.floor(parseFloat(tradeAmount) * 1e8) } };
+
+      const quote = await coordinatorService.getQuote(
+        Number(id),
+        operation,
+        userPrincipal.toString()
+      );
+
+      setCurrentQuote(quote);
+      setQuoteExpiresAt(quote.valid_until);
+      setQuoteExpired(false);
+    } catch (err) {
+      console.error('Failed to get quote:', err);
+      setCurrentQuote(null);
+    } finally {
+      setFetchingQuote(false);
+    }
+  };
 
   function getAssetColor(symbol: string) {
     const tokenColors: Record<string, string> = {
@@ -158,89 +262,71 @@ export default function BundleDetails() {
     return tokenColors[symbol] || '#6366f1';
   }
 
-  const handleTrade = async () => {
-    if (!tradeAmount || parseFloat(tradeAmount) <= 0) return;
+  const handleExecuteTrade = async () => {
+    if (!currentQuote) return;
+
+    const now = Date.now();
+    if (now >= quoteExpiresAt) {
+      setError('Quote expired. Please get a new quote.');
+      setCurrentQuote(null);
+      toast.error('Quote expired');
+      return;
+    }
 
     setIsTrading(true);
-    setTradeStep('quote');
+    setTradeStep('approve');
+
     try {
       if (tradeTab === 'buy') {
-        // Step 1: Request quote
-        setTradeStatus('Requesting quote...');
-        const quote = await backendService.requestBuyQuote(
-          Number(id),
-          parseFloat(tradeAmount) * 1000000
-        );
-        console.log('Buy quote:', quote);
-
-        // Step 2: Approve ICRC-2 transfer
-        setTradeStep('approve');
         setTradeStatus('Approving USDC spending...');
 
-        // Convert USDC amount to proper format (6 decimals for ckUSDC)
-        const usdcAmount = BigInt(Math.floor(parseFloat(tradeAmount) * 1000000));
-
-        // Check current allowance
+        const usdcAmount = BigInt(currentQuote.ckusdc_amount);
         const currentAllowance = await icrc2Service.checkBackendAllowance();
-        console.log('Current allowance:', currentAllowance.toString());
 
-        // Only approve if we need more allowance
         if (currentAllowance < usdcAmount) {
-          // Approve a large amount (10,000 USDC) to avoid frequent approvals
-          const largeApprovalAmount = BigInt(10000 * 1000000); // 10,000 USDC with 6 decimals
-          console.log('Approving', largeApprovalAmount.toString(), 'ckUSDC (10,000 USDC) for future trades');
+          const largeApprovalAmount = BigInt(10000 * 1000000);
           const approvalResult = await icrc2Service.approveBackendCanister(largeApprovalAmount);
           if (!approvalResult) {
             throw new Error('Failed to approve USDC spending');
           }
-          console.log('Approval successful:', approvalResult.toString());
-        } else {
-          console.log('Sufficient allowance already exists');
         }
+      }
 
-        // Step 3: Execute quote
-        setTradeStep('execute');
-        setTradeStatus('Executing trade...');
-        const result = await backendService.executeQuote(quote.id);
-        console.log('Trade result:', result);
+      setTradeStep('execute');
+      setTradeStatus('Executing trade...');
 
-        // Step 4: Complete
-        setTradeStep('complete');
-        setTradeStatus('Trade completed successfully!');
-        toast.success(`Successfully purchased ${tradeAmount} ${bundle.name} tokens!`);
+      await backendService.executeQuote(currentQuote);
 
-        // Refresh balance after trade
+      setTradeStep('complete');
+      setTradeStatus('Trade completed successfully!');
+      toast.success(`Trade executed successfully!`);
+
+      if (tradeTab === 'buy') {
         const newBalance = await icrc2Service.getBalance();
         const formattedBalance = (Number(newBalance) / 1000000).toFixed(2);
         setUserUsdcBalance(formattedBalance);
-
-        setTimeout(() => {
-          setTradeStatus('');
-          setTradeStep('idle');
-        }, 3000);
-      } else {
-        setTradeStatus('Requesting sell quote...');
-        const quote = await backendService.requestSellQuote(
-          Number(id),
-          parseFloat(tradeAmount) * 100
-        );
-        console.log('Sell quote:', quote);
-
-        // Execute sell quote
-        setTradeStatus('Executing sell...');
-        const result = await backendService.executeQuote(quote.id);
-        console.log('Trade result:', result);
-
-        setTradeStep('complete');
-        setTradeStatus('Sale completed!');
-        toast.success(`Successfully sold ${tradeAmount} ${bundle.name} tokens!`);
-        setTimeout(() => {
-          setTradeStatus('');
-          setTradeStep('idle');
-        }, 3000);
       }
 
-      setTradeAmount('');
+      const userPrincipal = await authService.getPrincipal();
+      if (userPrincipal) {
+        const actor = await backendService.getActor();
+        const result = await actor.get_user_portfolio(userPrincipal);
+        const holding = result.nav_token_holdings.find((h: any) => h.bundle_id.toString() === id);
+        if (holding) {
+          const formattedBalance = (Number(holding.amount) / 100000000).toFixed(4);
+          setUserNavBalance(formattedBalance);
+        } else {
+          setUserNavBalance('0');
+        }
+      }
+
+      setTimeout(() => {
+        setTradeStatus('');
+        setTradeStep('idle');
+        setCurrentQuote(null);
+        setQuoteExpiresAt(0);
+        setTradeAmount('');
+      }, 2000);
     } catch (err) {
       console.error('Trade failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Trade failed. Please try again.';
@@ -252,6 +338,7 @@ export default function BundleDetails() {
       setIsTrading(false);
     }
   };
+
 
   if (loading) {
     return <BundleDetailsSkeleton />;
@@ -609,164 +696,144 @@ export default function BundleDetails() {
                   ))}
                 </div>
 
-                <div className="p-4 md:p-6">
+                <div className="p-6">
                   <div className="space-y-4">
-                {/* Balance Display */}
-                {isAuthenticated && tradeTab === 'buy' && (
-                  <div className="bg-surface-light border border-primary/20 p-3 rounded-lg">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-tertiary">Your Balance:</span>
-                      <span className="text-primary font-mono font-bold">
-                        {userUsdcBalance} ckUSDC
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-secondary text-sm mb-2">
-                    {tradeTab === 'buy' ? 'You Pay (USDC)' : 'You Sell (NAV)'}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={tradeAmount}
-                      onChange={(e) => setTradeAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full bg-elevated border border-primary p-3 pr-16 text-primary text-lg rounded focus:border-accent focus:outline-none"
-                      disabled={isTrading}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-sm">
-                      {tradeTab === 'buy' ? 'USDC' : 'NAV'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-center py-2">
-                  <ArrowUpDown className="w-5 h-5 text-tertiary" />
-                </div>
-
-                <div>
-                  <label className="block text-secondary text-sm mb-2">
-                    {tradeTab === 'buy' ? 'You Receive (NAV)' : 'You Receive (USDC)'}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={
-                        tradeAmount
-                          ? tradeTab === 'buy'
-                            ? (parseFloat(tradeAmount) / bundleDetails.price).toFixed(4)
-                            : (parseFloat(tradeAmount) * bundleDetails.price).toFixed(2)
-                          : ''
-                      }
-                      readOnly
-                      placeholder="0.00"
-                      className="w-full bg-surface border border-primary p-3 pr-16 text-primary text-lg rounded cursor-not-allowed"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-sm">
-                      {tradeTab === 'buy' ? 'NAV' : 'USDC'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-elevated border border-primary p-3 rounded">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-secondary">Price per NAV</span>
-                    <span className="text-primary font-mono">${bundleDetails.price.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm mt-2">
-                    <span className="text-secondary">Slippage</span>
-                    <span className="text-primary font-mono">0.5%</span>
-                  </div>
-                </div>
-
-                {isAuthenticated ? (
-                  <button
-                    onClick={() => void handleTrade()}
-                    disabled={!tradeAmount || parseFloat(tradeAmount) <= 0 || isTrading}
-                    className={`w-full py-3 font-bold uppercase transition-all flex items-center justify-center gap-2 ${
-                      tradeTab === 'buy'
-                        ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30 disabled:opacity-50'
-                        : 'bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50'
-                    }`}
-                  >
-                    {isTrading ? (
-                      <>
-                        {tradeStep === 'complete' ? (
-                          <CheckCircle className="w-4 h-4" />
-                        ) : (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-gray-400 text-sm">
+                          {tradeTab === 'buy' ? 'You Pay (USDC)' : 'You Sell (NAV)'}
+                        </label>
+                        {isAuthenticated && (
+                          <button
+                            onClick={() => setTradeAmount(tradeTab === 'buy' ? userUsdcBalance : userNavBalance)}
+                            className="text-white/60 hover:text-white text-xs transition-colors"
+                          >
+                            Balance: {tradeTab === 'buy' ? userUsdcBalance : userNavBalance}
+                          </button>
                         )}
-                        {tradeStatus || 'Processing...'}
-                      </>
-                    ) : (
-                      `${tradeTab === 'buy' ? 'Buy' : 'Sell'} ${bundleDetails.name}`
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={tradeAmount}
+                          onChange={(e) => setTradeAmount(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full bg-black border border-white/10 p-4 pr-20 text-white text-2xl focus:border-white/20 focus:outline-none transition-colors"
+                          disabled={isTrading}
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                          {tradeTab === 'buy' ? 'USDC' : 'NAV'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-center py-1">
+                      <ArrowUpDown className="w-4 h-4 text-gray-600" />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-400 text-sm mb-2">
+                        {tradeTab === 'buy' ? 'You Receive (NAV)' : 'You Receive (USDC)'}
+                      </label>
+                      <div className="relative">
+                        {fetchingQuote ? (
+                          <div className="w-full bg-black border border-white/10 p-4 text-2xl flex items-center">
+                            <Loader2 className="w-5 h-5 animate-spin mr-3" />
+                            <span className="text-gray-600">Loading...</span>
+                          </div>
+                        ) : currentQuote ? (
+                          <>
+                            <input
+                              type="text"
+                              value={
+                                tradeTab === 'buy'
+                                  ? (currentQuote.nav_tokens / 1e8).toFixed(4)
+                                  : (currentQuote.ckusdc_amount / 1e8).toFixed(2)
+                              }
+                              readOnly
+                              className="w-full bg-black border border-white/10 p-4 pr-20 text-white text-2xl cursor-not-allowed"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                              {tradeTab === 'buy' ? 'NAV' : 'USDC'}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <input
+                              type="text"
+                              value=""
+                              readOnly
+                              placeholder="0.00"
+                              className="w-full bg-black border border-white/10 p-4 pr-20 text-white text-2xl cursor-not-allowed"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                              {tradeTab === 'buy' ? 'NAV' : 'USDC'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {currentQuote && (
+                      <div className="border border-white/10 bg-black/40 p-4 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Price per NAV</span>
+                          <span className="text-white">
+                            ${(currentQuote.ckusdc_amount / currentQuote.nav_tokens).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Platform Fee</span>
+                          <span className="text-white">${(currentQuote.fees / 1e8).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Quote expires</span>
+                          <span className="text-white">
+                            {quoteExpired ? (
+                              <span className="text-red-400">EXPIRED</span>
+                            ) : (
+                              <span>{getTimeRemaining(timeRemaining)}</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
                     )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => void login()}
-                    className="btn-unique w-full py-3"
-                  >
-                    Connect Wallet
-                  </button>
-                )}
 
-                {/* Transaction Steps Info */}
-                {tradeTab === 'buy' && (
-                  <div className="mt-4 p-3 bg-surface-light rounded-lg border border-primary/20">
-                    <div className="text-xs text-tertiary mb-2">Transaction Flow:</div>
-                    <div className="space-y-2">
-                      <div className={`flex items-center gap-2 text-xs transition-all ${
-                        tradeStep === 'quote' ? 'text-accent' :
-                        ['approve', 'execute', 'complete'].includes(tradeStep) ? 'text-green-400' :
-                        'text-secondary'
-                      }`}>
-                        {['approve', 'execute', 'complete'].includes(tradeStep) ? (
-                          <CheckCircle className="w-3 h-3" />
-                        ) : tradeStep === 'quote' ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
+                    {isAuthenticated ? (
+                      <button
+                        onClick={() => void handleExecuteTrade()}
+                        disabled={!currentQuote || quoteExpired || isTrading || fetchingQuote}
+                        className={`w-full py-4 font-bold text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 border ${
+                          tradeTab === 'buy'
+                            ? 'bg-green-500/10 text-green-400 border-green-400/20 hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                            : 'bg-red-500/10 text-red-400 border-red-400/20 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                        }`}
+                      >
+                        {isTrading ? (
+                          <>
+                            {tradeStep === 'complete' ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            )}
+                            {tradeStatus || 'Processing...'}
+                          </>
                         ) : (
-                          <div className="w-3 h-3 rounded-full border border-current" />
+                          `${tradeTab === 'buy' ? 'Buy' : 'Sell'} ${bundleDetails.name}`
                         )}
-                        <span>Request quote from contract</span>
-                      </div>
-                      <div className={`flex items-center gap-2 text-xs transition-all ${
-                        tradeStep === 'approve' ? 'text-accent' :
-                        ['execute', 'complete'].includes(tradeStep) ? 'text-green-400' :
-                        'text-secondary'
-                      }`}>
-                        {['execute', 'complete'].includes(tradeStep) ? (
-                          <CheckCircle className="w-3 h-3" />
-                        ) : tradeStep === 'approve' ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <div className="w-3 h-3 rounded-full border border-current" />
-                        )}
-                        <span>Approve ckUSDC spending (ICRC-2)</span>
-                      </div>
-                      <div className={`flex items-center gap-2 text-xs transition-all ${
-                        tradeStep === 'execute' ? 'text-accent' :
-                        tradeStep === 'complete' ? 'text-green-400' :
-                        'text-secondary'
-                      }`}>
-                        {tradeStep === 'complete' ? (
-                          <CheckCircle className="w-3 h-3" />
-                        ) : tradeStep === 'execute' ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <div className="w-3 h-3 rounded-full border border-current" />
-                        )}
-                        <span>Execute trade & receive NAV tokens</span>
-                      </div>
-                    </div>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => void login()}
+                        className="w-full py-4 font-bold text-sm uppercase tracking-wide bg-white text-black hover:bg-gray-200 transition-colors"
+                      >
+                        Connect Wallet
+                      </button>
+                    )}
                   </div>
-                  )}
                 </div>
               </div>
             </div>
-          </div>
           </div>
         </div>
       </div>
