@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3, Sparkles, Landmark, Droplets, TrendingUp as Percent } from 'lucide-react';
+import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3, Sparkles, Landmark, Droplets, TrendingUp as Percent, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
@@ -58,6 +58,7 @@ export default function BundleBuilder() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [pendingSelections, setPendingSelections] = useState<string[]>([]);
   const [isCreationModalOpen, setIsCreationModalOpen] = useState(false);
   const [usdcAmount, setUsdcAmount] = useState('');
   const [navTokenAmount, setNavTokenAmount] = useState('');
@@ -69,6 +70,17 @@ export default function BundleBuilder() {
   const [createdBundleId, setCreatedBundleId] = useState<number | null>(null);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isDrawerOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isDrawerOpen]);
 
   const getCategoryName = (asset: BackendAsset): string => {
     const category = asset.metadata?.category;
@@ -168,17 +180,6 @@ export default function BundleBuilder() {
     return parseFloat(usdcAmount) / parseFloat(navTokenAmount);
   })();
 
-  const assetPurchaseBreakdown = (() => {
-    if (!usdcAmount || parseFloat(usdcAmount) <= 0) return [];
-
-    const totalUsdc = parseFloat(usdcAmount);
-    return selectedAssets.map(allocation => ({
-      symbol: allocation.asset.symbol,
-      percentage: allocation.percentage,
-      usdcAmount: (totalUsdc * allocation.percentage) / 100
-    }));
-  })();
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black">
@@ -223,14 +224,44 @@ export default function BundleBuilder() {
     );
   }
 
-  const addAsset = (asset: Asset) => {
-    if (selectedAssets.find(a => a.asset.id === asset.id)) return;
+  const toggleAssetSelection = (assetId: string) => {
+    if (pendingSelections.includes(assetId)) {
+      setPendingSelections(pendingSelections.filter(id => id !== assetId));
+    } else {
+      setPendingSelections([...pendingSelections, assetId]);
+    }
+  };
+
+  const applyPendingSelections = () => {
+    const newAssets = availableAssets
+      .filter(asset => pendingSelections.includes(asset.id))
+      .filter(asset => !selectedAssets.find(a => a.asset.id === asset.id));
 
     const remainingPercentage = Math.max(0, 100 - totalPercentage);
-    const suggestedPercentage = Math.min(remainingPercentage, 20);
+    const perAssetPercentage = newAssets.length > 0
+      ? Math.min(20, Math.floor(remainingPercentage / newAssets.length))
+      : 0;
 
-    setSelectedAssets([...selectedAssets, { asset, percentage: suggestedPercentage }]);
+    const newAllocations = newAssets.map(asset => ({
+      asset,
+      percentage: perAssetPercentage
+    }));
+
+    setSelectedAssets([...selectedAssets, ...newAllocations]);
+    setPendingSelections([]);
+  };
+
+  const handleDrawerClose = () => {
+    applyPendingSelections();
     setIsDrawerOpen(false);
+  };
+
+  const handleResetSelections = () => {
+    setPendingSelections([]);
+  };
+
+  const handleDone = () => {
+    handleDrawerClose();
   };
 
   const removeAsset = (assetId: string) => {
@@ -405,7 +436,7 @@ export default function BundleBuilder() {
   };
 
   const availableAssetsToAdd = getFilteredAssets();
-  const isValid = totalPercentage === 100 && bundleName && bundleSymbol.length === 4 && selectedAssets.length >= 2;
+  const isValid = totalPercentage === 100 && bundleName && bundleSymbol.length >= 3 && bundleSymbol.length <= 5 && selectedAssets.length >= 2;
 
   return (
     <>
@@ -464,12 +495,12 @@ export default function BundleBuilder() {
                           value={bundleSymbol}
                           onChange={(e) => {
                             const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                            if (value.length <= 4) {
+                            if (value.length <= 5) {
                               setBundleSymbol(value);
                             }
                           }}
                           placeholder="DEFI"
-                          maxLength={4}
+                          maxLength={5}
                           className="w-full bg-black border border-white/20 p-4 text-white text-lg focus:border-white focus:outline-none transition-colors uppercase font-mono text-center"
                           disabled={creating}
                         />
@@ -701,7 +732,7 @@ export default function BundleBuilder() {
                       <div className="border border-red-400/20 bg-red-400/5 p-4">
                         <div className="text-red-400 text-sm space-y-1">
                           {!bundleName && <div>• Bundle name required</div>}
-                          {bundleSymbol.length !== 4 && <div>• 4-char symbol required</div>}
+                          {(bundleSymbol.length < 3 || bundleSymbol.length > 5) && <div>• 3-5 char symbol required</div>}
                           {selectedAssets.length < 2 && <div>• Min 2 assets required</div>}
                           {totalPercentage !== 100 && <div>• Allocation must = 100%</div>}
                         </div>
@@ -848,25 +879,6 @@ export default function BundleBuilder() {
                               Price per NAV token (${usdcAmount} ÷ {navTokenAmount} tokens)
                             </div>
                           </div>
-
-                          {assetPurchaseBreakdown.length > 0 && (
-                            <div className="border border-white/20 bg-white/5 p-6">
-                              <div className="text-gray-400 text-sm font-mono uppercase mb-4">Asset Purchase Breakdown</div>
-                              <div className="space-y-3">
-                                {assetPurchaseBreakdown.map((asset) => (
-                                  <div key={asset.symbol} className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-white font-mono">{asset.symbol}</span>
-                                      <span className="text-gray-500 text-sm">{asset.percentage}%</span>
-                                    </div>
-                                    <div className="text-white font-bold">
-                                      ${asset.usdcAmount.toFixed(2)}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </>
                       )}
 
@@ -939,7 +951,7 @@ export default function BundleBuilder() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsDrawerOpen(false)}
-              className="fixed inset-0 bg-black/80 z-40"
+              className="fixed inset-0 bg-black/80 z-[60]"
             />
 
             <motion.div
@@ -947,7 +959,7 @@ export default function BundleBuilder() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 w-full md:max-w-2xl bg-black md:border-l border-white/10 z-50 overflow-hidden flex flex-col"
+              className="fixed right-0 top-0 bottom-0 w-full md:max-w-2xl bg-black md:border-l border-white/10 z-[60] overflow-hidden flex flex-col"
             >
               <div className="p-4 md:p-8 border-b border-white/10">
                 <div className="flex items-center justify-between mb-4">
@@ -1010,49 +1022,77 @@ export default function BundleBuilder() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3">
-                    {availableAssetsToAdd.map((asset) => (
-                      <button
-                        key={asset.id}
-                        onClick={() => { addAsset(asset); }}
-                        className="border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 p-6 transition-all text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 flex items-center justify-center overflow-hidden rounded-lg">
-                            {asset.logo ? (
-                              <img
-                                src={asset.logo}
-                                alt={asset.symbol}
-                                className="w-full h-full object-cover rounded-lg"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center rounded-lg" style="background-color: ${asset.color}"><span class="text-white font-bold">${asset.symbol.slice(0, 2)}</span></div>`;
-                                  }
-                                }}
-                              />
+                    {availableAssetsToAdd.map((asset) => {
+                      const isSelected = pendingSelections.includes(asset.id);
+                      return (
+                        <button
+                          key={asset.id}
+                          onClick={() => { toggleAssetSelection(asset.id); }}
+                          className={`border p-6 transition-all text-left ${
+                            isSelected
+                              ? 'border-green-500 bg-green-500/10'
+                              : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 flex items-center justify-center overflow-hidden rounded-lg">
+                              {asset.logo ? (
+                                <img
+                                  src={asset.logo}
+                                  alt={asset.symbol}
+                                  className="w-full h-full object-cover rounded-lg"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const parent = target.parentElement;
+                                    if (parent) {
+                                      parent.innerHTML = `<div class="w-full h-full flex items-center justify-center rounded-lg" style="background-color: ${asset.color}"><span class="text-white font-bold">${asset.symbol.slice(0, 2)}</span></div>`;
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <div
+                                  className="w-full h-full flex items-center justify-center rounded-lg"
+                                  style={{ backgroundColor: asset.color }}
+                                >
+                                  <span className="text-white font-bold">
+                                    {asset.symbol.slice(0, 2)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="text-white font-bold text-lg">{asset.symbol}</div>
+                              <div className="text-gray-400 text-sm">{asset.name}</div>
+                            </div>
+                            {isSelected ? (
+                              <Check className="w-5 h-5 text-green-500" />
                             ) : (
-                              <div
-                                className="w-full h-full flex items-center justify-center rounded-lg"
-                                style={{ backgroundColor: asset.color }}
-                              >
-                                <span className="text-white font-bold">
-                                  {asset.symbol.slice(0, 2)}
-                                </span>
-                              </div>
+                              <Plus className="w-5 h-5 text-gray-400" />
                             )}
                           </div>
-                          <div className="flex-1">
-                            <div className="text-white font-bold text-lg">{asset.symbol}</div>
-                            <div className="text-gray-400 text-sm">{asset.name}</div>
-                          </div>
-                          <Plus className="w-5 h-5 text-gray-400" />
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
+              </div>
+
+              <div className="border-t border-white/10 p-4 md:p-6 bg-black">
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleResetSelections}
+                    className="flex-1 border border-white/20 p-4 text-white hover:bg-white/10 transition-colors font-medium"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    onClick={handleDone}
+                    className="flex-1 bg-white text-black p-4 hover:bg-white/90 transition-colors font-bold"
+                  >
+                    Done {pendingSelections.length > 0 && `(${pendingSelections.length})`}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </>
