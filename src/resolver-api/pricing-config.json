@@ -1,0 +1,68 @@
+{
+  "assets": [
+    {
+      "asset_id": "BTC",
+      "symbol": "BTC",
+      "exchange": "bybit",
+      "trading_pair": "BTCUSDT",
+      "decimals": 8
+    },
+    {
+      "asset_id": "ETH",
+      "symbol": "ETH",
+      "exchange": "bybit",
+      "trading_pair": "ETHUSDT",
+      "decimals": 8
+    },
+    {
+      "asset_id": "SOL",
+      "symbol": "SOL",
+      "exchange": "bybit",
+      "trading_pair": "SOLUSDT",
+      "decimals": 8
+    },
+    {
+      "asset_id": "ICP",
+      "symbol": "ICP",
+      "exchange": "bybit",
+      "trading_pair": "ICPUSDT",
+      "decimals": 8
+    },
+    {
+      "asset_id": "GLDT",
+      "symbol": "GLDT",
+      "exchange": "bybit",
+      "trading_pair": "XAUUSDT",
+      "decimals": 8,
+      "notes": "Gold-backed token, using gold spot price"
+    },
+    {
+      "asset_id": "ADA",
+      "symbol": "ADA",
+      "exchange": "bybit",
+      "trading_pair": "ADAUSDT",
+      "decimals": 6
+    },
+    {
+      "asset_id": "AAPLX",
+      "symbol": "AAPLX",
+      "exchange": "bybit",
+      "trading_pair": "AAPLUSD",
+      "decimals": 8,
+      "notes": "Apple stock token"
+    }
+  ],
+  "exchanges": {
+    "bybit": {
+      "api_endpoint": "https://api.bybit.com/v5/market/tickers",
+      "rate_limit_per_minute": 120,
+      "timeout_ms": 5000
+    }
+  },
+  "pricing_settings": {
+    "spread_bps": 50,
+    "min_profit_bps": 10,
+    "max_slippage_bps": 100,
+    "price_staleness_seconds": 10
+  }
+}

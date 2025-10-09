@@ -7,7 +7,7 @@ export class QuoteController {
 
   @Post('quote')
   async getQuote(@Body() body: { bundleId: number; operation: any; user: string }) {
-    return this.quoteService.generateQuote(body.bundleId, body.operation, body.user);
+    return await this.quoteService.generateQuote(body.bundleId, body.operation, body.user);
   }
 
   @Post('execute')

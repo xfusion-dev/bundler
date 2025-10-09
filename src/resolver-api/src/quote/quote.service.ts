@@ -1,53 +1,63 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { PricingService } from '../services/pricing.service';
+import { BackendService } from '../services/backend.service';
 
 @Injectable()
 export class QuoteService {
-  private hardcodedPrices = {
-    ckBTC: 100000,
-    ckETH: 5000,
-    ckUSDC: 1,
-    ICP: 12.5,
-  };
+  private readonly logger = new Logger(QuoteService.name);
 
-  generateQuote(bundleId: number, operation: any, user: string) {
-    console.log(`[Quote] Generating quote for bundle ${bundleId}, operation:`, operation);
+  constructor(
+    private readonly pricingService: PricingService,
+    private readonly backendService: BackendService,
+  ) {}
+
+  async generateQuote(bundleId: number, operation: any, user: string) {
+    this.logger.log(`Generating quote for bundle ${bundleId}, operation: ${JSON.stringify(operation)}`);
+
+    const bundle = await this.backendService.getBundle(bundleId);
 
     const operationType = Object.keys(operation)[0];
     let navTokens = 0;
     let ckusdcAmount = 0;
     let assetAmounts: Array<{ asset_id: string; amount: number }> = [];
 
+    let usdValue = 0;
+
     if (operationType === 'InitialBuy') {
       ckusdcAmount = operation.InitialBuy.usd_amount;
       navTokens = operation.InitialBuy.nav_tokens;
-
-      assetAmounts = [
-        { asset_id: 'ckBTC', amount: Math.floor((ckusdcAmount * 0.6) / this.hardcodedPrices.ckBTC * 1e8) },
-        { asset_id: 'ckETH', amount: Math.floor((ckusdcAmount * 0.4) / this.hardcodedPrices.ckETH * 1e8) },
-      ];
+      usdValue = ckusdcAmount / 1e8;
     } else if (operationType === 'Buy') {
       ckusdcAmount = operation.Buy.ckusdc_amount;
-      const usdValue = ckusdcAmount / 1e8;
+      usdValue = ckusdcAmount / 1e8;
       navTokens = Math.floor(usdValue * 1e8);
-
-      assetAmounts = [
-        { asset_id: 'ckBTC', amount: Math.floor((usdValue * 0.6) / this.hardcodedPrices.ckBTC * 1e8) },
-        { asset_id: 'ckETH', amount: Math.floor((usdValue * 0.4) / this.hardcodedPrices.ckETH * 1e8) },
-      ];
     } else if (operationType === 'Sell') {
       navTokens = operation.Sell.nav_tokens;
-      const usdValue = navTokens / 1e8;
+      usdValue = navTokens / 1e8;
       ckusdcAmount = Math.floor(usdValue * 1e8);
+    }
 
-      assetAmounts = [
-        { asset_id: 'ckBTC', amount: Math.floor((usdValue * 0.6) / this.hardcodedPrices.ckBTC * 1e8) },
-        { asset_id: 'ckETH', amount: Math.floor((usdValue * 0.4) / this.hardcodedPrices.ckETH * 1e8) },
-      ];
+    for (const allocation of bundle.allocations) {
+      const allocationUsd = usdValue * (allocation.percentage / 100);
+
+      const quote = await this.pricingService.calculateQuote(
+        allocation.asset_id,
+        allocationUsd,
+      );
+
+      assetAmounts.push({
+        asset_id: allocation.asset_id,
+        amount: quote.amount,
+      });
+
+      this.logger.log(
+        `${allocation.asset_id}: ${allocation.percentage}% = $${allocationUsd.toFixed(2)} = ${quote.amount / 1e8} tokens @ $${quote.price}`,
+      );
     }
 
     const resolverFee = Math.floor(ckusdcAmount * 0.003);
 
-    console.log(`[Quote] Generated: NAV=${navTokens}, USDC=${ckusdcAmount}, Fee=${resolverFee}`);
+    this.logger.log(`Quote generated: NAV=${navTokens}, USDC=${ckusdcAmount}, Fee=${resolverFee}`);
 
     return {
       nav_tokens: navTokens,
