@@ -84,6 +84,7 @@ export default function BundleDetails() {
         // Get real NAV data from backend
         let navData = null;
         let holders = 0;
+        let totalTokens = 0;
         try {
           navData = await backendService.calculateBundleNav(Number(id));
           holders = await backendService.getBundleHolderCount(Number(id));
@@ -91,19 +92,32 @@ export default function BundleDetails() {
           console.log('NAV calculation not available yet (no holdings)');
         }
 
+        try {
+          const actor = await backendService.getActor();
+          const result = await actor.get_total_tokens_for_bundle(BigInt(id));
+          totalTokens = Number(result) / 100000000;
+          console.log('Total tokens for bundle:', totalTokens);
+        } catch (err) {
+          console.log('Could not fetch total token supply');
+        }
+
         setBundleNav(navData);
         setHolderCount(holders);
-        setBundleHoldings([]); // We'll get holdings from NAV data instead
 
-        // Calculate price per NAV token
-        const navPerToken = navData ? Number(navData.nav_per_token) / 100000000 : 1; // Default to $1 if no NAV data
+        try {
+          const holdings = await backendService.getBundleHoldings(Number(id));
+          console.log('Bundle holdings:', holdings);
+          setBundleHoldings(holdings);
+        } catch (err) {
+          console.error('Failed to fetch bundle holdings:', err);
+          setBundleHoldings([]);
+        }
 
-        // Extract oracle prices from NAV data if available
+        const navPerToken = navData ? Number(navData.nav_per_token) / 100000000 : 1;
+
         const assetPrices: Record<string, number> = {};
         if (navData && navData.asset_values) {
-          // NAV data includes real oracle prices for each asset
           navData.asset_values.forEach((assetValue: any) => {
-            // Calculate price from value and amount
             if (assetValue.amount > 0) {
               const price = Number(assetValue.value_usd) / Number(assetValue.amount);
               assetPrices[assetValue.asset_id] = price;
@@ -112,7 +126,6 @@ export default function BundleDetails() {
           });
         }
 
-        // Transform assets with real or estimated values
         const transformedAssets = navData && navData.asset_values && navData.asset_values.length > 0
           ? navData.asset_values.map((assetValue: any) => {
               const assetDetails = assetMap.get(assetValue.asset_id);
@@ -124,7 +137,8 @@ export default function BundleDetails() {
                 amount: Number(assetValue.amount) / 100000000,
                 price: assetPrices[assetValue.asset_id] || 0,
                 color: getAssetColor(assetDetails?.symbol || assetValue.asset_id),
-                logo: assetDetails?.metadata?.logo_url || ''
+                logo: assetDetails?.metadata?.logo_url || '',
+                decimals: assetDetails?.decimals || 8
               };
             })
           : foundBundle.allocations.map((allocation: any) => {
@@ -137,7 +151,8 @@ export default function BundleDetails() {
                 amount: 0,
                 price: 0, // Will show once there are holdings
                 color: getAssetColor(assetDetails?.symbol || allocation.asset_id),
-                logo: assetDetails?.metadata?.logo_url || ''
+                logo: assetDetails?.metadata?.logo_url || '',
+                decimals: assetDetails?.decimals || 8
               };
             });
 
@@ -145,7 +160,7 @@ export default function BundleDetails() {
           ...foundBundle,
           calculated_price: navPerToken,
           total_nav_usd: navData ? Number(navData.total_nav_usd) / 100000000 : 0,
-          total_tokens: navData ? Number(navData.total_tokens) / 100000000 : 0
+          total_tokens: navData ? Number(navData.total_tokens) / 100000000 : totalTokens
         });
         setBundleAssets(transformedAssets);
       } catch (err) {
@@ -282,14 +297,34 @@ export default function BundleDetails() {
         setTradeStatus('Approving USDC spending...');
 
         const usdcAmount = BigInt(currentQuote.ckusdc_amount);
+        console.log('Required USDC amount:', usdcAmount.toString());
+
         const currentAllowance = await icrc2Service.checkBackendAllowance();
+        console.log('Current allowance before approval:', currentAllowance.toString());
 
         if (currentAllowance < usdcAmount) {
           const largeApprovalAmount = BigInt(10000 * 1000000);
+          console.log('Approving amount:', largeApprovalAmount.toString());
+
           const approvalResult = await icrc2Service.approveBackendCanister(largeApprovalAmount);
+          console.log('Approval result:', approvalResult?.toString());
+
           if (!approvalResult) {
             throw new Error('Failed to approve USDC spending');
           }
+
+          console.log('Waiting 2 seconds for approval to settle...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          const verifiedAllowance = await icrc2Service.checkBackendAllowance();
+          console.log('Verified allowance after approval:', verifiedAllowance.toString());
+
+          if (verifiedAllowance < usdcAmount) {
+            throw new Error(`Allowance verification failed. Expected at least ${usdcAmount}, got ${verifiedAllowance}`);
+          }
+          console.log('✓ Allowance verified successfully');
+        } else {
+          console.log('✓ Sufficient allowance already exists');
         }
       }
 
@@ -549,16 +584,68 @@ export default function BundleDetails() {
                         <div className="border border-white/10 bg-black/40 p-4">
                           <div className="text-gray-500 text-xs font-mono uppercase mb-2">MARKET CAP</div>
                           <div className="text-2xl font-bold text-white">
-                            ${(bundleDetails.marketCap / 1000).toFixed(1)}K
+                            {bundleDetails.marketCap > 0 ? `$${(bundleDetails.marketCap / 1000).toFixed(1)}K` : 'N/A'}
                           </div>
                         </div>
                         <div className="border border-white/10 bg-black/40 p-4">
                           <div className="text-gray-500 text-xs font-mono uppercase mb-2">TOTAL SUPPLY</div>
                           <div className="text-2xl font-bold text-white">
-                            {(bundleDetails.totalSupply / 1000000).toFixed(1)}M
+                            {bundleDetails.totalSupply > 0 ? `${(bundleDetails.totalSupply / 1000000).toFixed(1)}M` : 'N/A'}
                           </div>
                         </div>
                       </div>
+
+                      {bundleHoldings.length > 0 && (
+                        <div className="mt-8">
+                          <h3 className="text-xl font-bold text-white mb-4">Treasury Holdings</h3>
+                          <div className="space-y-3">
+                            {bundleHoldings.map((holding: any, idx: number) => {
+                              const assetId = holding.asset_id || holding['3384401418'] || '';
+                              const rawAmount = holding.amount || holding['3573748184'] || 0;
+                              const lastUpdated = holding.last_updated || holding['1600678930'] || 0;
+
+                              const assetDetails = bundleDetails.assets.find((a: any) => a.symbol === assetId);
+                              const decimals = assetDetails?.decimals || 8;
+                              const tokens = Number(rawAmount) / Math.pow(10, decimals);
+
+                              if (!assetId) return null;
+
+                              return (
+                                <div key={`${assetId}-${idx}`} className="border border-white/10 bg-black/40 p-4">
+                                  <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-3">
+                                      {assetDetails?.logo ? (
+                                        <img src={assetDetails.logo} alt={assetId} className="w-8 h-8 rounded-lg" />
+                                      ) : (
+                                        <div
+                                          className="w-8 h-8 rounded-lg flex items-center justify-center"
+                                          style={{ backgroundColor: assetDetails?.color || '#666' }}
+                                        >
+                                          <span className="text-white font-bold text-xs">
+                                            {assetId.slice(0, 2)}
+                                          </span>
+                                        </div>
+                                      )}
+                                      <div>
+                                        <div className="text-white font-medium">{assetDetails?.name || assetId}</div>
+                                        <div className="text-gray-500 text-xs font-mono">{assetId}</div>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-white font-bold font-mono">
+                                        {tokens.toLocaleString(undefined, { maximumFractionDigits: 8 })} {assetId}
+                                      </div>
+                                      <div className="text-gray-500 text-xs">
+                                        Updated {new Date(Number(lastUpdated) / 1000000).toLocaleDateString()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -627,7 +714,18 @@ export default function BundleDetails() {
                                 {asset.percentage ? asset.percentage.toFixed(1) : asset.percentage}%
                               </div>
                               <div className="text-gray-500 text-sm">
-                                {asset.value > 0 ? `$${asset.value.toFixed(2)}` : 'No holdings yet'}
+                                {asset.value > 0 ? `$${asset.value.toFixed(2)}` : (() => {
+                                  const holding = bundleHoldings.find((h: any) =>
+                                    (h.asset_id || h['3384401418']) === asset.symbol
+                                  );
+                                  const rawAmount = holding ? (holding.amount || holding['3573748184'] || 0) : 0;
+                                  if (rawAmount > 0) {
+                                    const decimals = asset.decimals || 8;
+                                    const tokens = Number(rawAmount) / Math.pow(10, decimals);
+                                    return `${tokens.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${asset.symbol}`;
+                                  }
+                                  return 'No holdings yet';
+                                })()}
                               </div>
                               {asset.amount > 0 && (
                                 <div className="text-gray-500 text-xs">
@@ -822,29 +920,60 @@ export default function BundleDetails() {
                       </div>
                     )}
 
+                    {tradeAmount && parseFloat(tradeAmount) > 0 && (
+                      (() => {
+                        const amount = parseFloat(tradeAmount);
+                        const balance = tradeTab === 'buy' ? parseFloat(userUsdcBalance) : parseFloat(userNavBalance);
+                        const insufficientBalance = amount > balance;
+
+                        if (insufficientBalance) {
+                          return (
+                            <div className="border border-red-400/20 bg-red-500/10 p-4">
+                              <p className="text-red-400 text-sm">
+                                Insufficient balance. You have {balance.toFixed(tradeTab === 'buy' ? 2 : 4)} {tradeTab === 'buy' ? 'USDC' : 'NAV'} but need {amount.toFixed(tradeTab === 'buy' ? 2 : 4)} {tradeTab === 'buy' ? 'USDC' : 'NAV'}.
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()
+                    )}
+
                     {isAuthenticated ? (
-                      <button
-                        onClick={() => void handleExecuteTrade()}
-                        disabled={!currentQuote || quoteExpired || isTrading || fetchingQuote}
-                        className={`w-full py-4 font-bold text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 border ${
-                          tradeTab === 'buy'
-                            ? 'bg-green-500/10 text-green-400 border-green-400/20 hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                            : 'bg-red-500/10 text-red-400 border-red-400/20 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                        }`}
-                      >
-                        {isTrading ? (
-                          <>
-                            {tradeStep === 'complete' ? (
-                              <CheckCircle className="w-4 h-4" />
-                            ) : (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            )}
-                            {tradeStatus || 'Processing...'}
-                          </>
-                        ) : (
-                          `${tradeTab === 'buy' ? 'Buy' : 'Sell'} ${bundleDetails.name}`
-                        )}
-                      </button>
+                      <>
+                        {(() => {
+                          const amount = parseFloat(tradeAmount) || 0;
+                          const balance = tradeTab === 'buy' ? parseFloat(userUsdcBalance) : parseFloat(userNavBalance);
+                          const insufficientBalance = amount > balance;
+
+                          return (
+                            <button
+                              onClick={() => void handleExecuteTrade()}
+                              disabled={!currentQuote || quoteExpired || isTrading || fetchingQuote || insufficientBalance}
+                              className={`w-full py-4 font-bold text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 border ${
+                                tradeTab === 'buy'
+                                  ? 'bg-green-500/10 text-green-400 border-green-400/20 hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                                  : 'bg-red-500/10 text-red-400 border-red-400/20 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                              }`}
+                            >
+                              {isTrading ? (
+                                <>
+                                  {tradeStep === 'complete' ? (
+                                    <CheckCircle className="w-4 h-4" />
+                                  ) : (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  )}
+                                  {tradeStatus || 'Processing...'}
+                                </>
+                              ) : insufficientBalance && amount > 0 ? (
+                                `Insufficient ${tradeTab === 'buy' ? 'USDC' : 'NAV'} Balance`
+                              ) : (
+                                `${tradeTab === 'buy' ? 'Buy' : 'Sell'} ${bundleDetails.name}`
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </>
                     ) : (
                       <button
                         onClick={() => void login()}

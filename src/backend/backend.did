@@ -378,11 +378,12 @@ service : () -> {
   list_cached_prices : () -> (vec AssetPrice) query;
   list_valid_cached_prices : () -> (vec AssetPrice) query;
   lock_user_funds_with_validation : (nat64, LockedFundType, nat64) -> (Result);
-  register_resolver : (text, nat64) -> (Result);
+  register_resolver : (principal, text, nat64) -> (Result);
   search_assets : (text) -> (vec AssetInfo) query;
   search_bundles : (text) -> (vec BundleConfig) query;
   set_admin : (principal) -> (Result);
   set_bundle_platform_fee : (nat64, nat64) -> (Result);
+  set_quote_api_principal : (principal) -> (Result);
   set_coordinator_public_key : (text) -> (Result);
   set_oracle_config : (OracleConfig) -> (Result);
   unlock_all_transaction_funds : (nat64) -> (Result_14);

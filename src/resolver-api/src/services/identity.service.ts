@@ -17,8 +17,6 @@ export class IdentityService implements OnModuleInit {
 
   private async initIdentity() {
     const mnemonic = this.configService.get<string>('ICP_MNEMONIC');
-    const network = this.configService.get<string>('ICP_NETWORK') || 'local';
-    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
 
     if (!mnemonic) {
       throw new Error('ICP_MNEMONIC is not configured in .env file');
@@ -32,21 +30,14 @@ export class IdentityService implements OnModuleInit {
     const identitySeed = seedBytes.slice(0, 32);
     this.identity = Ed25519KeyIdentity.generate(identitySeed);
 
-    const host = network === 'local' ? 'http://127.0.0.1:4943' : 'https://icp-api.io';
-
-    this.agent = new HttpAgent({
-      host,
+    this.agent = HttpAgent.createSync({
+      host: 'https://ic0.app',
       identity: this.identity,
     });
-
-    if (network === 'local' && !isProduction) {
-      await this.agent.fetchRootKey();
-    }
 
     const principal = this.identity.getPrincipal().toText();
     console.log('[Identity] Resolver initialized');
     console.log('[Identity] Principal:', principal);
-    console.log('[Identity] Network:', network);
   }
 
   getIdentity(): Ed25519KeyIdentity {

@@ -240,5 +240,5 @@ pub async fn calculate_bundle_drift_from_holdings(bundle_id: u64) -> Result<Vec<
 }
 
 fn bundle_holdings_key(bundle_id: u64, asset_id: &AssetId) -> String {
-    format!("{}:{}", bundle_id, asset_id.0)
+    format!("{}:{}", bundle_id, asset_id)
 }

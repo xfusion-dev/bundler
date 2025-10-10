@@ -19,7 +19,7 @@ pub fn add_asset(
 
     match &token_location {
         TokenLocation::ICRC2 { ledger: _ } => {
-            if id.0 != "ckUSDC" {
+            if id != "ckUSDC" {
                 return Err("Only ckUSDC should use ICRC-2".to_string());
             }
         }
@@ -45,7 +45,7 @@ pub fn add_asset(
     ASSET_REGISTRY.with(|registry| {
         let mut registry = registry.borrow_mut();
         if registry.contains_key(&id) {
-            return Err(format!("Asset {} already exists", id.0));
+            return Err(format!("Asset {} already exists", id));
         }
         registry.insert(id, asset);
         Ok(())
@@ -75,7 +75,7 @@ pub fn update_asset(asset_id: AssetId, updates: AssetInfoUpdate) -> Result<(), S
                 registry.insert(asset_id, asset_info);
                 Ok(())
             }
-            None => Err(format!("Asset {} not found", asset_id.0))
+            None => Err(format!("Asset {} not found", asset_id))
         }
     })
 }
@@ -85,7 +85,7 @@ pub fn get_asset(asset_id: AssetId) -> Result<AssetInfo, String> {
     ASSET_REGISTRY.with(|registry| {
         registry.borrow()
             .get(&asset_id)
-            .ok_or_else(|| format!("Asset {} not found", asset_id.0))
+            .ok_or_else(|| format!("Asset {} not found", asset_id))
     })
 }
 
@@ -137,7 +137,7 @@ pub fn deactivate_asset(asset_id: AssetId) -> Result<(), String> {
                 registry.insert(asset_id, asset_info);
                 Ok(())
             }
-            None => Err(format!("Asset {} not found", asset_id.0))
+            None => Err(format!("Asset {} not found", asset_id))
         }
     })
 }
@@ -152,7 +152,7 @@ pub fn get_asset_icrc151_location(asset_id: &AssetId) -> Result<(Principal, Vec<
     ASSET_REGISTRY.with(|registry| {
         let asset = registry.borrow()
             .get(asset_id)
-            .ok_or_else(|| format!("Asset {} not found", asset_id.0))?;
+            .ok_or_else(|| format!("Asset {} not found", asset_id))?;
 
         asset.get_icrc151_location()
     })
@@ -182,7 +182,7 @@ pub fn update_asset_token_location(asset_id: AssetId, new_token_location: TokenL
                 registry.insert(asset_id, asset_info);
                 Ok(())
             }
-            None => Err(format!("Asset {} not found", asset_id.0))
+            None => Err(format!("Asset {} not found", asset_id))
         }
     })
 }

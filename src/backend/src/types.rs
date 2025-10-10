@@ -17,6 +17,8 @@ pub struct GlobalState {
     pub icrc151_ledger: Option<Principal>,
     pub icrc2_ckusdc_ledger: Option<Principal>,
     pub coordinator_public_key: Option<Vec<u8>>,
+    pub platform_treasury: Option<Principal>,
+    pub default_platform_fee_bps: Option<u64>,
 }
 
 impl Default for GlobalState {
@@ -34,6 +36,8 @@ impl Default for GlobalState {
             icrc151_ledger: None,
             icrc2_ckusdc_ledger: None,
             coordinator_public_key: None,
+            platform_treasury: None,
+            default_platform_fee_bps: Some(50),
         }
     }
 }
@@ -126,23 +130,7 @@ impl AssetInfo {
     }
 }
 
-#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct AssetId(pub String);
-
-impl Storable for AssetId {
-    fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.0.as_bytes().to_vec())
-    }
-
-    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        Self(String::from_utf8(bytes.to_vec()).expect("Invalid UTF-8"))
-    }
-
-    const BOUND: Bound = Bound::Bounded {
-        max_size: 100,
-        is_fixed_size: false,
-    };
-}
+pub type AssetId = String;
 
 impl Storable for AssetInfo {
     fn to_bytes(&self) -> Cow<'_, [u8]> {

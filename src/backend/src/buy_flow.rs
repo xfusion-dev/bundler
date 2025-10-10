@@ -17,11 +17,6 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
         _ => return Err("This function is only for buy operations".to_string()),
     }
 
-    let current_time = ic_cdk::api::time();
-    if assignment.valid_until < current_time {
-        return Err("Quote assignment has expired".to_string());
-    }
-
     let bundle = crate::bundle_manager::get_bundle(transaction.bundle_id)?;
 
     for asset_amount in &assignment.asset_amounts {
@@ -40,7 +35,7 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
             let pull_memo = format!(
                 "Buy tx {} - {} collateral",
                 transaction.id,
-                allocation.asset_id.0
+                allocation.asset_id
             ).into_bytes();
 
             let pull_result = icrc151_client::transfer_from_icrc151(
@@ -61,7 +56,7 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
             ic_cdk::println!(
                 "Pulled {} ICRC-151 {} from resolver {} via ledger {} (tx: {})",
                 required_amount,
-                allocation.asset_id.0,
+                allocation.asset_id,
                 assignment.resolver,
                 ledger,
                 pull_result
@@ -105,6 +100,41 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
     let ckusdc_ledger = candid::Principal::from_text(icrc2_client::CKUSDC_LEDGER_CANISTER)
         .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
 
+    if assignment.fees > 0 {
+        let treasury = crate::memory::GLOBAL_STATE.with(|state| {
+            state.borrow().get().platform_treasury
+        });
+
+        if let Some(treasury_principal) = treasury {
+            let fee_memo = format!(
+                "Platform fee for buy tx {} ({}bps)",
+                transaction.id,
+                bundle.platform_fee_bps.unwrap_or(50)
+            ).into_bytes();
+
+            let fee_result = icrc2_client::icrc1_transfer(
+                ckusdc_ledger,
+                treasury_principal,
+                assignment.fees,
+                Some(fee_memo),
+            ).await?;
+
+            ic_cdk::println!(
+                "Transferred {} ckUSDC platform fee to treasury {} (tx: {})",
+                assignment.fees,
+                treasury_principal,
+                fee_result
+            );
+        } else {
+            ic_cdk::println!(
+                "Warning: Platform fee {} calculated but treasury not configured",
+                assignment.fees
+            );
+        }
+    }
+
+    let resolver_payment = assignment.ckusdc_amount - assignment.fees;
+
     let payment_memo = format!(
         "Payment for buy tx {}",
         transaction.id
@@ -113,13 +143,13 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
     let payment_result = icrc2_client::icrc1_transfer(
         ckusdc_ledger,
         assignment.resolver,
-        assignment.ckusdc_amount,
+        resolver_payment,
         Some(payment_memo),
     ).await?;
 
     ic_cdk::println!(
         "Paid {} ICRC-2 ckUSDC to resolver {} (tx: {})",
-        assignment.ckusdc_amount,
+        resolver_payment,
         assignment.resolver,
         payment_result
     );

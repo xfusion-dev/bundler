@@ -1,6 +1,21 @@
 {
   "assets": [
     {
+      "asset_id": "AAPLX",
+      "symbol": "AAPLX",
+      "exchange": "bybit",
+      "trading_pair": "AAPLXUSDT",
+      "decimals": 8,
+      "notes": "Apple stock token"
+    },
+    {
+      "asset_id": "BCH",
+      "symbol": "BCH",
+      "exchange": "bybit",
+      "trading_pair": "BCHUSDT",
+      "decimals": 8
+    },
+    {
       "asset_id": "BTC",
       "symbol": "BTC",
       "exchange": "bybit",
@@ -15,11 +30,20 @@
       "decimals": 8
     },
     {
-      "asset_id": "SOL",
-      "symbol": "SOL",
+      "asset_id": "GLDT",
+      "symbol": "GLDT",
       "exchange": "bybit",
-      "trading_pair": "SOLUSDT",
-      "decimals": 8
+      "trading_pair": "XAUTUSDT",
+      "decimals": 8,
+      "notes": "Gold-backed token, using gold spot price"
+    },
+    {
+      "asset_id": "GOOGLX",
+      "symbol": "GOOGLX",
+      "exchange": "bybit",
+      "trading_pair": "GOOGLXUSDT",
+      "decimals": 8,
+      "notes": "Alphabet stock token"
     },
     {
       "asset_id": "ICP",
@@ -29,27 +53,56 @@
       "decimals": 8
     },
     {
-      "asset_id": "GLDT",
-      "symbol": "GLDT",
+      "asset_id": "LTC",
+      "symbol": "LTC",
       "exchange": "bybit",
-      "trading_pair": "XAUUSDT",
-      "decimals": 8,
-      "notes": "Gold-backed token, using gold spot price"
+      "trading_pair": "LTCUSDT",
+      "decimals": 8
     },
     {
-      "asset_id": "ADA",
-      "symbol": "ADA",
+      "asset_id": "MATIC",
+      "symbol": "MATIC",
       "exchange": "bybit",
-      "trading_pair": "ADAUSDT",
-      "decimals": 6
+      "trading_pair": "MATICUSDT",
+      "decimals": 8
     },
     {
-      "asset_id": "AAPLX",
-      "symbol": "AAPLX",
+      "asset_id": "METAX",
+      "symbol": "METAX",
       "exchange": "bybit",
-      "trading_pair": "AAPLUSD",
+      "trading_pair": "METAXUSDT",
       "decimals": 8,
-      "notes": "Apple stock token"
+      "notes": "Meta stock token"
+    },
+    {
+      "asset_id": "SOL",
+      "symbol": "SOL",
+      "exchange": "bybit",
+      "trading_pair": "SOLUSDT",
+      "decimals": 8
+    },
+    {
+      "asset_id": "SPYX",
+      "symbol": "SPYX",
+      "exchange": "bybit",
+      "trading_pair": "SPYXUSDT",
+      "decimals": 8,
+      "notes": "S&P 500 index token"
+    },
+    {
+      "asset_id": "TSLAX",
+      "symbol": "TSLAX",
+      "exchange": "bybit",
+      "trading_pair": "TSLAXUSDT",
+      "decimals": 8,
+      "notes": "Tesla stock token"
+    },
+    {
+      "asset_id": "XRP",
+      "symbol": "XRP",
+      "exchange": "bybit",
+      "trading_pair": "XRPUSDT",
+      "decimals": 8
     }
   ],
   "exchanges": {

@@ -141,6 +141,10 @@ class ICRC2Service {
         },
       };
 
+      console.log('Checking allowance for:');
+      console.log('  User:', userPrincipal.toText());
+      console.log('  Spender (Backend):', spender.toText());
+
       const result = await actor.icrc2_allowance(allowanceArgs);
       console.log('Current allowance:', result.allowance.toString());
       return result.allowance;

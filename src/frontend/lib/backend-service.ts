@@ -84,7 +84,15 @@ class BackendService {
   async executeQuote(quote: any): Promise<number> {
     try {
       const actor = await this.getActor();
-      const result = await actor.execute_quote(quote);
+
+      const quoteWithPrincipal = {
+        ...quote,
+        resolver: typeof quote.resolver === 'string'
+          ? Principal.fromText(quote.resolver)
+          : quote.resolver,
+      };
+
+      const result = await actor.execute_quote(quoteWithPrincipal);
 
       if ('Ok' in result) {
         return Number(result.Ok);
@@ -121,11 +129,8 @@ class BackendService {
     try {
       const actor = await this.getActor();
 
-      // ICRC-151 Multi-Token ledger canister (placeholder - replace with actual ledger)
-      // This should be the ICRC-151 ledger that will hold NAV tokens
-      const icrc151Ledger = Principal.fromText('mxzaz-hqaaa-aaaar-qaada-cai');
+      const icrc151Ledger = Principal.fromText('owhk5-ciaaa-aaaae-qfzlq-cai');
 
-      // Create bundle request - backend expects BundleCreationRequest
       const bundleRequest = {
         name: name,
         symbol: symbol,

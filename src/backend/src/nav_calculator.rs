@@ -379,7 +379,7 @@ pub fn validate_bundle_allocations(allocations: &[AssetAllocation]) -> Result<()
     let mut seen_assets = std::collections::HashSet::new();
     for allocation in allocations {
         if !seen_assets.insert(&allocation.asset_id) {
-            return Err(format!("Duplicate asset in allocations: {}", allocation.asset_id.0));
+            return Err(format!("Duplicate asset in allocations: {}", allocation.asset_id));
         }
     }
 

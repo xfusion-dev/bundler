@@ -104,7 +104,7 @@ pub fn search_assets(query: String) -> Vec<AssetInfo> {
         .filter(|asset| {
             asset.symbol.to_lowercase().contains(&query_lower) ||
             asset.name.to_lowercase().contains(&query_lower) ||
-            asset.id.0.to_lowercase().contains(&query_lower)
+            asset.id.to_lowercase().contains(&query_lower)
         })
         .collect()
 }

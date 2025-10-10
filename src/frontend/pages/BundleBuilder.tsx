@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3, Sparkles, Landmark, Droplets, TrendingUp as Percent, Check } from 'lucide-react';
+import { X, Plus, Minus, Shuffle, RotateCcw, Search, Bitcoin, Coins, Building, DollarSign, Grid3X3, Sparkles, Landmark, Droplets, TrendingUp as Percent, Check, Wand2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
 import { coordinatorService } from '../src/services/coordinator-service';
 import { authService } from '../lib/auth';
+import { icrc2Service } from '../lib/icrc2-service';
 import SEO from '../components/SEO';
 
 interface AssetMetadata {
@@ -68,6 +69,8 @@ export default function BundleBuilder() {
   const [quoteExpired, setQuoteExpired] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [createdBundleId, setCreatedBundleId] = useState<number | null>(null);
+  const [isAiModeOpen, setIsAiModeOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
 
   const navigate = useNavigate();
 
@@ -317,6 +320,37 @@ export default function BundleBuilder() {
       setCreating(true);
       setCreationStep(3);
 
+      const usdcAmount = BigInt(currentQuote.ckusdc_amount);
+      console.log('Required USDC amount:', usdcAmount.toString());
+
+      const currentAllowance = await icrc2Service.checkBackendAllowance();
+      console.log('Current allowance before approval:', currentAllowance.toString());
+
+      if (currentAllowance < usdcAmount) {
+        const largeApprovalAmount = BigInt(10000 * 1000000);
+        console.log('Approving amount:', largeApprovalAmount.toString());
+
+        const approvalResult = await icrc2Service.approveBackendCanister(largeApprovalAmount);
+        console.log('Approval result:', approvalResult?.toString());
+
+        if (!approvalResult) {
+          throw new Error('Failed to approve USDC spending');
+        }
+
+        console.log('Waiting 2 seconds for approval to settle...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const verifiedAllowance = await icrc2Service.checkBackendAllowance();
+        console.log('Verified allowance after approval:', verifiedAllowance.toString());
+
+        if (verifiedAllowance < usdcAmount) {
+          throw new Error(`Allowance verification failed. Expected at least ${usdcAmount}, got ${verifiedAllowance}`);
+        }
+        console.log('✓ Allowance verified successfully');
+      } else {
+        console.log('✓ Sufficient allowance already exists');
+      }
+
       const assignmentId = await backendService.executeQuote(currentQuote);
 
       setCreationStep(4);
@@ -334,7 +368,7 @@ export default function BundleBuilder() {
         setNavTokenAmount('');
         setCurrentQuote(null);
         setCreatedBundleId(null);
-        navigate(`/bundles/${createdBundleId}`);
+        navigate(`/bundle/${createdBundleId}`);
       }, 2000);
 
     } catch (error) {
@@ -378,7 +412,7 @@ export default function BundleBuilder() {
       const userPrincipal = await authService.getPrincipal();
       const quote = await coordinatorService.getQuote(
         Number(bundleId),
-        { InitialBuy: { usd_amount: Math.floor(parseFloat(usdcAmount) * 1e8), nav_tokens: Math.floor(parseFloat(navTokenAmount) * 1e8) } },
+        { InitialBuy: { usd_amount: Math.floor(parseFloat(usdcAmount) * 1e6), nav_tokens: Math.floor(parseFloat(navTokenAmount) * 1e8) } },
         userPrincipal?.toString() || ''
       );
 
@@ -449,7 +483,17 @@ export default function BundleBuilder() {
         <div className="px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8 md:mb-16">
-              <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 md:mb-4">Create Bundle</h1>
+              <div className="flex items-center justify-between mb-3 md:mb-4">
+                <h1 className="text-4xl md:text-6xl font-bold text-white">Create Bundle</h1>
+                <button
+                  onClick={() => setIsAiModeOpen(true)}
+                  className="group relative px-6 py-3 bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-300 flex items-center gap-2"
+                >
+                  <Wand2 className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                  <span className="text-purple-400 group-hover:text-purple-300 font-medium transition-colors">AI Mode</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/5 to-pink-500/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              </div>
               <p className="text-gray-400 text-base md:text-lg">
                 Design a custom token portfolio with your own allocations and earn commission from every trade
               </p>
@@ -1096,6 +1140,98 @@ export default function BundleBuilder() {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAiModeOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xl"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="relative w-full h-full overflow-y-auto"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-pink-500/10" />
+
+                <div className="relative min-h-full flex items-center justify-center p-6 md:p-12">
+                  <div className="w-full max-w-4xl">
+                    <div className="flex items-start justify-between mb-8">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="p-2 bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30">
+                            <Wand2 className="w-6 h-6 text-purple-400" />
+                          </div>
+                          <h2 className="text-3xl md:text-4xl font-bold text-white">AI Bundle Generator</h2>
+                        </div>
+                        <p className="text-gray-400 text-sm md:text-base ml-14">
+                          Describe your investment strategy and let AI create the perfect bundle for you
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setIsAiModeOpen(false)}
+                        className="p-2 hover:bg-white/5 transition-colors border border-gray-700 hover:border-gray-600"
+                      >
+                        <X className="w-5 h-5 text-gray-400 hover:text-white" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-3">
+                        Describe Your Bundle Strategy
+                      </label>
+                      <textarea
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="Example: Create a balanced portfolio with 40% large-cap cryptocurrencies, 30% DeFi blue chips, 20% emerging L1s, and 10% stablecoins for stability. Focus on assets with strong fundamentals and proven track records."
+                        rows={8}
+                        className="w-full px-4 py-3 bg-black/50 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-colors resize-none"
+                      />
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-start gap-2 text-xs text-gray-500">
+                          <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <span>
+                            Be specific about allocations, risk tolerance, and investment goals for best results
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2 text-xs text-gray-500">
+                          <span className="flex-shrink-0 mt-0.5">⚠️</span>
+                          <span>
+                            <strong className="font-semibold">Experimental Feature:</strong> AI-generated bundles are suggestions only. Always conduct your own research and understand the risks before investing. This tool does not constitute financial advice.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-6 border-t border-gray-800">
+                      <button
+                        onClick={() => setIsAiModeOpen(false)}
+                        className="flex-1 px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-medium transition-all duration-200 border border-gray-700 hover:border-gray-600"
+                      >
+                        Switch to Manual
+                      </button>
+                      <button
+                        onClick={() => {
+                          toast.success('AI generation coming soon!');
+                        }}
+                        disabled={!aiPrompt.trim()}
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:from-gray-700 disabled:to-gray-700 text-white font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:text-gray-500 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 disabled:shadow-none flex items-center justify-center gap-2"
+                      >
+                        <Sparkles className="w-5 h-5" />
+                        Generate Bundle
+                      </button>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>

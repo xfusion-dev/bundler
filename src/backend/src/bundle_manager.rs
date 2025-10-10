@@ -5,7 +5,7 @@ use crate::types::*;
 use crate::memory::*;
 
 #[update]
-pub fn create_bundle(request: BundleCreationRequest) -> Result<u64, String> {
+pub async fn create_bundle(request: BundleCreationRequest) -> Result<u64, String> {
     let total_percentage: u32 = request.allocations.iter()
         .map(|a| a.percentage as u32)
         .sum();
@@ -21,10 +21,10 @@ pub fn create_bundle(request: BundleCreationRequest) -> Result<u64, String> {
             let registry = registry.borrow();
             match registry.get(&allocation_input.asset_id) {
                 Some(asset_info) if !asset_info.is_active => {
-                    Err(format!("Asset {} is not active", allocation_input.asset_id.0))
+                    Err(format!("Asset {} is not active", allocation_input.asset_id))
                 }
                 None => {
-                    Err(format!("Asset {} not found", allocation_input.asset_id.0))
+                    Err(format!("Asset {} not found", allocation_input.asset_id))
                 }
                 Some(asset_info) => Ok(asset_info.clone())
             }
@@ -39,8 +39,19 @@ pub fn create_bundle(request: BundleCreationRequest) -> Result<u64, String> {
 
     let bundle_id = get_next_bundle_id();
 
-    let mut token_id = vec![0u8; 32];
-    token_id[..8].copy_from_slice(&bundle_id.to_be_bytes());
+    let token_id = crate::icrc151_client::create_token_icrc151(
+        request.icrc151_ledger,
+        request.name.clone(),
+        request.symbol.clone(),
+        8,
+        Some(10000),
+        None,
+        request.description.clone(),
+    ).await?;
+
+    let default_fee_bps = crate::memory::GLOBAL_STATE.with(|state| {
+        state.borrow().get().default_platform_fee_bps.unwrap_or(50)
+    });
 
     let config = BundleConfig {
         id: bundle_id,
@@ -55,7 +66,7 @@ pub fn create_bundle(request: BundleCreationRequest) -> Result<u64, String> {
         allocations: allocations_with_location,
         created_at: time(),
         is_active: true,
-        platform_fee_bps: Some(50),
+        platform_fee_bps: Some(default_fee_bps),
     };
 
     BUNDLE_STORAGE.with(|storage| {

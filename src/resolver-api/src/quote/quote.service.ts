@@ -26,15 +26,15 @@ export class QuoteService {
     if (operationType === 'InitialBuy') {
       ckusdcAmount = operation.InitialBuy.usd_amount;
       navTokens = operation.InitialBuy.nav_tokens;
-      usdValue = ckusdcAmount / 1e8;
+      usdValue = ckusdcAmount / 1e6;
     } else if (operationType === 'Buy') {
       ckusdcAmount = operation.Buy.ckusdc_amount;
-      usdValue = ckusdcAmount / 1e8;
+      usdValue = ckusdcAmount / 1e6;
       navTokens = Math.floor(usdValue * 1e8);
     } else if (operationType === 'Sell') {
       navTokens = operation.Sell.nav_tokens;
       usdValue = navTokens / 1e8;
-      ckusdcAmount = Math.floor(usdValue * 1e8);
+      ckusdcAmount = Math.floor(usdValue * 1e6);
     }
 
     for (const allocation of bundle.allocations) {

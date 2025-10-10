@@ -42,8 +42,8 @@ pub fn register_resolver(
 ) -> Result<(), String> {
     let caller = msg_caller();
 
-    if !is_admin(caller) && !is_quote_service(caller) {
-        return Err("Unauthorized: Only admin or quote service can register resolvers".to_string());
+    if !is_admin(caller) {
+        return Err("Unauthorized: Only admin can register resolvers".to_string());
     }
 
     if fee_rate > 1000 {
@@ -70,6 +70,45 @@ pub fn register_resolver(
         };
 
         registry.insert(caller, resolver_info);
+        Ok(())
+    })
+}
+
+pub fn register_resolver_admin(
+    resolver_principal: Principal,
+    name: String,
+    fee_rate: u64,
+) -> Result<(), String> {
+    let caller = msg_caller();
+
+    if !is_admin(caller) {
+        return Err("Unauthorized: Only admin can register resolvers".to_string());
+    }
+
+    if fee_rate > 1000 {
+        return Err("Fee rate too high (max 10%)".to_string());
+    }
+
+    RESOLVER_REGISTRY.with(|registry| {
+        let mut registry = registry.borrow_mut();
+
+        if registry.contains_key(&resolver_principal) {
+            return Err("Resolver already registered".to_string());
+        }
+
+        let resolver_info = ResolverInfo {
+            principal: resolver_principal,
+            name,
+            fee_rate,
+            total_volume_processed: 0,
+            successful_transactions: 0,
+            failed_transactions: 0,
+            is_active: true,
+            registered_at: time(),
+            last_active: time(),
+        };
+
+        registry.insert(resolver_principal, resolver_info);
         Ok(())
     })
 }

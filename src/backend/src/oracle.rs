@@ -44,7 +44,7 @@ pub async fn get_latest_price(asset_id: &AssetId) -> Result<AssetPrice, String> 
 
     let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
     let oracle_ticker = asset_info.oracle_ticker
-        .ok_or_else(|| format!("No oracle ticker configured for asset {}", asset_id.0))?;
+        .ok_or_else(|| format!("No oracle ticker configured for asset {}", asset_id))?;
 
     let price = fetch_price_from_oracle(&oracle_ticker).await?;
 
@@ -72,7 +72,7 @@ pub async fn get_multiple_prices(asset_ids: &[AssetId]) -> Result<Vec<AssetPrice
         } else {
             let asset_info = crate::asset_registry::get_asset(asset_id.clone())?;
             let oracle_ticker = asset_info.oracle_ticker
-                .ok_or_else(|| format!("No oracle ticker configured for asset {}", asset_id.0))?;
+                .ok_or_else(|| format!("No oracle ticker configured for asset {}", asset_id))?;
             tickers_to_fetch.push(oracle_ticker);
             assets_to_update.push(asset_id.clone());
         }

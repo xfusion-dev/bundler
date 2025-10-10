@@ -59,24 +59,42 @@ fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
 }
 
 fn serialize_quote_for_signing(quote: &QuoteObject) -> Vec<u8> {
-    let asset_amounts_str = quote.asset_amounts
-        .iter()
-        .map(|a| format!("{}:{}", a.asset_id.0, a.amount))
-        .collect::<Vec<_>>()
-        .join(",");
+    let operation_json = match &quote.operation {
+        OperationType::InitialBuy { usd_amount, nav_tokens } => {
+            format!(r#"{{"InitialBuy":{{"usd_amount":{},"nav_tokens":{}}}}}"#, usd_amount, nav_tokens)
+        },
+        OperationType::Buy { ckusdc_amount } => {
+            format!(r#"{{"Buy":{{"ckusdc_amount":{}}}}}"#, ckusdc_amount)
+        },
+        OperationType::Sell { nav_tokens } => {
+            format!(r#"{{"Sell":{{"nav_tokens":{}}}}}"#, nav_tokens)
+        },
+    };
 
-    format!(
-        "{}:{}:{}:{}:{}:{}:{}:{}",
+    let asset_amounts_json = format!(
+        "[{}]",
+        quote.asset_amounts
+            .iter()
+            .map(|a| format!(r#"{{"asset_id":"{}","amount":{}}}"#, a.asset_id, a.amount))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+
+    let serialized = format!(
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}",
         quote.bundle_id,
+        operation_json,
         quote.resolver,
         quote.nav_tokens,
         quote.ckusdc_amount,
-        asset_amounts_str,
+        asset_amounts_json,
         quote.fees,
-        quote.nonce,
-        quote.valid_until
-    )
-    .into_bytes()
+        quote.valid_until,
+        quote.nonce
+    );
+
+    ic_cdk::println!("[BACKEND SERIALIZE] {}", serialized);
+    serialized.into_bytes()
 }
 
 fn consume_nonce(nonce: u64, timestamp: u64) -> Result<(), String> {

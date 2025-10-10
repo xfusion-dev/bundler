@@ -56,7 +56,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
             "Sell tx {} - transfer {} {}",
             transaction.id,
             asset_amount.amount,
-            asset_amount.asset_id.0
+            asset_amount.asset_id
         ).into_bytes();
 
         let transfer_result = icrc151_client::transfer_icrc151(
@@ -73,7 +73,7 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         ic_cdk::println!(
             "Transferred {} ICRC-151 {} to resolver {} via ledger {} (tx: {})",
             asset_amount.amount,
-            asset_amount.asset_id.0,
+            asset_amount.asset_id,
             assignment.resolver,
             ledger,
             transfer_result

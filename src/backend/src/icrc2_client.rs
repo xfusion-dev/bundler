@@ -1,4 +1,4 @@
-use candid::Principal;
+use candid::{Principal, Nat};
 use ic_cdk::api::call::CallResult;
 use crate::types::*;
 
@@ -14,8 +14,8 @@ pub struct Account {
 pub struct TransferArgs {
     pub from_subaccount: Option<[u8; 32]>,
     pub to: Account,
-    pub amount: u64,
-    pub fee: Option<u64>,
+    pub amount: Nat,
+    pub fee: Option<Nat>,
     pub memo: Option<Vec<u8>>,
     pub created_at_time: Option<u64>,
 }
@@ -25,8 +25,8 @@ pub struct TransferFromArgs {
     pub spender_subaccount: Option<[u8; 32]>,
     pub from: Account,
     pub to: Account,
-    pub amount: u64,
-    pub fee: Option<u64>,
+    pub amount: Nat,
+    pub fee: Option<Nat>,
     pub memo: Option<Vec<u8>>,
     pub created_at_time: Option<u64>,
 }
@@ -35,10 +35,10 @@ pub struct TransferFromArgs {
 pub struct ApproveArgs {
     pub from_subaccount: Option<[u8; 32]>,
     pub spender: Account,
-    pub amount: u64,
-    pub expected_allowance: Option<u64>,
+    pub amount: Nat,
+    pub expected_allowance: Option<Nat>,
     pub expires_at: Option<u64>,
-    pub fee: Option<u64>,
+    pub fee: Option<Nat>,
     pub memo: Option<Vec<u8>>,
     pub created_at_time: Option<u64>,
 }
@@ -51,46 +51,46 @@ pub struct AllowanceArgs {
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
 pub struct Allowance {
-    pub allowance: u64,
+    pub allowance: Nat,
     pub expires_at: Option<u64>,
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
 pub enum TransferResult {
-    Ok(u64),
+    Ok(Nat),
     Err(TransferError),
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
 pub enum ApproveResult {
-    Ok(u64),
+    Ok(Nat),
     Err(ApproveError),
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
 pub enum TransferError {
-    BadFee { expected_fee: u64 },
-    BadBurn { min_burn_amount: u64 },
-    InsufficientFunds { balance: u64 },
-    InsufficientAllowance { allowance: u64 },
+    BadFee { expected_fee: Nat },
+    BadBurn { min_burn_amount: Nat },
+    InsufficientFunds { balance: Nat },
+    InsufficientAllowance { allowance: Nat },
     TooOld,
     CreatedInFuture { ledger_time: u64 },
-    Duplicate { duplicate_of: u64 },
+    Duplicate { duplicate_of: Nat },
     TemporarilyUnavailable,
-    GenericError { error_code: u64, message: String },
+    GenericError { error_code: Nat, message: String },
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
 pub enum ApproveError {
-    BadFee { expected_fee: u64 },
-    InsufficientFunds { balance: u64 },
-    AllowanceChanged { current_allowance: u64 },
+    BadFee { expected_fee: Nat },
+    InsufficientFunds { balance: Nat },
+    AllowanceChanged { current_allowance: Nat },
     Expired { ledger_time: u64 },
     TooOld,
     CreatedInFuture { ledger_time: u64 },
-    Duplicate { duplicate_of: u64 },
+    Duplicate { duplicate_of: Nat },
     TemporarilyUnavailable,
-    GenericError { error_code: u64, message: String },
+    GenericError { error_code: Nat, message: String },
 }
 
 // ICRC-1 Basic Transfer (when we own the tokens)
@@ -106,7 +106,7 @@ pub async fn icrc1_transfer(
             owner: to,
             subaccount: None,
         },
-        amount,
+        amount: Nat::from(amount),
         fee: None,
         memo,
         created_at_time: Some(ic_cdk::api::time()),
@@ -119,7 +119,9 @@ pub async fn icrc1_transfer(
     ).await;
 
     match result {
-        Ok((TransferResult::Ok(block_index),)) => Ok(block_index),
+        Ok((TransferResult::Ok(block_index),)) => {
+            block_index.0.try_into().map_err(|_| "Block index too large".to_string())
+        },
         Ok((TransferResult::Err(error),)) => Err(format!("Transfer failed: {:?}", error)),
         Err((code, msg)) => Err(format!("Call failed: {:?}: {}", code, msg)),
     }
@@ -143,7 +145,7 @@ pub async fn icrc2_transfer_from(
             owner: to,
             subaccount: None,
         },
-        amount,
+        amount: Nat::from(amount),
         fee: None,
         memo,
         created_at_time: Some(ic_cdk::api::time()),
@@ -156,7 +158,9 @@ pub async fn icrc2_transfer_from(
     ).await;
 
     match result {
-        Ok((TransferResult::Ok(block_index),)) => Ok(block_index),
+        Ok((TransferResult::Ok(block_index),)) => {
+            block_index.0.try_into().map_err(|_| "Block index too large".to_string())
+        },
         Ok((TransferResult::Err(error),)) => Err(format!("Transfer from failed: {:?}", error)),
         Err((code, msg)) => Err(format!("Call failed: {:?}: {}", code, msg)),
     }
@@ -176,7 +180,7 @@ pub async fn icrc2_approve(
             owner: spender,
             subaccount: None,
         },
-        amount,
+        amount: Nat::from(amount),
         expected_allowance: None,
         expires_at,
         fee: None,
@@ -191,7 +195,9 @@ pub async fn icrc2_approve(
     ).await;
 
     match result {
-        Ok((ApproveResult::Ok(block_index),)) => Ok(block_index),
+        Ok((ApproveResult::Ok(block_index),)) => {
+            block_index.0.try_into().map_err(|_| "Block index too large".to_string())
+        },
         Ok((ApproveResult::Err(error),)) => Err(format!("Approve failed: {:?}", error)),
         Err((code, msg)) => Err(format!("Call failed: {:?}: {}", code, msg)),
     }
@@ -236,14 +242,16 @@ pub async fn icrc1_balance_of(
         subaccount: None,
     };
 
-    let result: CallResult<(u64,)> = ic_cdk::call(
+    let result: CallResult<(Nat,)> = ic_cdk::call(
         ledger_canister,
         "icrc1_balance_of",
         (account_arg,),
     ).await;
 
     match result {
-        Ok((balance,)) => Ok(balance),
+        Ok((balance,)) => {
+            balance.0.try_into().map_err(|_| "Balance too large".to_string())
+        },
         Err((code, msg)) => Err(format!("Balance query failed: {:?}: {}", code, msg)),
     }
 }
@@ -311,7 +319,7 @@ pub async fn pull_asset_from_user(
     let allowance = icrc2_allowance(ledger, from, canister_id).await?;
     if allowance.allowance < amount {
         return Err(format!("Insufficient allowance for {}: {} < {}",
-            asset_id.0, allowance.allowance, amount));
+            asset_id, allowance.allowance, amount));
     }
 
     icrc2_transfer_from(ledger, from, canister_id, amount, memo).await
@@ -338,5 +346,5 @@ pub async fn check_user_allowance(
     let canister_id = ic_cdk::api::id();
 
     let allowance = icrc2_allowance(ledger, owner, canister_id).await?;
-    Ok(allowance.allowance)
+    allowance.allowance.0.try_into().map_err(|_| "Allowance too large".to_string())
 }

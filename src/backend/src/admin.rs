@@ -41,6 +41,16 @@ pub fn set_admin(new_admin: Principal) -> Result<(), String> {
 }
 
 #[update]
+pub fn set_quote_api_principal(quote_api: Principal) -> Result<(), String> {
+    let _admin = require_admin()?;
+
+    set_quote_service_principal(quote_api);
+
+    ic_cdk::println!("Quote API/Coordinator set to: {}", quote_api);
+    Ok(())
+}
+
+#[update]
 pub fn emergency_pause_canister() -> Result<(), String> {
     let _admin = require_admin()?;
 
@@ -127,5 +137,59 @@ pub fn force_deactivate_bundle(bundle_id: u64, reason: String) -> Result<(), Str
             }
             None => Err(format!("Bundle {} not found", bundle_id))
         }
+    })
+}
+
+#[update]
+pub fn set_platform_treasury(treasury: Principal) -> Result<(), String> {
+    let _admin = require_admin()?;
+
+    GLOBAL_STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let mut global_state = state.get().clone();
+        global_state.platform_treasury = Some(treasury);
+        state.set(global_state)
+            .map_err(|_| "Failed to update platform treasury".to_string())
+            .map(|_| ())
+    })?;
+
+    ic_cdk::println!("Platform treasury set to: {}", treasury);
+    Ok(())
+}
+
+#[query]
+pub fn get_platform_treasury() -> Option<Principal> {
+    GLOBAL_STATE.with(|state| {
+        let state = state.borrow();
+        state.get().platform_treasury
+    })
+}
+
+#[update]
+pub fn set_default_platform_fee_bps(fee_bps: u64) -> Result<(), String> {
+    let _admin = require_admin()?;
+
+    if fee_bps > 10000 {
+        return Err("Fee cannot exceed 100% (10000 bps)".to_string());
+    }
+
+    GLOBAL_STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let mut global_state = state.get().clone();
+        global_state.default_platform_fee_bps = Some(fee_bps);
+        state.set(global_state)
+            .map_err(|_| "Failed to update default platform fee".to_string())
+            .map(|_| ())
+    })?;
+
+    ic_cdk::println!("Default platform fee set to: {} bps", fee_bps);
+    Ok(())
+}
+
+#[query]
+pub fn get_default_platform_fee_bps() -> u64 {
+    GLOBAL_STATE.with(|state| {
+        let state = state.borrow();
+        state.get().default_platform_fee_bps.unwrap_or(50)
     })
 }

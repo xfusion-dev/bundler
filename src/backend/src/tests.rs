@@ -7,7 +7,7 @@ mod tests {
     }
     fn create_ckbtc_asset() -> AssetInfo {
         AssetInfo {
-            id: AssetId("ckBTC".to_string()),
+            id: "ckBTC".to_string(),
             symbol: "ckBTC".to_string(),
             name: "Chain Key Bitcoin".to_string(),
             standard: AssetStandard::ICRC2,
@@ -27,7 +27,7 @@ mod tests {
     }
     fn create_cketh_asset() -> AssetInfo {
         AssetInfo {
-            id: AssetId("ckETH".to_string()),
+            id: "ckETH".to_string(),
             symbol: "ckETH".to_string(),
             name: "Chain Key Ethereum".to_string(),
             standard: AssetStandard::ICRC2,
@@ -47,7 +47,7 @@ mod tests {
     }
     fn create_ckusdc_asset() -> AssetInfo {
         AssetInfo {
-            id: AssetId("ckUSDC".to_string()),
+            id: "ckUSDC".to_string(),
             symbol: "ckUSDC".to_string(),
             name: "Chain Key USD Coin".to_string(),
             standard: AssetStandard::ICRC2,
@@ -76,7 +76,7 @@ mod tests {
         }
     }
     fn mock_asset_id() -> AssetId {
-        AssetId("ckBTC".to_string())
+        "ckBTC".to_string()
     }
     fn mock_asset_info() -> AssetInfo {
         AssetInfo {
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn test_asset_id_and_types() {
         let asset_id = mock_asset_id();
-        assert_eq!(asset_id.0, "ckBTC");
+        assert_eq!(asset_id, "ckBTC");
         let asset_info = mock_asset_info();
         assert_eq!(asset_info.symbol, "ckBTC");
         assert_eq!(asset_info.decimals, 8);
@@ -116,7 +116,7 @@ mod tests {
             percentage: 50,
         };
         assert_eq!(allocation.percentage, 50);
-        assert_eq!(allocation.asset_id.0, "ckBTC");
+        assert_eq!(allocation.asset_id, "ckBTC");
         assert!(allocation.percentage <= 100);
         assert!(allocation.percentage > 0);
     }
@@ -509,17 +509,17 @@ mod tests {
         let asset_id = mock_asset_id();
         let valid_deposit = (asset_id.clone(), 50_000_000u64);
         assert!(valid_deposit.1 > 0);
-        assert_eq!(valid_deposit.0.0, "ckBTC");
+        assert_eq!(valid_deposit.0, "ckBTC");
         let zero_deposit = (asset_id.clone(), 0u64);
         assert_eq!(zero_deposit.1, 0);
         let deposits = vec![
-            (AssetId("ckBTC".to_string()), 25_000_000u64),
-            (AssetId("ckETH".to_string()), 1_000_000_000u64),
-            (AssetId("GLDT".to_string()), 100_000_000u64),
+            ("ckBTC".to_string(), 25_000_000u64),
+            ("ckETH".to_string(), 1_000_000_000u64),
+            ("GLDT".to_string(), 100_000_000u64),
         ];
         for (asset, amount) in deposits {
-            assert!(amount > 0, "Deposit amount must be positive for asset {}", asset.0);
-            assert!(!asset.0.is_empty(), "Asset ID cannot be empty");
+            assert!(amount > 0, "Deposit amount must be positive for asset {}", asset);
+            assert!(!asset.is_empty(), "Asset ID cannot be empty");
         }
     }
     #[test]
@@ -847,10 +847,10 @@ mod tests {
         let ckbtc_asset = create_ckbtc_asset();
         let cketh_asset = create_cketh_asset();
         let ckusdc_asset = create_ckusdc_asset();
-        let large_asset_id = AssetId("x".repeat(95));
-        assert!(large_asset_id.0.len() < 100, "Asset ID should be within bounds");
-        let max_asset_id = AssetId("x".repeat(99));
-        assert!(max_asset_id.0.len() < 100, "Max asset ID should be within bounds");
+        let large_asset_id = "x".repeat(95);
+        assert!(large_asset_id.len() < 100, "Asset ID should be within bounds");
+        let max_asset_id = "x".repeat(99);
+        assert!(max_asset_id.len() < 100, "Max asset ID should be within bounds");
         let serialized = candid::encode_one(&ckbtc_asset).expect("Should serialize");
         let deserialized: AssetInfo = candid::decode_one(&serialized).expect("Should deserialize");
         assert_eq!(ckbtc_asset.id, deserialized.id, "Asset ID should survive serialization");
@@ -864,21 +864,21 @@ mod tests {
         assert!(serialized_size < 1024, "AssetInfo serialization should be compact");
         use crate::memory::*;
         use ic_stable_structures::Storable;
-        let asset_id = AssetId("test".to_string());
+        let asset_id = "test".to_string();
         let serialized_id = asset_id.to_bytes();
         let deserialized_id = AssetId::from_bytes(serialized_id);
-        assert_eq!(asset_id.0, deserialized_id.0, "AssetId should survive stable storage serialization");
-        let large_id = AssetId("a".repeat(95));
+        assert_eq!(asset_id, deserialized_id, "AssetId should survive stable storage serialization");
+        let large_id = "a".repeat(95);
         let large_serialized = large_id.to_bytes();
         assert!(large_serialized.len() <= 100, "Large AssetId should fit in bounds");
         let large_deserialized = AssetId::from_bytes(large_serialized);
-        assert_eq!(large_id.0, large_deserialized.0, "Large AssetId should survive serialization");
+        assert_eq!(large_id, large_deserialized, "Large AssetId should survive serialization");
     }
     #[test]
     fn test_storage_map_key_consistency() {
-        let btc_id = AssetId("ckBTC".to_string());
-        let eth_id = AssetId("ckETH".to_string());
-        let usdc_id = AssetId("ckUSDC".to_string());
+        let btc_id = "ckBTC".to_string();
+        let eth_id = "ckETH".to_string();
+        let usdc_id = "ckUSDC".to_string();
         assert_ne!(btc_id, eth_id, "Different assets should have different IDs");
         assert_ne!(btc_id, usdc_id, "Different assets should have different IDs");
         assert_ne!(eth_id, usdc_id, "Different assets should have different IDs");
@@ -917,11 +917,11 @@ mod tests {
         }
         let test_allocations = vec![
             AssetAllocation {
-                asset_id: AssetId("ckBTC".to_string()),
+                asset_id: "ckBTC".to_string(),
                 percentage: 60u8,
             },
             AssetAllocation {
-                asset_id: AssetId("ckETH".to_string()),
+                asset_id: "ckETH".to_string(),
                 percentage: 40u8,
             },
         ];
@@ -929,11 +929,11 @@ mod tests {
         assert!(validation_result.is_ok(), "Valid allocations should pass validation");
         let invalid_allocations = vec![
             AssetAllocation {
-                asset_id: AssetId("ckBTC".to_string()),
+                asset_id: "ckBTC".to_string(),
                 percentage: 60u8,
             },
             AssetAllocation {
-                asset_id: AssetId("ckETH".to_string()),
+                asset_id: "ckETH".to_string(),
                 percentage: 50u8,
             },
         ];
@@ -975,13 +975,13 @@ mod tests {
     #[test]
     fn test_concurrent_data_access_patterns() {
         let asset_ids = vec![
-            AssetId("ckBTC".to_string()),
-            AssetId("ckETH".to_string()),
-            AssetId("ckUSDC".to_string()),
+            "ckBTC".to_string(),
+            "ckETH".to_string(),
+            "ckUSDC".to_string(),
         ];
         for asset_id in &asset_ids {
             let _cloned_id = asset_id.clone();
-            assert_eq!(asset_id.0, _cloned_id.0, "Asset ID cloning should be consistent");
+            assert_eq!(asset_id, _cloned_id, "Asset ID cloning should be consistent");
         }
         let bundle_ids = vec![1u64, 2u64, 3u64];
         for bundle_id in &bundle_ids {
@@ -1041,11 +1041,11 @@ mod tests {
     fn test_allocation_percentage_validation() {
         let allocations = vec![
             AssetAllocation {
-                asset_id: AssetId("ckBTC".to_string()),
+                asset_id: "ckBTC".to_string(),
                 percentage: 60,
             },
             AssetAllocation {
-                asset_id: AssetId("ckETH".to_string()),
+                asset_id: "ckETH".to_string(),
                 percentage: 40,
             },
         ];
@@ -1053,11 +1053,11 @@ mod tests {
         assert!(result.is_ok());
         let invalid_percentage_allocations = vec![
             AssetAllocation {
-                asset_id: AssetId("ckBTC".to_string()),
+                asset_id: "ckBTC".to_string(),
                 percentage: 60,
             },
             AssetAllocation {
-                asset_id: AssetId("ckETH".to_string()),
+                asset_id: "ckETH".to_string(),
                 percentage: 50,
             },
         ];
@@ -1066,11 +1066,11 @@ mod tests {
         assert!(invalid_result.unwrap_err().contains("Total allocation percentage must equal 100%"));
         let duplicate_asset_allocations = vec![
             AssetAllocation {
-                asset_id: AssetId("ckBTC".to_string()),
+                asset_id: "ckBTC".to_string(),
                 percentage: 50,
             },
             AssetAllocation {
-                asset_id: AssetId("ckBTC".to_string()),
+                asset_id: "ckBTC".to_string(),
                 percentage: 50,
             },
         ];

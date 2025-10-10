@@ -55,8 +55,6 @@ fn post_upgrade() {
     ic_cdk::println!("Upgrade completed successfully");
 }
 
-
-
 #[update]
 async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
     nav_calculator::calculate_bundle_nav(bundle_id).await
@@ -96,10 +94,11 @@ fn set_coordinator_public_key(public_key_hex: String) -> Result<(), String> {
 
 #[update]
 fn register_resolver(
+    resolver_principal: Principal,
     name: String,
     fee_rate: u64,
 ) -> Result<(), String> {
-    resolver_manager::register_resolver(name, fee_rate)
+    resolver_manager::register_resolver_admin(resolver_principal, name, fee_rate)
 }
 
 #[update]
@@ -189,6 +188,10 @@ fn get_recent_transactions(limit: usize) -> Vec<TransactionSummary> {
     transaction_manager::get_recent_transactions(limit)
 }
 
+#[query]
+fn get_bundle_holdings(bundle_id: u64) -> Vec<BundleHolding> {
+    holdings_tracker::get_all_bundle_holdings(bundle_id)
+}
 
 #[query]
 async fn validate_sufficient_balance(user: Principal, fund_type: LockedFundType, amount: u64) -> Result<(), String> {
@@ -238,7 +241,7 @@ async fn check_ckusdc_allowance(user: Principal) -> Result<u64, String> {
         .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
 
     let allowance = icrc2_client::icrc2_allowance(ledger, user, canister_id).await?;
-    Ok(allowance.allowance)
+    allowance.allowance.0.try_into().map_err(|_| "Allowance too large".to_string())
 }
 
 #[query]

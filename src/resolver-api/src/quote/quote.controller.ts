@@ -1,9 +1,15 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get } from '@nestjs/common';
 import { QuoteService } from './quote.service';
+import { ExecutionService } from '../services/execution.service';
+import { PricingService } from '../services/pricing.service';
 
 @Controller()
 export class QuoteController {
-  constructor(private readonly quoteService: QuoteService) {}
+  constructor(
+    private readonly quoteService: QuoteService,
+    private readonly executionService: ExecutionService,
+    private readonly pricingService: PricingService,
+  ) {}
 
   @Post('quote')
   async getQuote(@Body() body: { bundleId: number; operation: any; user: string }) {
@@ -13,6 +19,30 @@ export class QuoteController {
   @Post('execute')
   async execute(@Body() body: { assignmentId: number }) {
     console.log(`[Execute] Received execution request for assignment ${body.assignmentId}`);
-    return { success: true, message: 'Execution acknowledged' };
+
+    try {
+      await this.executionService.executeAssignment(body.assignmentId);
+      return { success: true, message: 'Assignment executed successfully' };
+    } catch (error) {
+      console.error(`[Execute] Failed:`, error);
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  @Get('prices')
+  async getPrices() {
+    const assets = ['AAPLX', 'BCH', 'BTC', 'ETH', 'GLDT', 'GOOGLX', 'ICP', 'LTC', 'MATIC', 'METAX', 'SOL', 'SPYX', 'TSLAX', 'XRP'];
+    const prices = {};
+
+    for (const asset of assets) {
+      try {
+        const price = await this.pricingService.getPrice(asset);
+        prices[asset] = { price, status: 'ok' };
+      } catch (error) {
+        prices[asset] = { error: error?.message || String(error), status: 'error' };
+      }
+    }
+
+    return prices;
   }
 }
