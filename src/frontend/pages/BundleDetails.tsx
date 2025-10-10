@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useParams } from 'react-router-dom';
-import { TrendingUp, TrendingDown, BarChart3, PieChart, ArrowUpDown, CheckCircle, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowUpDown, CheckCircle, Loader2, PieChart } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
@@ -37,6 +37,43 @@ export default function BundleDetails() {
   const [fetchingQuote, setFetchingQuote] = useState<boolean>(false);
   const { isAuthenticated, login } = useAuth();
 
+  const getTimeRemaining = (ns: number): string => {
+    const ms = ns / 1000000;
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const fetchQuote = useCallback(async () => {
+    if (!tradeAmount || parseFloat(tradeAmount) <= 0 || !id) return;
+
+    setFetchingQuote(true);
+    try {
+      const userPrincipal = await authService.getPrincipal();
+      if (!userPrincipal) return;
+
+      const operation = tradeTab === 'buy'
+        ? { Buy: { ckusdc_amount: Math.floor(parseFloat(tradeAmount) * 1e6) } }
+        : { Sell: { nav_tokens: Math.floor(parseFloat(tradeAmount) * 1e8) } };
+
+      const quote = await coordinatorService.getQuote(
+        Number(id),
+        operation,
+        userPrincipal.toString()
+      );
+
+      setCurrentQuote(quote);
+      setQuoteExpiresAt(quote.valid_until);
+      setQuoteExpired(false);
+    } catch (err) {
+      console.error('Failed to get quote:', err);
+      setCurrentQuote(null);
+    } finally {
+      setFetchingQuote(false);
+    }
+  }, [tradeAmount, id, tradeTab]);
+
   useEffect(() => {
     if (!quoteExpiresAt) return;
 
@@ -47,20 +84,12 @@ export default function BundleDetails() {
 
       if (remaining === 0 && !quoteExpired && currentQuote) {
         setQuoteExpired(true);
-        toast('Quote expired, please request a new quote', { icon: '⏱️' });
+        void fetchQuote();
       }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [quoteExpiresAt, quoteExpired, currentQuote]);
-
-  const getTimeRemaining = (ns: number): string => {
-    const ms = ns / 1000000;
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, [quoteExpiresAt, quoteExpired, currentQuote, fetchQuote]);
 
   useEffect(() => {
     const loadBundleDetails = async () => {
@@ -81,15 +110,19 @@ export default function BundleDetails() {
         const allAssets = await backendService.listAssets();
         const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
 
-        // Get real NAV data from backend
         let navData = null;
         let holders = 0;
         let totalTokens = 0;
         try {
           navData = await backendService.calculateBundleNav(Number(id));
-          holders = await backendService.getBundleHolderCount(Number(id));
         } catch (err) {
           console.log('NAV calculation not available yet (no holdings)');
+        }
+
+        try {
+          holders = await backendService.getBundleHolderCount(Number(id));
+        } catch (err) {
+          console.log('Could not fetch holder count');
         }
 
         try {
@@ -194,23 +227,46 @@ export default function BundleDetails() {
   // Load user's NAV token balance for this bundle
   useEffect(() => {
     const loadNavBalance = async () => {
-      if (isAuthenticated && id) {
+      if (isAuthenticated && id && bundle) {
         try {
           const userPrincipal = await authService.getPrincipal();
           if (!userPrincipal) return;
 
-          const agent = await authService.getAgent();
-          if (!agent) return;
+          // Get the bundle's token location
+          if ('ICRC151' in bundle.token_location) {
+            const { ledger, token_id } = bundle.token_location.ICRC151;
 
-          const actor = await backendService.getActor();
-          const result = await actor.get_user_portfolio(userPrincipal);
+            // Query the ICRC151 ledger directly for the balance
+            const agent = await authService.getAgent();
+            if (!agent) return;
 
-          const holding = result.nav_token_holdings.find((h: any) => h.bundle_id.toString() === id);
-          if (holding) {
-            const formattedBalance = (Number(holding.amount) / 100000000).toFixed(4);
-            setUserNavBalance(formattedBalance);
-          } else {
-            setUserNavBalance('0');
+            const { Actor } = await import('@dfinity/agent');
+            const { IDL } = await import('@dfinity/candid');
+
+            const idlFactory = ({ IDL }: any) => {
+              const Account = IDL.Record({ owner: IDL.Principal, subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)) });
+              const Result = IDL.Variant({ Ok: IDL.Nat, Err: IDL.Text });
+              return IDL.Service({
+                get_balance: IDL.Func([IDL.Vec(IDL.Nat8), Account], [Result], ['query']),
+              });
+            };
+
+            const ledgerActor: any = Actor.createActor(idlFactory, {
+              agent,
+              canisterId: ledger.toString(),
+            });
+
+            const result = await ledgerActor.get_balance(
+              Array.from(token_id),
+              { owner: userPrincipal, subaccount: [] }
+            );
+
+            if ('Ok' in result) {
+              const formattedBalance = (Number(result.Ok) / 100000000).toFixed(4);
+              setUserNavBalance(formattedBalance);
+            } else {
+              setUserNavBalance('0');
+            }
           }
         } catch (err) {
           console.error('Failed to load NAV token balance:', err);
@@ -220,7 +276,7 @@ export default function BundleDetails() {
     };
 
     void loadNavBalance();
-  }, [isAuthenticated, id]);
+  }, [isAuthenticated, id, bundle]);
 
   useEffect(() => {
     if (!tradeAmount || parseFloat(tradeAmount) <= 0 || !isAuthenticated || !id) {
@@ -233,38 +289,9 @@ export default function BundleDetails() {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [tradeAmount, tradeTab, isAuthenticated, id]);
+  }, [tradeAmount, tradeTab, isAuthenticated, id, fetchQuote]);
 
-  const fetchQuote = async () => {
-    if (!tradeAmount || parseFloat(tradeAmount) <= 0 || !id) return;
-
-    setFetchingQuote(true);
-    try {
-      const userPrincipal = await authService.getPrincipal();
-      if (!userPrincipal) return;
-
-      const operation = tradeTab === 'buy'
-        ? { Buy: { ckusdc_amount: Math.floor(parseFloat(tradeAmount) * 1e8) } }
-        : { Sell: { nav_tokens: Math.floor(parseFloat(tradeAmount) * 1e8) } };
-
-      const quote = await coordinatorService.getQuote(
-        Number(id),
-        operation,
-        userPrincipal.toString()
-      );
-
-      setCurrentQuote(quote);
-      setQuoteExpiresAt(quote.valid_until);
-      setQuoteExpired(false);
-    } catch (err) {
-      console.error('Failed to get quote:', err);
-      setCurrentQuote(null);
-    } finally {
-      setFetchingQuote(false);
-    }
-  };
-
-  function getAssetColor(symbol: string) {
+  const getAssetColor = useCallback((symbol: string) => {
     const tokenColors: Record<string, string> = {
       'BTC': '#f7931a',
       'ckBTC': '#f7931a',
@@ -276,7 +303,68 @@ export default function BundleDetails() {
       'GOLD': '#ffd700',
     };
     return tokenColors[symbol] || '#6366f1';
-  }
+  }, []);
+
+  const priceHistory = useMemo(() => {
+    if (!bundle) return [];
+    const basePrice = bundle.calculated_price || 1.00;
+    const points = selectedPeriod === '1D' ? 24 : selectedPeriod === '7D' ? 7 : 30;
+    const data = [];
+    const now = new Date();
+
+    for (let i = 0; i <= points; i++) {
+      const variation = Math.sin(i / 3) * 0.02 + (Math.random() - 0.5) * 0.01;
+      const trend = i * 0.001;
+      const price = basePrice * (1 + variation + trend);
+
+      let timeLabel = '';
+      const date = new Date(now);
+
+      if (selectedPeriod === '1D') {
+        date.setHours(now.getHours() - (24 - i));
+        timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+      } else if (selectedPeriod === '7D') {
+        date.setDate(now.getDate() - (7 - i));
+        timeLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else {
+        date.setDate(now.getDate() - (30 - i));
+        timeLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+
+      data.push({
+        time: timeLabel,
+        price: Math.max(0, price)
+      });
+    }
+
+    return data;
+  }, [bundle, selectedPeriod]);
+
+  const bundleDetails = useMemo(() => {
+    if (!bundle) return null;
+
+    return {
+      id: bundle.id,
+      name: bundle.name,
+      symbol: (bundle.symbol || bundle.name.replace(/\s+/g, '')).substring(0, 4).toUpperCase(),
+      description: bundle.description,
+      creator: bundle.creator,
+      createdAt: bundle.created_at ? new Date(Number(bundle.created_at) / 1000000).toISOString().split('T')[0] : 'Unknown',
+      price: bundle.calculated_price || 1,
+      change24h: 0,
+      volume24h: 0,
+      marketCap: bundle.total_nav_usd || 0,
+      holders: holderCount,
+      totalSupply: bundle.total_tokens || 0,
+      assets: bundleAssets,
+      performance: {
+        '1D': 0,
+        '7D': 0,
+        '30D': 0,
+      },
+      priceHistory,
+    };
+  }, [bundle, holderCount, bundleAssets, priceHistory]);
 
   const handleExecuteTrade = async () => {
     if (!currentQuote) return;
@@ -343,16 +431,41 @@ export default function BundleDetails() {
         setUserUsdcBalance(formattedBalance);
       }
 
+      // Refresh NAV token balance
       const userPrincipal = await authService.getPrincipal();
-      if (userPrincipal) {
-        const actor = await backendService.getActor();
-        const result = await actor.get_user_portfolio(userPrincipal);
-        const holding = result.nav_token_holdings.find((h: any) => h.bundle_id.toString() === id);
-        if (holding) {
-          const formattedBalance = (Number(holding.amount) / 100000000).toFixed(4);
-          setUserNavBalance(formattedBalance);
-        } else {
-          setUserNavBalance('0');
+      if (userPrincipal && bundle && 'ICRC151' in bundle.token_location) {
+        try {
+          const { ledger, token_id } = bundle.token_location.ICRC151;
+          const agent = await authService.getAgent();
+          if (agent) {
+            const { Actor } = await import('@dfinity/agent');
+            const { IDL } = await import('@dfinity/candid');
+
+            const idlFactory = ({ IDL }: any) => {
+              const Account = IDL.Record({ owner: IDL.Principal, subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)) });
+              const Result = IDL.Variant({ Ok: IDL.Nat, Err: IDL.Text });
+              return IDL.Service({
+                get_balance: IDL.Func([IDL.Vec(IDL.Nat8), Account], [Result], ['query']),
+              });
+            };
+
+            const ledgerActor: any = Actor.createActor(idlFactory, {
+              agent,
+              canisterId: ledger.toString(),
+            });
+
+            const result = await ledgerActor.get_balance(
+              Array.from(token_id),
+              { owner: userPrincipal, subaccount: [] }
+            );
+
+            if ('Ok' in result) {
+              const formattedBalance = (Number(result.Ok) / 100000000).toFixed(4);
+              setUserNavBalance(formattedBalance);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to refresh NAV balance:', err);
         }
       }
 
@@ -380,7 +493,7 @@ export default function BundleDetails() {
     return <BundleDetailsSkeleton />;
   }
 
-  if (error || !bundle) {
+  if (error || !bundle || !bundleDetails) {
     return (
       <div className="min-h-screen bg-black">
         <div className="px-6 py-8 md:py-16">
@@ -400,61 +513,6 @@ export default function BundleDetails() {
       </div>
     );
   }
-
-  const bundleDetails = {
-    id: bundle.id,
-    name: bundle.name,
-    symbol: (bundle.symbol || bundle.name.replace(/\s+/g, '')).substring(0, 4).toUpperCase(),
-    description: bundle.description,
-    creator: bundle.creator,
-    createdAt: bundle.created_at ? new Date(Number(bundle.created_at) / 1000000).toISOString().split('T')[0] : 'Unknown',
-    price: bundle.calculated_price || 1,
-    change24h: 0, // No price history yet
-    volume24h: 0, // Will be tracked later
-    marketCap: bundle.total_nav_usd || 0,
-    holders: holderCount,
-    totalSupply: bundle.total_tokens || 0,
-    assets: bundleAssets,
-    performance: {
-      '1D': 0,
-      '7D': 0,
-      '30D': 0,
-    },
-    priceHistory: (() => {
-      const basePrice = bundle.calculated_price || 1.00;
-      const points = selectedPeriod === '1D' ? 24 : selectedPeriod === '7D' ? 7 : 30;
-      const data = [];
-      const now = new Date();
-
-      for (let i = 0; i <= points; i++) {
-        // Add some realistic variation
-        const variation = Math.sin(i / 3) * 0.02 + (Math.random() - 0.5) * 0.01;
-        const trend = i * 0.001; // Slight upward trend
-        const price = basePrice * (1 + variation + trend);
-
-        let timeLabel = '';
-        const date = new Date(now);
-
-        if (selectedPeriod === '1D') {
-          date.setHours(now.getHours() - (24 - i));
-          timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-        } else if (selectedPeriod === '7D') {
-          date.setDate(now.getDate() - (7 - i));
-          timeLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        } else if (selectedPeriod === '30D') {
-          date.setDate(now.getDate() - (30 - i));
-          timeLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        }
-
-        data.push({
-          time: timeLabel,
-          price: Math.max(0, price)
-        });
-      }
-
-      return data;
-    })(),
-  };
 
   const isPositive = bundleDetails.change24h >= 0;
   const TrendIcon = isPositive ? TrendingUp : TrendingDown;
@@ -546,7 +604,6 @@ export default function BundleDetails() {
                   <div className="flex">
                     {[
                       { key: 'composition', label: 'Composition', icon: PieChart },
-                      { key: 'statistics', label: 'Statistics', icon: BarChart3 },
                       { key: 'about', label: 'About', icon: null },
                     ].map(({ key, label, icon: Icon }) => (
                       <button
@@ -566,105 +623,29 @@ export default function BundleDetails() {
                 </div>
 
                 <div className="p-4 md:p-8">
-                  {activeTab === 'statistics' && (
-                    <div className="space-y-8">
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="border border-white/10 bg-black/40 p-4">
-                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">HOLDERS</div>
-                          <div className="text-2xl font-bold text-white">
-                            {bundleDetails.holders.toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="border border-white/10 bg-black/40 p-4">
-                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">VOLUME 24H</div>
-                          <div className="text-2xl font-bold text-white">
-                            ${(bundleDetails.volume24h / 1000).toFixed(1)}K
-                          </div>
-                        </div>
-                        <div className="border border-white/10 bg-black/40 p-4">
-                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">MARKET CAP</div>
-                          <div className="text-2xl font-bold text-white">
-                            {bundleDetails.marketCap > 0 ? `$${(bundleDetails.marketCap / 1000).toFixed(1)}K` : 'N/A'}
-                          </div>
-                        </div>
-                        <div className="border border-white/10 bg-black/40 p-4">
-                          <div className="text-gray-500 text-xs font-mono uppercase mb-2">TOTAL SUPPLY</div>
-                          <div className="text-2xl font-bold text-white">
-                            {bundleDetails.totalSupply > 0 ? `${(bundleDetails.totalSupply / 1000000).toFixed(1)}M` : 'N/A'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {bundleHoldings.length > 0 && (
-                        <div className="mt-8">
-                          <h3 className="text-xl font-bold text-white mb-4">Treasury Holdings</h3>
-                          <div className="space-y-3">
-                            {bundleHoldings.map((holding: any, idx: number) => {
-                              const assetId = holding.asset_id || holding['3384401418'] || '';
-                              const rawAmount = holding.amount || holding['3573748184'] || 0;
-                              const lastUpdated = holding.last_updated || holding['1600678930'] || 0;
-
-                              const assetDetails = bundleDetails.assets.find((a: any) => a.symbol === assetId);
-                              const decimals = assetDetails?.decimals || 8;
-                              const tokens = Number(rawAmount) / Math.pow(10, decimals);
-
-                              if (!assetId) return null;
-
-                              return (
-                                <div key={`${assetId}-${idx}`} className="border border-white/10 bg-black/40 p-4">
-                                  <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-3">
-                                      {assetDetails?.logo ? (
-                                        <img src={assetDetails.logo} alt={assetId} className="w-8 h-8 rounded-lg" />
-                                      ) : (
-                                        <div
-                                          className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                          style={{ backgroundColor: assetDetails?.color || '#666' }}
-                                        >
-                                          <span className="text-white font-bold text-xs">
-                                            {assetId.slice(0, 2)}
-                                          </span>
-                                        </div>
-                                      )}
-                                      <div>
-                                        <div className="text-white font-medium">{assetDetails?.name || assetId}</div>
-                                        <div className="text-gray-500 text-xs font-mono">{assetId}</div>
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <div className="text-white font-bold font-mono">
-                                        {tokens.toLocaleString(undefined, { maximumFractionDigits: 8 })} {assetId}
-                                      </div>
-                                      <div className="text-gray-500 text-xs">
-                                        Updated {new Date(Number(lastUpdated) / 1000000).toLocaleDateString()}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {activeTab === 'composition' && (
                     <div className="space-y-6">
                       <h3 className="text-xl font-bold text-white mb-6">Asset Allocation</h3>
 
                       {bundleNav && bundleNav.total_nav_usd > 0 && (
-                        <div className="border border-white/10 bg-black/40 p-6 mb-6">
-                          <div className="flex justify-between items-center mb-3">
+                        <div className="border border-white/10 bg-black/40 p-6 mb-6 space-y-3">
+                          <div className="flex justify-between items-center">
                             <span className="text-gray-400">Total Treasury Value</span>
                             <span className="text-white font-bold text-xl">
                               ${(Number(bundleNav.total_nav_usd) / 100000000).toFixed(2)}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-gray-400">NAV Tokens Outstanding</span>
+                            <span className="text-gray-400">NAV Tokens in Circulation</span>
                             <span className="text-white font-mono">
                               {(Number(bundleNav.total_tokens) / 100000000).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">Holders</span>
+                            <span className="text-white font-mono">
+                              {bundleDetails.holders.toLocaleString()}
                             </span>
                           </div>
                         </div>
@@ -714,22 +695,15 @@ export default function BundleDetails() {
                                 {asset.percentage ? asset.percentage.toFixed(1) : asset.percentage}%
                               </div>
                               <div className="text-gray-500 text-sm">
-                                {asset.value > 0 ? `$${asset.value.toFixed(2)}` : (() => {
-                                  const holding = bundleHoldings.find((h: any) =>
-                                    (h.asset_id || h['3384401418']) === asset.symbol
-                                  );
-                                  const rawAmount = holding ? (holding.amount || holding['3573748184'] || 0) : 0;
-                                  if (rawAmount > 0) {
-                                    const decimals = asset.decimals || 8;
-                                    const tokens = Number(rawAmount) / Math.pow(10, decimals);
-                                    return `${tokens.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${asset.symbol}`;
-                                  }
-                                  return 'No holdings yet';
-                                })()}
+                                {asset.value > 0 ? `$${asset.value.toFixed(2)}` : 'No holdings yet'}
                               </div>
                               {asset.amount > 0 && (
                                 <div className="text-gray-500 text-xs">
-                                  {asset.amount.toLocaleString()} {asset.symbol}
+                                  {asset.amount.toLocaleString('en-US', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 8,
+                                    useGrouping: true
+                                  })} {asset.symbol}
                                 </div>
                               )}
                             </div>
@@ -869,7 +843,7 @@ export default function BundleDetails() {
                               value={
                                 tradeTab === 'buy'
                                   ? (currentQuote.nav_tokens / 1e8).toFixed(4)
-                                  : (currentQuote.ckusdc_amount / 1e8).toFixed(2)
+                                  : (currentQuote.ckusdc_amount / 1e6).toFixed(2)
                               }
                               readOnly
                               className="w-full bg-black border border-white/10 p-4 pr-20 text-white text-2xl cursor-not-allowed"
@@ -905,7 +879,7 @@ export default function BundleDetails() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-400">Platform Fee</span>
-                          <span className="text-white">${(currentQuote.fees / 1e8).toFixed(2)}</span>
+                          <span className="text-white">${(currentQuote.fees / 1e6).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-400">Quote expires</span>

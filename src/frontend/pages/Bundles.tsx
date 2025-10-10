@@ -52,30 +52,56 @@ export default function Bundles() {
 
         const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
 
-        const transformedBundles: Bundle[] = backendBundles.map(bundle => ({
-          id: bundle.id,
-          name: bundle.name,
-          symbol: bundle.symbol,
-          description: bundle.description || '',
-          tokens: bundle.allocations.map(a => {
-            const assetDetails = assetMap.get(a.asset_id);
-            return {
-              symbol: assetDetails?.symbol || a.asset_id,
-              name: assetDetails?.name || a.asset_id,
-              allocation: a.percentage,
-              logo: assetDetails?.metadata?.logo_url || ''
-            };
-          }),
-          totalValue: 0,
-          change24h: 0,
-          subscribers: 0,
-          creator: bundle.creator || '',
-          allocations: bundle.allocations,
-          created_at: bundle.created_at,
-          is_active: bundle.is_active
-        }));
+        // Fetch NAV and holder data for each bundle
+        const bundlesWithData = await Promise.all(
+          backendBundles.map(async (bundle) => {
+            let navPerToken = 0;
+            let totalNavUsd = 0;
+            let holders = 0;
 
-        setBundles(transformedBundles);
+            try {
+              // Fetch NAV data
+              const navData = await backendService.calculateBundleNav(bundle.id);
+              navPerToken = Number(navData.nav_per_token) / 100000000;
+              totalNavUsd = Number(navData.total_nav_usd) / 100000000;
+            } catch (err) {
+              console.log(`No NAV data for bundle ${bundle.id}`);
+            }
+
+            try {
+              // Fetch holder count
+              holders = await backendService.getBundleHolderCount(bundle.id);
+            } catch (err) {
+              console.log(`No holder data for bundle ${bundle.id}`);
+            }
+
+            return {
+              id: bundle.id,
+              name: bundle.name,
+              symbol: bundle.symbol,
+              description: bundle.description || '',
+              tokens: bundle.allocations.map(a => {
+                const assetDetails = assetMap.get(a.asset_id);
+                return {
+                  symbol: assetDetails?.symbol || a.asset_id,
+                  name: assetDetails?.name || a.asset_id,
+                  allocation: a.percentage,
+                  logo: assetDetails?.metadata?.logo_url || ''
+                };
+              }),
+              totalValue: navPerToken, // NAV per token (used for Price column)
+              change24h: 0, // TODO: Calculate from historical data
+              subscribers: holders,
+              creator: bundle.creator || '',
+              allocations: bundle.allocations,
+              created_at: bundle.created_at,
+              is_active: bundle.is_active,
+              marketCapValue: totalNavUsd // Total treasury value for Market Cap
+            } as Bundle & { marketCapValue: number };
+          })
+        );
+
+        setBundles(bundlesWithData);
       } catch (err) {
         console.error('Failed to load bundles:', err);
         setError('Failed to load bundles. Please try again.');
@@ -119,7 +145,9 @@ export default function Bundles() {
           comparison = a.subscribers - b.subscribers;
           break;
         case 'marketCap':
-          comparison = (a.totalValue * a.subscribers) - (b.totalValue * b.subscribers);
+          const aMarketCap = (a as any).marketCapValue || 0;
+          const bMarketCap = (b as any).marketCapValue || 0;
+          comparison = aMarketCap - bMarketCap;
           break;
         default:
           comparison = 0;

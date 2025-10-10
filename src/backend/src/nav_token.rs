@@ -48,8 +48,13 @@ pub fn get_total_nav_token_supply() -> u64 {
     0
 }
 
-pub fn get_bundle_holder_count(_bundle_id: u64) -> u32 {
-    1
+pub async fn get_bundle_holder_count(bundle_id: u64) -> Result<u32, String> {
+    let bundle = crate::bundle_manager::get_bundle(bundle_id)?;
+    let (ledger, token_id) = bundle.get_token_location()?;
+
+    let count = icrc151_client::get_holder_count_icrc151(ledger, token_id).await?;
+
+    count.try_into().map_err(|_| "Holder count too large".to_string())
 }
 
 pub fn get_user_nav_tokens(_user: Principal) -> Vec<crate::types::XFusionNAVToken> {

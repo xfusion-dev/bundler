@@ -207,3 +207,35 @@ pub async fn create_token_icrc151(
         Err((code, msg)) => Err(format!("Call failed: {:?} - {}", code, msg)),
     }
 }
+
+#[derive(CandidType, Deserialize)]
+enum QueryError {
+    InvalidInput(String),
+    TokenNotFound,
+    InternalError(String),
+}
+
+pub async fn get_holder_count_icrc151(
+    ledger: Principal,
+    token_id: Vec<u8>,
+) -> Result<u64, String> {
+    #[derive(CandidType, Deserialize)]
+    enum QueryResult {
+        Ok(u64),
+        Err(QueryError),
+    }
+
+    let result: CallResult<(QueryResult,)> = ic_cdk::call(
+        ledger,
+        "get_holder_count",
+        (token_id,),
+    ).await;
+
+    match result {
+        Ok((QueryResult::Ok(count),)) => Ok(count),
+        Ok((QueryResult::Err(QueryError::TokenNotFound),)) => Ok(0),
+        Ok((QueryResult::Err(QueryError::InvalidInput(e)),)) => Err(format!("Invalid input: {}", e)),
+        Ok((QueryResult::Err(QueryError::InternalError(e)),)) => Err(format!("Internal error: {}", e)),
+        Err((code, msg)) => Err(format!("Call failed: {:?} - {}", code, msg)),
+    }
+}

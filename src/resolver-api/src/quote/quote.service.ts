@@ -22,6 +22,18 @@ export class QuoteService {
     let assetAmounts: Array<{ asset_id: string; amount: number }> = [];
 
     let usdValue = 0;
+    let navPerToken = 1.0; // Default to $1 for InitialBuy
+
+    // Fetch current NAV per token for Buy/Sell operations
+    if (operationType !== 'InitialBuy') {
+      try {
+        const bundleNav = await this.backendService.calculateBundleNav(bundleId);
+        navPerToken = Number(bundleNav.nav_per_token) / 1e8;
+        this.logger.log(`Current NAV per token: $${navPerToken.toFixed(8)}`);
+      } catch (error) {
+        this.logger.warn(`Could not fetch NAV, using default $1: ${error.message}`);
+      }
+    }
 
     if (operationType === 'InitialBuy') {
       ckusdcAmount = operation.InitialBuy.usd_amount;
@@ -30,10 +42,13 @@ export class QuoteService {
     } else if (operationType === 'Buy') {
       ckusdcAmount = operation.Buy.ckusdc_amount;
       usdValue = ckusdcAmount / 1e6;
-      navTokens = Math.floor(usdValue * 1e8);
+      // Calculate NAV tokens based on current NAV per token price
+      navTokens = Math.floor((usdValue / navPerToken) * 1e8);
     } else if (operationType === 'Sell') {
       navTokens = operation.Sell.nav_tokens;
-      usdValue = navTokens / 1e8;
+      // Calculate USD value based on current NAV per token price
+      const navTokensDecimal = navTokens / 1e8;
+      usdValue = navTokensDecimal * navPerToken;
       ckusdcAmount = Math.floor(usdValue * 1e6);
     }
 

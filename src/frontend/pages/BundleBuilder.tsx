@@ -455,7 +455,13 @@ export default function BundleBuilder() {
     let filtered = availableAssets;
 
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(asset => asset.category === selectedCategory);
+      if (selectedCategory === 'Yield') {
+        filtered = filtered.filter(asset =>
+          asset.category === 'Yield' || asset.category === 'Liquid Staking'
+        );
+      } else {
+        filtered = filtered.filter(asset => asset.category === selectedCategory);
+      }
     }
 
     if (searchQuery.trim()) {

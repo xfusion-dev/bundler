@@ -224,18 +224,23 @@ pub fn calculate_nav_per_token_with_supply_validation(
         return Err("Precision decimals cannot exceed 18".to_string());
     }
 
-    // total_usd_value is in 8 decimals, so we divide by total_tokens first
-    let nav_per_token_8_decimals = total_usd_value.checked_div(total_tokens)
+    // Use 128-bit arithmetic to preserve precision
+    // total_usd_value and total_tokens are both in 8 decimals
+    // We want result in precision_decimals decimals
+    let precision_factor = 10_u128.pow(precision_decimals as u32);
+
+    // (total_usd_value * precision_factor) / total_tokens
+    let nav_per_token = (total_usd_value as u128)
+        .checked_mul(precision_factor)
+        .ok_or("Overflow in NAV calculation")?
+        .checked_div(total_tokens as u128)
         .ok_or("Division by zero in NAV calculation")?;
 
-    // Convert from 8 decimals to the requested precision
-    let nav_per_token = convert_amount_between_decimals(
-        nav_per_token_8_decimals,
-        8,
-        precision_decimals,
-    )?;
+    if nav_per_token > u64::MAX as u128 {
+        return Err("NAV per token overflow".to_string());
+    }
 
-    Ok(nav_per_token)
+    Ok(nav_per_token as u64)
 }
 
 pub fn format_nav_with_precision(nav_value: u64, precision_decimals: u8) -> String {

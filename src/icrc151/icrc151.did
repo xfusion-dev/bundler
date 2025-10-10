@@ -66,6 +66,7 @@ type Result_3 = variant { Ok : Allowance; Err : QueryError };
 type Result_4 = variant { Ok : TokenMetadata; Err : QueryError };
 type Result_5 = variant { Ok : vec StoredTxV1; Err : QueryError };
 type Result_6 = variant { Ok; Err : text };
+type Result_7 = variant { Ok : nat64; Err : QueryError };
 type StoredTxV1 = record {
   op : nat8;
   fee : blob;
@@ -94,6 +95,7 @@ type StorageStats = record {
   dedup_map_size : nat64;
   allowance_expiry_size : nat64;
   extended_memos_size : nat64;
+  holder_counts_size : nat64;
   token_count : nat64;
   estimated_memory_bytes : nat64;
 };
@@ -120,6 +122,7 @@ service : () -> {
   get_info : () -> (CanisterInfo) query;
   get_token_metadata : (blob) -> (Result_4) query;
   get_total_supply : (blob) -> (Result_2) query;
+  get_holder_count : (blob) -> (Result_7) query;
   get_transaction_count : () -> (nat64) query;
   get_transactions : (opt blob, opt nat64, opt nat64) -> (Result_5) query;
   list_tokens : () -> (vec blob) query;

@@ -189,7 +189,7 @@ fn get_recent_transactions(limit: usize) -> Vec<TransactionSummary> {
 }
 
 #[query]
-fn get_bundle_holdings(bundle_id: u64) -> Vec<BundleHolding> {
+pub fn get_bundle_holdings(bundle_id: u64) -> Vec<BundleHolding> {
     holdings_tracker::get_all_bundle_holdings(bundle_id)
 }
 

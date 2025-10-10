@@ -34,11 +34,11 @@ pub fn get_asset_summary() -> Vec<AssetSummary> {
     }).collect()
 }
 
-#[query]
+#[update]
 pub async fn get_bundle_summary(bundle_id: u64) -> Result<BundleSummary, String> {
     let bundle = bundle_manager::get_bundle(bundle_id)?;
     let total_tokens = nav_token::get_total_tokens_for_bundle(bundle_id).await?;
-    let holder_count = nav_token::get_bundle_holder_count(bundle_id);
+    let holder_count = nav_token::get_bundle_holder_count(bundle_id).await?;
 
     Ok(BundleSummary {
         id: bundle.id,

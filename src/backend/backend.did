@@ -348,7 +348,7 @@ service : () -> {
   get_asset_summary : () -> (vec AssetSummary) query;
   get_assignment : (nat64) -> (Result_7) query;
   get_bundle : (nat64) -> (Result_8) query;
-  get_bundle_summary : (nat64) -> (Result_9) query;
+  get_bundle_summary : (nat64) -> (Result_9);
   get_bundle_transaction_history : (nat64) -> (BundleTransactionHistory) query;
   get_cache_statistics : () -> (CacheStatistics) query;
   get_cached_price : (text) -> (opt AssetPrice) query;

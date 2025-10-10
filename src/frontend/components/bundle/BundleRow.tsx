@@ -17,6 +17,7 @@ interface Bundle {
   change24h: number;
   subscribers: number;
   creator: string;
+  marketCapValue?: number;
 }
 
 interface BundleRowProps {
@@ -27,7 +28,7 @@ export default function BundleRow({ bundle }: BundleRowProps) {
   const [hoveredToken, setHoveredToken] = useState<number | null>(null);
   const symbol = (bundle.symbol || bundle.name.replace(/\s+/g, '')).substring(0, 4).toUpperCase();
   const price = bundle.totalValue.toFixed(2);
-  const marketCap = bundle.subscribers * parseFloat(price);
+  const marketCap = bundle.marketCapValue || 0;
 
   const formatMarketCap = (cap: number) => {
     if (cap >= 1_000_000) return `$${(cap / 1_000_000).toFixed(2)}M`;

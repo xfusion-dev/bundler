@@ -16,6 +16,7 @@ interface Bundle {
   change24h: number;
   subscribers: number;
   creator: string;
+  marketCapValue?: number;
 }
 
 interface BundleMobileCardProps {

@@ -38,6 +38,20 @@ export class BackendService {
         asset_id: IDL.Text,
         amount: IDL.Nat64,
       });
+      const AssetValue = IDL.Record({
+        asset_id: IDL.Text,
+        amount: IDL.Nat64,
+        value_usd: IDL.Nat64,
+        percentage: IDL.Float64,
+      });
+      const BundleNAV = IDL.Record({
+        bundle_id: IDL.Nat64,
+        nav_per_token: IDL.Nat64,
+        total_nav_usd: IDL.Nat64,
+        total_tokens: IDL.Nat64,
+        asset_values: IDL.Vec(AssetValue),
+        calculated_at: IDL.Nat64,
+      });
       const QuoteAssignment = IDL.Record({
         request_id: IDL.Nat64,
         resolver: IDL.Principal,
@@ -88,6 +102,7 @@ export class BackendService {
         get_bundle: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: BundleConfig, Err: IDL.Text })], ['query']),
         get_assignment: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: QuoteAssignment, Err: IDL.Text })], ['query']),
         get_transaction: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: Transaction, Err: IDL.Text })], ['query']),
+        calculate_bundle_nav: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: BundleNAV, Err: IDL.Text })], []),
         confirm_asset_deposit: IDL.Func([IDL.Nat64], [ConfirmResult], []),
       });
     };
@@ -137,6 +152,19 @@ export class BackendService {
         return result.Ok;
       }
       throw new Error(result.Err || 'Failed to get transaction');
+    } catch (error: any) {
+      throw new Error(`Backend call failed: ${error.message}`);
+    }
+  }
+
+  async calculateBundleNav(bundleId: number) {
+    try {
+      const actor = this.createActor();
+      const result: any = await actor.calculate_bundle_nav(bundleId);
+      if ('Ok' in result) {
+        return result.Ok;
+      }
+      throw new Error(result.Err || 'Failed to calculate bundle NAV');
     } catch (error: any) {
       throw new Error(`Backend call failed: ${error.message}`);
     }

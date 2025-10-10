@@ -179,17 +179,13 @@ class BackendService {
 
   async getBundleHolderCount(bundleId: number) {
     try {
-      const agent = new HttpAgent({
-        host: 'https://ic0.app',
-      });
+      const actor = await this.getActor();
+      const result = await actor.get_bundle_summary(BigInt(bundleId));
 
-      const actor = Actor.createActor(idlFactory, {
-        agent,
-        canisterId: BACKEND_CANISTER_ID,
-      });
-
-      const holders = await actor.get_nav_holders(bundleId);
-      return holders.length;
+      if ('Ok' in result) {
+        return Number(result.Ok.holder_count);
+      }
+      return 0;
     } catch (e) {
       console.error('getBundleHolderCount failed:', e);
       return 0;
