@@ -104,6 +104,7 @@ export class BackendService {
         get_transaction: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: Transaction, Err: IDL.Text })], ['query']),
         calculate_bundle_nav: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: BundleNAV, Err: IDL.Text })], []),
         confirm_asset_deposit: IDL.Func([IDL.Nat64], [ConfirmResult], []),
+        confirm_resolver_payment_and_complete_sell: IDL.Func([IDL.Nat64], [ConfirmResult], []),
       });
     };
   }
@@ -179,6 +180,20 @@ export class BackendService {
         return;
       }
       throw new Error(result.Err || 'Failed to confirm asset deposit');
+    } catch (error: any) {
+      throw new Error(`Backend call failed: ${error.message}`);
+    }
+  }
+
+  async confirmResolverPaymentAndCompleteSell(requestId: number): Promise<void> {
+    try {
+      const actor = this.createActor();
+      const result: any = await actor.confirm_resolver_payment_and_complete_sell(requestId);
+      if ('Ok' in result) {
+        console.log(`[Backend] Successfully confirmed resolver payment and completed sell for request ${requestId}`);
+        return;
+      }
+      throw new Error(result.Err || 'Failed to confirm resolver payment');
     } catch (error: any) {
       throw new Error(`Backend call failed: ${error.message}`);
     }

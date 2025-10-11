@@ -156,14 +156,23 @@ pub async fn get_balance_icrc151(
     token_id: Vec<u8>,
     account: Account,
 ) -> Result<u64, String> {
-    let result: CallResult<(u64,)> = ic_cdk::call(
+    #[derive(candid::CandidType, candid::Deserialize)]
+    enum BalanceResult {
+        Ok(candid::Nat),
+        Err(String),
+    }
+
+    let result: CallResult<(BalanceResult,)> = ic_cdk::call(
         ledger,
-        "icrc1_balance_of",
+        "get_balance",
         (token_id, account),
     ).await;
 
     match result {
-        Ok((balance,)) => Ok(balance),
+        Ok((BalanceResult::Ok(balance),)) => {
+            balance.0.try_into().map_err(|_| "Balance too large".to_string())
+        }
+        Ok((BalanceResult::Err(err),)) => Err(format!("Balance query error: {}", err)),
         Err((code, msg)) => Err(format!("Balance query failed: {:?} - {}", code, msg)),
     }
 }

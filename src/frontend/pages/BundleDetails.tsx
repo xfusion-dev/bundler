@@ -26,10 +26,13 @@ export default function BundleDetails() {
   const [tradeTab, setTradeTab] = useState<'buy' | 'sell'>('buy');
   const [tradeAmount, setTradeAmount] = useState<string>('');
   const [isTrading, setIsTrading] = useState(false);
+  const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [tradeStatus, setTradeStatus] = useState('');
-  const [tradeStep, setTradeStep] = useState<'idle' | 'quote' | 'approve' | 'execute' | 'complete'>('idle');
+  const [tradeStep, setTradeStep] = useState<0 | 1 | 2 | 3>(0);
   const [userUsdcBalance, setUserUsdcBalance] = useState<string>('0');
   const [userNavBalance, setUserNavBalance] = useState<string>('0');
+  const [userUsdcBalanceRaw, setUserUsdcBalanceRaw] = useState<bigint>(BigInt(0));
+  const [userNavBalanceRaw, setUserNavBalanceRaw] = useState<bigint>(BigInt(0));
   const [currentQuote, setCurrentQuote] = useState<any>(null);
   const [quoteExpiresAt, setQuoteExpiresAt] = useState<number>(0);
   const [quoteExpired, setQuoteExpired] = useState<boolean>(false);
@@ -99,52 +102,28 @@ export default function BundleDetails() {
         setLoading(true);
         setError(null);
 
-        const bundles = await backendService.listBundles();
-        const foundBundle = bundles.find((b: any) => b.id.toString() === id);
+        const [foundBundle, allAssets, navData, holders, holdings] = await Promise.all([
+          backendService.getBundle(Number(id)),
+          backendService.listAssets(),
+          backendService.calculateBundleNav(Number(id)).catch(() => {
+            console.log('NAV calculation not available yet (no holdings)');
+            return null;
+          }),
+          backendService.getBundleHolderCount(Number(id)).catch(() => {
+            console.log('Could not fetch holder count');
+            return 0;
+          }),
+          backendService.getBundleHoldings(Number(id)).catch(() => {
+            console.error('Failed to fetch bundle holdings');
+            return [];
+          })
+        ]);
 
-        if (!foundBundle) {
-          setError('Bundle not found');
-          return;
-        }
-
-        const allAssets = await backendService.listAssets();
         const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
-
-        let navData = null;
-        let holders = 0;
-        let totalTokens = 0;
-        try {
-          navData = await backendService.calculateBundleNav(Number(id));
-        } catch (err) {
-          console.log('NAV calculation not available yet (no holdings)');
-        }
-
-        try {
-          holders = await backendService.getBundleHolderCount(Number(id));
-        } catch (err) {
-          console.log('Could not fetch holder count');
-        }
-
-        try {
-          const actor = await backendService.getActor();
-          const result = await actor.get_total_tokens_for_bundle(BigInt(id));
-          totalTokens = Number(result) / 100000000;
-          console.log('Total tokens for bundle:', totalTokens);
-        } catch (err) {
-          console.log('Could not fetch total token supply');
-        }
 
         setBundleNav(navData);
         setHolderCount(holders);
-
-        try {
-          const holdings = await backendService.getBundleHoldings(Number(id));
-          console.log('Bundle holdings:', holdings);
-          setBundleHoldings(holdings);
-        } catch (err) {
-          console.error('Failed to fetch bundle holdings:', err);
-          setBundleHoldings([]);
-        }
+        setBundleHoldings(holdings);
 
         const navPerToken = navData ? Number(navData.nav_per_token) / 100000000 : 1;
 
@@ -166,7 +145,7 @@ export default function BundleDetails() {
                 symbol: assetDetails?.symbol || assetValue.asset_id,
                 name: assetDetails?.name || assetValue.asset_id,
                 percentage: assetValue.percentage,
-                value: Number(assetValue.value_usd) / 100000000, // Convert from 8 decimals
+                value: Number(assetValue.value_usd) / 100000000,
                 amount: Number(assetValue.amount) / 100000000,
                 price: assetPrices[assetValue.asset_id] || 0,
                 color: getAssetColor(assetDetails?.symbol || assetValue.asset_id),
@@ -180,9 +159,9 @@ export default function BundleDetails() {
                 symbol: assetDetails?.symbol || allocation.asset_id,
                 name: assetDetails?.name || allocation.asset_id,
                 percentage: allocation.percentage,
-                value: 0, // No holdings yet
+                value: 0,
                 amount: 0,
-                price: 0, // Will show once there are holdings
+                price: 0,
                 color: getAssetColor(assetDetails?.symbol || allocation.asset_id),
                 logo: assetDetails?.metadata?.logo_url || '',
                 decimals: assetDetails?.decimals || 8
@@ -193,7 +172,7 @@ export default function BundleDetails() {
           ...foundBundle,
           calculated_price: navPerToken,
           total_nav_usd: navData ? Number(navData.total_nav_usd) / 100000000 : 0,
-          total_tokens: navData ? Number(navData.total_tokens) / 100000000 : totalTokens
+          total_tokens: navData ? Number(navData.total_tokens) / 100000000 : 0
         });
         setBundleAssets(transformedAssets);
       } catch (err) {
@@ -213,6 +192,7 @@ export default function BundleDetails() {
       if (isAuthenticated) {
         try {
           const balance = await icrc2Service.getBalance();
+          setUserUsdcBalanceRaw(balance);
           const formattedBalance = (Number(balance) / 1000000).toFixed(2);
           setUserUsdcBalance(formattedBalance);
         } catch (err) {
@@ -262,9 +242,11 @@ export default function BundleDetails() {
             );
 
             if ('Ok' in result) {
+              setUserNavBalanceRaw(result.Ok);
               const formattedBalance = (Number(result.Ok) / 100000000).toFixed(4);
               setUserNavBalance(formattedBalance);
             } else {
+              setUserNavBalanceRaw(BigInt(0));
               setUserNavBalance('0');
             }
           }
@@ -378,7 +360,8 @@ export default function BundleDetails() {
     }
 
     setIsTrading(true);
-    setTradeStep('approve');
+    setIsTradeModalOpen(true);
+    setTradeStep(1);
 
     try {
       if (tradeTab === 'buy') {
@@ -416,17 +399,51 @@ export default function BundleDetails() {
         }
       }
 
-      setTradeStep('execute');
+      setTradeStep(2);
       setTradeStatus('Executing trade...');
 
-      await backendService.executeQuote(currentQuote);
+      const assignmentId = await backendService.executeQuote(currentQuote);
 
-      setTradeStep('complete');
+      setTradeStep(3);
+      console.log(`Sending assignment ${assignmentId} to coordinator for execution...`);
+      await coordinatorService.executeAssignment(assignmentId);
+
+      setTradeStatus('Waiting for execution to complete...');
+      console.log(`Polling for assignment ${assignmentId} completion...`);
+      let completed = false;
+      for (let i = 0; i < 30; i++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        try {
+          const transaction = await backendService.getTransaction(assignmentId);
+          console.log(`Poll ${i + 1}/30: Transaction status:`, transaction.status);
+
+          if ('Completed' in transaction.status || transaction.status === 'Completed') {
+            completed = true;
+            console.log('Transaction completed!');
+            break;
+          } else if ('Failed' in transaction.status || transaction.status === 'Failed' ||
+                     'TimedOut' in transaction.status || transaction.status === 'TimedOut') {
+            throw new Error(`Transaction failed or timed out`);
+          }
+        } catch (pollError) {
+          console.error('Status poll error:', pollError);
+          if (i === 29) throw pollError;
+        }
+      }
+
+      if (!completed) {
+        throw new Error('Transaction execution timed out');
+      }
+
       setTradeStatus('Trade completed successfully!');
       toast.success(`Trade executed successfully!`);
 
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       if (tradeTab === 'buy') {
         const newBalance = await icrc2Service.getBalance();
+        setUserUsdcBalanceRaw(newBalance);
         const formattedBalance = (Number(newBalance) / 1000000).toFixed(2);
         setUserUsdcBalance(formattedBalance);
       }
@@ -460,6 +477,7 @@ export default function BundleDetails() {
             );
 
             if ('Ok' in result) {
+              setUserNavBalanceRaw(result.Ok);
               const formattedBalance = (Number(result.Ok) / 100000000).toFixed(4);
               setUserNavBalance(formattedBalance);
             }
@@ -471,18 +489,22 @@ export default function BundleDetails() {
 
       setTimeout(() => {
         setTradeStatus('');
-        setTradeStep('idle');
+        setTradeStep(0);
         setCurrentQuote(null);
         setQuoteExpiresAt(0);
         setTradeAmount('');
+        setIsTradeModalOpen(false);
       }, 2000);
     } catch (err) {
       console.error('Trade failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Trade failed. Please try again.';
       setTradeStatus(errorMessage);
       toast.error(errorMessage);
-      setTradeStep('idle');
-      setTimeout(() => setTradeStatus(''), 3000);
+      setTradeStep(0);
+      setTimeout(() => {
+        setTradeStatus('');
+        setIsTradeModalOpen(false);
+      }, 3000);
     } finally {
       setIsTrading(false);
     }
@@ -800,7 +822,13 @@ export default function BundleDetails() {
                         </label>
                         {isAuthenticated && (
                           <button
-                            onClick={() => setTradeAmount(tradeTab === 'buy' ? userUsdcBalance : userNavBalance)}
+                            onClick={() => {
+                              if (tradeTab === 'buy') {
+                                setTradeAmount((Number(userUsdcBalanceRaw) / 1000000).toString());
+                              } else {
+                                setTradeAmount((Number(userNavBalanceRaw) / 100000000).toString());
+                              }
+                            }}
                             className="text-white/60 hover:text-white text-xs transition-colors"
                           >
                             Balance: {tradeTab === 'buy' ? userUsdcBalance : userNavBalance}
@@ -897,14 +925,19 @@ export default function BundleDetails() {
                     {tradeAmount && parseFloat(tradeAmount) > 0 && (
                       (() => {
                         const amount = parseFloat(tradeAmount);
-                        const balance = tradeTab === 'buy' ? parseFloat(userUsdcBalance) : parseFloat(userNavBalance);
-                        const insufficientBalance = amount > balance;
+                        const rawBalance = tradeTab === 'buy'
+                          ? Number(userUsdcBalanceRaw) / 1000000
+                          : Number(userNavBalanceRaw) / 100000000;
+
+                        const transferFee = tradeTab === 'buy' ? 0.01 : 0;
+                        const totalNeeded = amount + transferFee;
+                        const insufficientBalance = totalNeeded > rawBalance;
 
                         if (insufficientBalance) {
                           return (
                             <div className="border border-red-400/20 bg-red-500/10 p-4">
                               <p className="text-red-400 text-sm">
-                                Insufficient balance. You have {balance.toFixed(tradeTab === 'buy' ? 2 : 4)} {tradeTab === 'buy' ? 'USDC' : 'NAV'} but need {amount.toFixed(tradeTab === 'buy' ? 2 : 4)} {tradeTab === 'buy' ? 'USDC' : 'NAV'}.
+                                Insufficient balance. You have {rawBalance.toFixed(tradeTab === 'buy' ? 6 : 8)} {tradeTab === 'buy' ? 'USDC' : 'NAV'} but need {totalNeeded.toFixed(tradeTab === 'buy' ? 6 : 8)} {tradeTab === 'buy' ? 'USDC' : 'NAV'}{tradeTab === 'buy' ? ' (including 0.01 USDC transfer fee)' : ''}.
                               </p>
                             </div>
                           );
@@ -917,8 +950,12 @@ export default function BundleDetails() {
                       <>
                         {(() => {
                           const amount = parseFloat(tradeAmount) || 0;
-                          const balance = tradeTab === 'buy' ? parseFloat(userUsdcBalance) : parseFloat(userNavBalance);
-                          const insufficientBalance = amount > balance;
+                          const rawBalance = tradeTab === 'buy'
+                            ? Number(userUsdcBalanceRaw) / 1000000
+                            : Number(userNavBalanceRaw) / 100000000;
+                          const transferFee = tradeTab === 'buy' ? 0.01 : 0;
+                          const totalNeeded = amount + transferFee;
+                          const insufficientBalance = totalNeeded > rawBalance;
 
                           return (
                             <button
@@ -963,6 +1000,73 @@ export default function BundleDetails() {
           </div>
         </div>
       </div>
+
+      {isTradeModalOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => !isTrading && setIsTradeModalOpen(false)}
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-black border border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 md:p-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                {tradeTab === 'buy' ? 'Buy' : 'Sell'} {bundle?.name || 'NAV Tokens'}
+              </h2>
+              <p className="text-gray-400 text-sm mb-8">
+                {tradeTab === 'buy'
+                  ? 'Executing your buy order. This will lock your USDC and mint NAV tokens.'
+                  : 'Executing your sell order. This will burn your NAV tokens and send you USDC.'}
+              </p>
+
+              <div className="space-y-4">
+                {[
+                  { step: 1, label: tradeTab === 'buy' ? 'Approving USDC spending' : 'Preparing sell order', desc: tradeTab === 'buy' ? 'Approving backend to spend your USDC' : 'Validating NAV token balance' },
+                  { step: 2, label: 'Executing quote on-chain', desc: 'Locking funds and creating assignment' },
+                  { step: 3, label: 'Completing transaction', desc: tradeTab === 'buy' ? 'Assets deposited, NAV tokens minted' : 'NAV tokens burned, USDC sent' }
+                ].map((item) => (
+                  <div key={item.step} className="flex items-start gap-4">
+                    <div className={`w-8 h-8 flex items-center justify-center border-2 ${
+                      tradeStep > item.step ? 'border-green-400 bg-green-400' :
+                      tradeStep === item.step ? 'border-white bg-white' :
+                      'border-white/20 bg-transparent'
+                    }`}>
+                      {tradeStep > item.step ? (
+                        <span className="text-black text-sm">✓</span>
+                      ) : tradeStep === item.step ? (
+                        <div className="w-3 h-3 bg-black animate-pulse" />
+                      ) : (
+                        <span className="text-gray-600 text-sm">{item.step}</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className={`font-bold ${
+                        tradeStep >= item.step ? 'text-white' : 'text-gray-600'
+                      }`}>
+                        {item.label}
+                      </div>
+                      <div className="text-gray-500 text-sm">{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {tradeStatus && (
+                <div className="mt-6 p-4 border border-white/20 bg-white/5">
+                  <div className="text-white text-sm">{tradeStatus}</div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }

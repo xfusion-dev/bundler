@@ -286,6 +286,20 @@ pub struct BundleSummary {
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct BundleListItem {
+    pub id: u64,
+    pub name: String,
+    pub symbol: String,
+    pub description: Option<String>,
+    pub allocations: Vec<AssetAllocation>,
+    pub nav_per_token: u64,
+    pub total_nav_usd: u64,
+    pub holders: u64,
+    pub created_at: u64,
+    pub is_active: bool,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct NAVTokenHolding {
     pub bundle_id: u64,
     pub bundle_name: String,

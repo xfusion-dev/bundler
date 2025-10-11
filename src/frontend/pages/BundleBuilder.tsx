@@ -355,7 +355,35 @@ export default function BundleBuilder() {
 
       setCreationStep(4);
 
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log(`Sending assignment ${assignmentId} to coordinator for execution...`);
+      await coordinatorService.executeAssignment(assignmentId);
+
+      console.log(`Polling for assignment ${assignmentId} completion...`);
+      let completed = false;
+      for (let i = 0; i < 30; i++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        try {
+          const transaction = await backendService.getTransaction(assignmentId);
+          console.log(`Poll ${i + 1}/30: Transaction status:`, transaction.status);
+
+          if ('Completed' in transaction.status || transaction.status === 'Completed') {
+            completed = true;
+            console.log('Transaction completed!');
+            break;
+          } else if ('Failed' in transaction.status || transaction.status === 'Failed' ||
+                     'TimedOut' in transaction.status || transaction.status === 'TimedOut') {
+            throw new Error(`Transaction failed or timed out`);
+          }
+        } catch (pollError) {
+          console.error('Status poll error:', pollError);
+          if (i === 29) throw pollError;
+        }
+      }
+
+      if (!completed) {
+        throw new Error('Transaction execution timed out');
+      }
 
       setSuccess(`Bundle "${bundleName}" created successfully with ${navTokenAmount} NAV tokens!`);
       toast.success(`Bundle "${bundleName}" created successfully!`);

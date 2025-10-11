@@ -55,6 +55,16 @@ fn post_upgrade() {
     ic_cdk::println!("Upgrade completed successfully");
 }
 
+#[query]
+fn get_bundle(bundle_id: u64) -> Result<BundleConfig, String> {
+    bundle_manager::get_bundle(bundle_id)
+}
+
+#[update]
+async fn get_bundles_list() -> Vec<BundleListItem> {
+    query_api::get_bundles_list().await
+}
+
 #[update]
 async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
     nav_calculator::calculate_bundle_nav(bundle_id).await
@@ -156,6 +166,11 @@ async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
 #[update]
 async fn confirm_ckusdc_payment(request_id: u64) -> Result<(), String> {
     quote_manager::confirm_ckusdc_payment(request_id).await
+}
+
+#[update]
+async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Result<(), String> {
+    sell_flow::confirm_resolver_payment_and_complete_sell(request_id).await
 }
 
 #[query]

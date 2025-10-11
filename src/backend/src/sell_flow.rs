@@ -17,15 +17,28 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         _ => return Err("This function is only for sell operations".to_string()),
     }
 
-    let current_time = ic_cdk::api::time();
-    if assignment.valid_until < current_time {
-        return Err("Quote assignment has expired".to_string());
-    }
-
     let bundle = crate::bundle_manager::get_bundle(transaction.bundle_id)?;
 
     let ckusdc_ledger = candid::Principal::from_text(icrc2_client::CKUSDC_LEDGER_CANISTER)
         .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
+
+    let canister_id = ic_cdk::api::id();
+    let allowance = icrc2_client::icrc2_allowance(
+        ckusdc_ledger,
+        assignment.resolver,
+        canister_id,
+    ).await?;
+
+    let available_allowance: u64 = allowance.allowance.0.try_into()
+        .map_err(|_| "Allowance amount too large".to_string())?;
+
+    if available_allowance < assignment.ckusdc_amount {
+        return Err(format!(
+            "Insufficient allowance: resolver has {} but needs {}",
+            available_allowance,
+            assignment.ckusdc_amount
+        ));
+    }
 
     let pull_memo = format!(
         "Sell tx {} - resolver payment",
@@ -46,6 +59,43 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         assignment.resolver,
         pull_result
     );
+
+    let fees = if assignment.fees > 0 {
+        let treasury = crate::memory::GLOBAL_STATE.with(|state| {
+            state.borrow().get().platform_treasury
+        });
+
+        if let Some(treasury_principal) = treasury {
+            let fee_memo = format!(
+                "Platform fee for sell tx {} ({}bps)",
+                transaction.id,
+                bundle.platform_fee_bps.unwrap_or(50)
+            ).into_bytes();
+
+            let fee_result = icrc2_client::icrc1_transfer(
+                ckusdc_ledger,
+                treasury_principal,
+                assignment.fees,
+                Some(fee_memo),
+            ).await?;
+
+            ic_cdk::println!(
+                "Transferred {} ckUSDC platform fee to treasury {} (tx: {})",
+                assignment.fees,
+                treasury_principal,
+                fee_result
+            );
+            assignment.fees
+        } else {
+            ic_cdk::println!(
+                "Warning: Platform fee {} calculated but treasury not configured",
+                assignment.fees
+            );
+            0
+        }
+    } else {
+        0
+    };
 
     for asset_amount in &assignment.asset_amounts {
         let asset = crate::asset_registry::get_asset(asset_amount.asset_id.clone())?;
@@ -86,6 +136,26 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         )?;
     }
 
+    let user_proceeds = assignment.ckusdc_amount - fees;
+    let user_payment_memo = format!(
+        "Sell tx {} - user proceeds",
+        transaction.id
+    ).into_bytes();
+
+    let user_payment_result = icrc2_client::icrc1_transfer(
+        ckusdc_ledger,
+        transaction.user,
+        user_proceeds,
+        Some(user_payment_memo),
+    ).await?;
+
+    ic_cdk::println!(
+        "Paid {} ICRC-2 ckUSDC to user {} (tx: {})",
+        user_proceeds,
+        transaction.user,
+        user_payment_result
+    );
+
     let (bundle_ledger, bundle_token_id) = bundle.get_token_location()?;
 
     let burn_memo = format!(
@@ -111,25 +181,6 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         transaction.user,
         bundle_ledger,
         burn_tx_id
-    );
-
-    let user_payment_memo = format!(
-        "Sell tx {} - user proceeds",
-        transaction.id
-    ).into_bytes();
-
-    let user_payment_result = icrc2_client::icrc1_transfer(
-        ckusdc_ledger,
-        transaction.user,
-        assignment.ckusdc_amount,
-        Some(user_payment_memo),
-    ).await?;
-
-    ic_cdk::println!(
-        "Paid {} ICRC-2 ckUSDC to user {} (tx: {})",
-        assignment.ckusdc_amount,
-        transaction.user,
-        user_payment_result
     );
 
     crate::transaction_manager::unlock_user_funds(

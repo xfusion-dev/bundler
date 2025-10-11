@@ -86,11 +86,17 @@ export class Icrc151Service {
         Err: IDL.Text,
       });
 
+      const BalanceResult = IDL.Variant({
+        Ok: IDL.Nat,
+        Err: IDL.Text,
+      });
+
       return IDL.Service({
         mint_tokens: IDL.Func([IDL.Vec(IDL.Nat8), Account, IDL.Nat, IDL.Opt(IDL.Vec(IDL.Nat8))], [MintResult], []),
         icrc151_transfer: IDL.Func([TransferArgs], [TransferResult], []),
         icrc151_approve: IDL.Func([ApproveArgs], [ApproveResult], []),
         get_token_metadata: IDL.Func([IDL.Vec(IDL.Nat8)], [MetadataResult], ['query']),
+        get_balance: IDL.Func([IDL.Vec(IDL.Nat8), Account], [BalanceResult], ['query']),
       });
     };
   }
@@ -229,6 +235,29 @@ export class Icrc151Service {
       }
     } catch (error) {
       this.logger.error(`Failed to get token metadata: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getBalance(
+    ledgerCanisterId: string,
+    tokenId: Uint8Array,
+    account: Principal,
+  ): Promise<bigint> {
+    try {
+      const actor = await this.getActor(ledgerCanisterId);
+      const result: any = await actor.get_balance(
+        Array.from(tokenId),
+        { owner: account, subaccount: [] }
+      );
+
+      if ('Ok' in result) {
+        return BigInt(result.Ok.toString());
+      } else {
+        throw new Error(`Failed to get balance: ${JSON.stringify(result.Err)}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to get balance: ${error.message}`);
       throw error;
     }
   }

@@ -1,7 +1,8 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
 import { QuoteService } from './quote.service';
 import { ExecutionService } from '../services/execution.service';
 import { PricingService } from '../services/pricing.service';
+import { ApiSecretGuard } from '../guards/api-secret.guard';
 
 @Controller()
 export class QuoteController {
@@ -17,6 +18,7 @@ export class QuoteController {
   }
 
   @Post('execute')
+  @UseGuards(ApiSecretGuard)
   async execute(@Body() body: { assignmentId: number }) {
     console.log(`[Execute] Received execution request for assignment ${body.assignmentId}`);
 

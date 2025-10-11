@@ -87,6 +87,21 @@ class CoordinatorService {
     }
   }
 
+  async executeAssignment(assignmentId: number): Promise<void> {
+    try {
+      const response = await this.client.post('/assignment/execute', {
+        assignmentId,
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Assignment execution failed');
+      }
+    } catch (error: any) {
+      console.error('Failed to execute assignment:', error);
+      throw new Error(error.response?.data?.error || error.message || 'Failed to execute assignment');
+    }
+  }
+
   async getHealth(): Promise<boolean> {
     try {
       await this.client.get('/health');

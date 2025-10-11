@@ -60,9 +60,50 @@ class BackendService {
     }
   }
 
+  async getBundle(bundleId: number) {
+    try {
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      const result = await actor.get_bundle(bundleId);
+      if ('Ok' in result) {
+        return result.Ok;
+      }
+      throw new Error(result.Err || 'Bundle not found');
+    } catch (e) {
+      console.error('getBundle failed:', e);
+      throw e;
+    }
+  }
+
+  async getBundlesList() {
+    try {
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      const result = await actor.get_bundles_list();
+      console.log('Bundles list from backend:', result);
+      return result;
+    } catch (e) {
+      console.error('getBundlesList failed:', e);
+      throw e;
+    }
+  }
+
   async listBundles() {
     try {
-      // Create a fresh agent for query calls to avoid signature issues
       const agent = new HttpAgent({
         host: 'https://ic0.app',
       });
@@ -208,6 +249,30 @@ class BackendService {
     } catch (e) {
       console.error('getBundleHoldings failed:', e);
       return [];
+    }
+  }
+
+  async getTransaction(transactionId: number) {
+    try {
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      const result = await actor.get_transaction(BigInt(transactionId));
+
+      if ('Ok' in result) {
+        return result.Ok;
+      } else {
+        throw new Error(result.Err || 'Failed to get transaction');
+      }
+    } catch (e) {
+      console.error('getTransaction failed:', e);
+      throw e;
     }
   }
 

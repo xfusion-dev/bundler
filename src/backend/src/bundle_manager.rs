@@ -76,7 +76,6 @@ pub async fn create_bundle(request: BundleCreationRequest) -> Result<u64, String
     Ok(bundle_id)
 }
 
-#[query]
 pub fn get_bundle(bundle_id: u64) -> Result<BundleConfig, String> {
     BUNDLE_STORAGE.with(|storage| {
         storage.borrow()

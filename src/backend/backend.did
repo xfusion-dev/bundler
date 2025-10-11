@@ -77,12 +77,30 @@ type BundleConfig = record {
   is_active : bool;
   symbol : text;
 };
+type BundleListItem = record {
+  id : nat64;
+  name : text;
+  description : opt text;
+  created_at : nat64;
+  allocations : vec AssetAllocation;
+  nav_per_token : nat64;
+  total_nav_usd : nat64;
+  holders : nat64;
+  is_active : bool;
+  symbol : text;
+};
 type BundleCreationRequest = record {
   name : text;
   description : opt text;
   icrc151_ledger : principal;
   allocations : vec AssetAllocationInput;
   symbol : text;
+};
+type BundleHolding = record {
+  bundle_id : nat64;
+  asset_id : text;
+  amount : nat64;
+  last_updated : nat64;
 };
 type BundleNAV = record {
   asset_values : vec AssetValue;
@@ -331,6 +349,7 @@ service : () -> {
   clear_price_cache : () -> (Result_3);
   confirm_asset_deposit : (nat64) -> (Result);
   confirm_ckusdc_payment : (nat64) -> (Result);
+  confirm_resolver_payment_and_complete_sell : (nat64) -> (Result);
   create_bundle : (BundleCreationRequest) -> (Result_2);
   deactivate_asset : (text) -> (Result);
   detect_and_recover_timeouts : () -> (Result_3);
@@ -348,6 +367,8 @@ service : () -> {
   get_asset_summary : () -> (vec AssetSummary) query;
   get_assignment : (nat64) -> (Result_7) query;
   get_bundle : (nat64) -> (Result_8) query;
+  get_bundle_holdings : (nat64) -> (vec BundleHolding) query;
+  get_bundles_list : () -> (vec BundleListItem);
   get_bundle_summary : (nat64) -> (Result_9);
   get_bundle_transaction_history : (nat64) -> (BundleTransactionHistory) query;
   get_cache_statistics : () -> (CacheStatistics) query;

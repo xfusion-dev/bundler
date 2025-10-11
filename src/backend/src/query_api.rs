@@ -52,6 +52,44 @@ pub async fn get_bundle_summary(bundle_id: u64) -> Result<BundleSummary, String>
     })
 }
 
+pub async fn get_bundles_list() -> Vec<BundleListItem> {
+    let bundles = bundle_manager::list_active_bundles();
+    let mut result = Vec::new();
+
+    for bundle in bundles {
+        let nav_per_token;
+        let total_nav_usd;
+
+        match crate::nav_calculator::calculate_bundle_nav(bundle.id).await {
+            Ok(nav_data) => {
+                nav_per_token = nav_data.nav_per_token;
+                total_nav_usd = nav_data.total_nav_usd;
+            }
+            Err(_) => {
+                nav_per_token = 0;
+                total_nav_usd = 0;
+            }
+        }
+
+        let holders = nav_token::get_bundle_holder_count(bundle.id).await.unwrap_or(0);
+
+        result.push(BundleListItem {
+            id: bundle.id,
+            name: bundle.name,
+            symbol: bundle.symbol,
+            description: bundle.description,
+            allocations: bundle.allocations,
+            nav_per_token,
+            total_nav_usd,
+            holders: holders as u64,
+            created_at: bundle.created_at,
+            is_active: bundle.is_active,
+        });
+    }
+
+    result
+}
+
 #[query]
 pub fn get_user_portfolio(user: Principal) -> UserPortfolio {
     let nav_tokens = nav_token::get_user_nav_tokens(user);

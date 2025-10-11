@@ -83,4 +83,31 @@ export class BackendService {
       throw new Error(`Backend call failed: ${error.message}`);
     }
   }
+
+  async getAssignment(assignmentId: number) {
+    if (this.mockMode) {
+      console.log(`[Backend] MOCK: getAssignment(${assignmentId})`);
+      return {
+        request_id: assignmentId,
+        resolver: Principal.fromText('2vxsx-fae'),
+        nav_tokens: 100000000,
+        ckusdc_amount: 100000000,
+        asset_amounts: [],
+        estimated_nav: 0,
+        fees: 500000,
+        valid_until: Date.now() * 1000000 + 300000000000,
+        assigned_at: Date.now() * 1000000,
+      };
+    }
+
+    try {
+      const result = await this.actor.get_assignment(BigInt(assignmentId));
+      if ('Ok' in result) {
+        return result.Ok;
+      }
+      throw new Error(result.Err || 'Failed to get assignment');
+    } catch (error) {
+      throw new Error(`Backend call failed: ${error.message}`);
+    }
+  }
 }
