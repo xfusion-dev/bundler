@@ -351,6 +351,7 @@ service : () -> {
   confirm_ckusdc_payment : (nat64) -> (Result);
   confirm_resolver_payment_and_complete_sell : (nat64) -> (Result);
   create_bundle : (BundleCreationRequest) -> (Result_2);
+  dissolve_nav_tokens : (nat64) -> (Result);
   deactivate_asset : (text) -> (Result);
   detect_and_recover_timeouts : () -> (Result_3);
   emergency_pause_canister : () -> (Result);

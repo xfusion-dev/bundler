@@ -146,6 +146,11 @@ fn validate_coordinator_signature(quote: &QuoteObject) -> Result<(), String> {
 pub async fn execute_quote(quote: QuoteObject) -> Result<u64, String> {
     let user = msg_caller();
 
+    ic_cdk::println!("=== EXECUTE QUOTE DEBUG ===");
+    ic_cdk::println!("msg_caller (user): {}", user);
+    ic_cdk::println!("quote.bundle_id: {}", quote.bundle_id);
+    ic_cdk::println!("quote.ckusdc_amount: {}", quote.ckusdc_amount);
+
     validate_coordinator_signature(&quote)?;
 
     let current_time = time();
@@ -186,15 +191,23 @@ pub async fn execute_quote(quote: QuoteObject) -> Result<u64, String> {
         let ckusdc_ledger = candid::Principal::from_text(crate::icrc2_client::CKUSDC_LEDGER_CANISTER)
             .map_err(|e| format!("Invalid ckUSDC ledger: {}", e))?;
 
+        ic_cdk::println!("=== ATTEMPTING CKUSDC PULL ===");
+        ic_cdk::println!("From user: {}", user);
+        ic_cdk::println!("To backend: {}", ic_cdk::api::id());
+        ic_cdk::println!("Amount: {}", quote.ckusdc_amount);
+
         let pull_memo = format!("Lock ckUSDC for tx {}", transaction_id).into_bytes();
 
-        crate::icrc2_client::icrc2_transfer_from(
+        let pull_result = crate::icrc2_client::icrc2_transfer_from(
             ckusdc_ledger,
             user,
             ic_cdk::api::id(),
             quote.ckusdc_amount,
             Some(pull_memo),
-        ).await?;
+        ).await;
+
+        ic_cdk::println!("Pull result: {:?}", pull_result);
+        pull_result?;
     }
 
     let assignment = QuoteAssignment {

@@ -28,6 +28,18 @@ export class ExecutionService {
 
     const transaction = await this.backendService.getTransaction(requestId);
 
+    // Check if already completed
+    if ('Completed' in transaction.status) {
+      this.logger.log(`Request ${requestId} already completed, skipping`);
+      return;
+    }
+
+    // Check if failed or timed out
+    if ('Failed' in transaction.status || 'TimedOut' in transaction.status) {
+      this.logger.log(`Request ${requestId} is in ${Object.keys(transaction.status)[0]} state, cannot execute`);
+      throw new Error(`Transaction is in ${Object.keys(transaction.status)[0]} state`);
+    }
+
     if ('Sell' in transaction.operation) {
       await this.executeSellAssignment(requestId);
     } else if ('Buy' in transaction.operation || 'InitialBuy' in transaction.operation) {
@@ -157,7 +169,7 @@ export class ExecutionService {
     const ckusdcFee = BigInt(10000);
     const totalApproval = ckusdcAmount + ckusdcFee;
 
-    this.logger.log(`Checking resolver's ckUSDC balance...`);
+    this.logger.log(`Checking resolver's ckUSDC balance and allowance...`);
     const resolverBalance = await this.icrc2Service.getBalance(resolverPrincipal);
     this.logger.log(`Resolver has ${resolverBalance} ckUSDC`);
 
@@ -165,17 +177,30 @@ export class ExecutionService {
       throw new Error(`Insufficient ckUSDC balance. Need ${totalApproval}, have ${resolverBalance}`);
     }
 
-    this.logger.log(`Approving backend to pull ${totalApproval} ckUSDC (${ckusdcAmount} + ${ckusdcFee} fee)...`);
-    const approvalTxId = await this.icrc2Service.approveSpender(
-      backendPrincipal,
-      totalApproval,
-      `Approval for sell request ${requestId}`,
-    );
-    this.logger.log(`✓ Approved ${ckusdcAmount} ckUSDC (tx: ${approvalTxId})`);
+    const currentAllowance = await this.icrc2Service.getAllowance(resolverPrincipal, backendPrincipal);
+    this.logger.log(`Current allowance for backend: ${currentAllowance} ckUSDC`);
+
+    if (currentAllowance < totalApproval) {
+      const minAllowance = BigInt(200 * 1_000_000);
+      this.logger.log(`Allowance too low (${currentAllowance} < ${totalApproval}). Approving ${minAllowance} ckUSDC...`);
+      const approvalTxId = await this.icrc2Service.approveSpender(
+        backendPrincipal,
+        minAllowance,
+        `Refill allowance for backend`,
+      );
+      this.logger.log(`✓ Approved ${minAllowance} ckUSDC (tx: ${approvalTxId})`);
+    } else {
+      this.logger.log(`✓ Sufficient allowance exists (${currentAllowance} ckUSDC)`);
+    }
 
     this.logger.log(`Calling backend confirm_resolver_payment_and_complete_sell for request ${requestId}...`);
     await this.backendService.confirmResolverPaymentAndCompleteSell(requestId);
 
-    this.logger.log(`✓ Request ${requestId} complete! Backend pulled ckUSDC, paid user, and burned NAV tokens. Resolver will receive underlying assets.`);
+    this.logger.log(`✓ Request ${requestId} payment complete! User received ckUSDC.`);
+
+    this.logger.log(`Calling backend dissolve_nav_tokens for request ${requestId}...`);
+    await this.backendService.dissolveNavTokens(requestId);
+
+    this.logger.log(`✓ Request ${requestId} fully dissolved! NAV tokens burned and underlying assets transferred to resolver.`);
   }
 }

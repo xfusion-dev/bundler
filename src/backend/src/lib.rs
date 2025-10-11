@@ -173,6 +173,11 @@ async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Result<(
     sell_flow::confirm_resolver_payment_and_complete_sell(request_id).await
 }
 
+#[update]
+async fn dissolve_nav_tokens(request_id: u64) -> Result<(), String> {
+    sell_flow::dissolve_nav_tokens(request_id).await
+}
+
 #[query]
 fn get_transaction_summary(transaction_id: u64) -> Result<TransactionSummary, String> {
     transaction_manager::get_transaction_summary(transaction_id)

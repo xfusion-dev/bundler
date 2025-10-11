@@ -5,14 +5,23 @@ pub async fn get_user_nav_token_balance(user: Principal, bundle_id: u64) -> Resu
     let bundle = crate::bundle_manager::get_bundle(bundle_id)?;
     let (ledger, token_id) = bundle.get_token_location()?;
 
-    icrc151_client::get_balance_icrc151(
+    ic_cdk::println!("=== CHECKING NAV TOKEN BALANCE ===");
+    ic_cdk::println!("User: {}", user);
+    ic_cdk::println!("Bundle ID: {}", bundle_id);
+    ic_cdk::println!("Ledger: {}", ledger);
+    ic_cdk::println!("Token ID: {:?}", token_id);
+
+    let balance = icrc151_client::get_balance_icrc151(
         ledger,
         token_id,
         icrc151_client::Account {
             owner: user,
             subaccount: None,
         },
-    ).await
+    ).await?;
+
+    ic_cdk::println!("Balance returned: {}", balance);
+    Ok(balance)
 }
 
 pub async fn get_total_tokens_for_bundle(bundle_id: u64) -> Result<u64, String> {

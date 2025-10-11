@@ -105,6 +105,7 @@ export class BackendService {
         calculate_bundle_nav: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: BundleNAV, Err: IDL.Text })], []),
         confirm_asset_deposit: IDL.Func([IDL.Nat64], [ConfirmResult], []),
         confirm_resolver_payment_and_complete_sell: IDL.Func([IDL.Nat64], [ConfirmResult], []),
+        dissolve_nav_tokens: IDL.Func([IDL.Nat64], [ConfirmResult], []),
       });
     };
   }
@@ -194,6 +195,20 @@ export class BackendService {
         return;
       }
       throw new Error(result.Err || 'Failed to confirm resolver payment');
+    } catch (error: any) {
+      throw new Error(`Backend call failed: ${error.message}`);
+    }
+  }
+
+  async dissolveNavTokens(requestId: number): Promise<void> {
+    try {
+      const actor = this.createActor();
+      const result: any = await actor.dissolve_nav_tokens(requestId);
+      if ('Ok' in result) {
+        console.log(`[Backend] Successfully dissolved NAV tokens for request ${requestId}`);
+        return;
+      }
+      throw new Error(result.Err || 'Failed to dissolve NAV tokens');
     } catch (error: any) {
       throw new Error(`Backend call failed: ${error.message}`);
     }
