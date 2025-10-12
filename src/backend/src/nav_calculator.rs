@@ -1,6 +1,6 @@
 use ic_cdk::api::time;
 use crate::types::*;
-use crate::oracle::get_latest_price;
+use crate::oracle::{get_latest_price, get_multiple_prices};
 use crate::bundle_manager::get_bundle;
 use crate::nav_token::get_total_tokens_for_bundle;
 
@@ -29,8 +29,17 @@ pub async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
 
     let holdings = crate::holdings_tracker::get_all_bundle_holdings(bundle_id);
 
+    let asset_ids: Vec<AssetId> = holdings.iter().map(|h| h.asset_id.clone()).collect();
+    let prices = get_multiple_prices(&asset_ids).await?;
+
+    let price_map: std::collections::HashMap<AssetId, AssetPrice> = prices
+        .into_iter()
+        .map(|p| (p.asset_id.clone(), p))
+        .collect();
+
     for holding in holdings {
-        let asset_price = get_latest_price(&holding.asset_id).await?;
+        let asset_price = price_map.get(&holding.asset_id)
+            .ok_or(format!("Price not found for asset {}", holding.asset_id))?;
         let asset_info = crate::asset_registry::get_asset(holding.asset_id.clone())?;
 
         let holding_value_usd = calculate_holding_value_usd(
@@ -43,14 +52,13 @@ pub async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
             asset_id: holding.asset_id.clone(),
             amount: holding.amount,
             value_usd: holding_value_usd,
-            percentage: 0.0, // Will be calculated after total is known
+            percentage: 0.0,
         });
 
         total_value_usd = total_value_usd.checked_add(holding_value_usd)
             .ok_or("Total value overflow")?;
     }
 
-    // Calculate actual percentages based on holdings
     for asset_value in &mut asset_values {
         asset_value.percentage = if total_value_usd > 0 {
             (asset_value.value_usd as f64 / total_value_usd as f64) * 100.0

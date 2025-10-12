@@ -1,33 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
-import * as fs from 'fs';
-import * as path from 'path';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { Principal } from '@dfinity/principal';
+import { ConfigService } from '@nestjs/config';
 
-interface AssetConfig {
-  asset_id: string;
-  symbol: string;
-  exchange: string;
-  trading_pair: string;
-  decimals: number;
-  notes?: string;
-}
+const ORACLE_CANISTER_ID = 'zutfo-jqaaa-aaaao-a4puq-cai';
+const RESOLVER_SPREAD_BPS = 50;
 
-interface ExchangeConfig {
-  api_endpoint: string;
-  rate_limit_per_minute: number;
-  timeout_ms: number;
-}
-
-interface PricingConfig {
-  assets: AssetConfig[];
-  exchanges: Record<string, ExchangeConfig>;
-  pricing_settings: {
-    spread_bps: number;
-    min_profit_bps: number;
-    max_slippage_bps: number;
-    price_staleness_seconds: number;
-  };
+interface OraclePrice {
+  value: bigint;
+  confidence: bigint | null;
+  timestamp: bigint;
+  source: string;
 }
 
 interface PriceCache {
@@ -35,32 +18,50 @@ interface PriceCache {
   timestamp: number;
 }
 
+const oracleIdlFactory = ({ IDL }: any) => {
+  const Price = IDL.Record({
+    value: IDL.Nat64,
+    confidence: IDL.Opt(IDL.Nat64),
+    timestamp: IDL.Nat64,
+    source: IDL.Text,
+  });
+
+  return IDL.Service({
+    get_price: IDL.Func([IDL.Text], [IDL.Opt(Price)], ['query']),
+    get_prices: IDL.Func([IDL.Vec(IDL.Text)], [IDL.Vec(IDL.Opt(Price))], ['query']),
+  });
+};
+
 @Injectable()
 export class PricingService {
   private readonly logger = new Logger(PricingService.name);
-  private config: PricingConfig;
   private priceCache: Map<string, PriceCache> = new Map();
+  private agent: HttpAgent;
+  private oracleActor: any;
 
-  constructor(private readonly httpService: HttpService) {
-    const configPath = path.join(process.cwd(), 'pricing-config.json');
-    this.config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    this.logger.log('Pricing service initialized');
+  constructor(private readonly configService: ConfigService) {
+    this.agent = new HttpAgent({
+      host: 'https://ic0.app',
+    });
+
+    this.oracleActor = Actor.createActor(oracleIdlFactory, {
+      agent: this.agent,
+      canisterId: ORACLE_CANISTER_ID,
+    });
+
+    this.logger.log('Pricing service initialized with oracle canister');
   }
 
   async getPrice(assetId: string): Promise<number> {
     const cached = this.priceCache.get(assetId);
     const now = Date.now();
+    const cacheValidityMs = 60_000;
 
-    if (cached && (now - cached.timestamp) < this.config.pricing_settings.price_staleness_seconds * 1000) {
+    if (cached && (now - cached.timestamp) < cacheValidityMs) {
       return cached.price;
     }
 
-    const assetConfig = this.config.assets.find(a => a.asset_id === assetId);
-    if (!assetConfig) {
-      throw new Error(`Asset ${assetId} not found in pricing config`);
-    }
-
-    const price = await this.fetchPriceFromExchange(assetConfig);
+    const price = await this.fetchPriceFromOracle(assetId);
 
     this.priceCache.set(assetId, {
       price,
@@ -70,35 +71,78 @@ export class PricingService {
     return price;
   }
 
-  private async fetchPriceFromExchange(asset: AssetConfig): Promise<number> {
-    const exchangeConfig = this.config.exchanges[asset.exchange];
+  async getPrices(assetIds: string[]): Promise<Map<string, number>> {
+    const now = Date.now();
+    const cacheValidityMs = 60_000;
+    const pricesMap = new Map<string, number>();
+    const assetsToFetch: string[] = [];
 
-    if (!exchangeConfig) {
-      throw new Error(`Exchange ${asset.exchange} not configured`);
+    for (const assetId of assetIds) {
+      const cached = this.priceCache.get(assetId);
+      if (cached && (now - cached.timestamp) < cacheValidityMs) {
+        pricesMap.set(assetId, cached.price);
+      } else {
+        assetsToFetch.push(assetId);
+      }
     }
 
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get(exchangeConfig.api_endpoint, {
-          params: {
-            category: 'spot',
-            symbol: asset.trading_pair,
-          },
-          timeout: exchangeConfig.timeout_ms,
-        })
-      );
+    if (assetsToFetch.length > 0) {
+      const fetchedPrices = await this.fetchPricesFromOracle(assetsToFetch);
 
-      const ticker = response.data?.result?.list?.[0];
-      if (!ticker || !ticker.lastPrice) {
-        throw new Error(`No price data for ${asset.trading_pair}`);
+      for (const [assetId, price] of fetchedPrices) {
+        pricesMap.set(assetId, price);
+        this.priceCache.set(assetId, {
+          price,
+          timestamp: now,
+        });
+      }
+    }
+
+    return pricesMap;
+  }
+
+  private async fetchPriceFromOracle(assetId: string): Promise<number> {
+    try {
+      const priceOpt: OraclePrice | null = await this.oracleActor.get_price(assetId);
+
+      if (!priceOpt) {
+        throw new Error(`No price available for ${assetId} from oracle`);
       }
 
-      const price = parseFloat(ticker.lastPrice);
-      this.logger.log(`Fetched ${asset.asset_id} price: $${price} (${asset.trading_pair})`);
+      const priceUsd = Number(priceOpt.value) / 100_000_000;
 
-      return price;
+      this.logger.log(`Fetched ${assetId} price from oracle: $${priceUsd.toFixed(2)}`);
+
+      return priceUsd;
     } catch (error) {
-      this.logger.error(`Failed to fetch price for ${asset.asset_id}: ${error.message}`);
+      this.logger.error(`Failed to fetch price for ${assetId} from oracle: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private async fetchPricesFromOracle(assetIds: string[]): Promise<Map<string, number>> {
+    try {
+      const priceOpts: (OraclePrice | null)[] = await this.oracleActor.get_prices(assetIds);
+
+      const pricesMap = new Map<string, number>();
+
+      for (let i = 0; i < assetIds.length; i++) {
+        const assetId = assetIds[i];
+        const priceOpt = priceOpts[i];
+
+        if (priceOpt) {
+          const priceUsd = Number(priceOpt.value) / 100_000_000;
+          pricesMap.set(assetId, priceUsd);
+        } else {
+          this.logger.warn(`No price available for ${assetId} from oracle`);
+        }
+      }
+
+      this.logger.log(`Batch fetched ${pricesMap.size}/${assetIds.length} prices from oracle`);
+
+      return pricesMap;
+    } catch (error) {
+      this.logger.error(`Failed to batch fetch prices from oracle: ${error.message}`);
       throw error;
     }
   }
@@ -106,19 +150,17 @@ export class PricingService {
   async calculateQuote(
     assetId: string,
     usdAmount: number,
+    decimals: number = 8,
   ): Promise<{ amount: number; price: number; total_usd: number }> {
-    const price = await this.getPrice(assetId);
-    const assetConfig = this.config.assets.find(a => a.asset_id === assetId);
+    const oraclePrice = await this.getPrice(assetId);
 
-    if (!assetConfig) {
-      throw new Error(`Asset ${assetId} not found`);
-    }
-
-    const spreadMultiplier = 1 + (this.config.pricing_settings.spread_bps / 10000);
-    const effectivePrice = price * spreadMultiplier;
+    const spreadMultiplier = 1 + (RESOLVER_SPREAD_BPS / 10000);
+    const effectivePrice = oraclePrice * spreadMultiplier;
 
     const rawAmount = usdAmount / effectivePrice;
-    const amount = Math.floor(rawAmount * Math.pow(10, assetConfig.decimals));
+    const amount = Math.floor(rawAmount * Math.pow(10, decimals));
+
+    this.logger.log(`Quote for ${assetId}: ${usdAmount} USD = ${amount} tokens (price: $${effectivePrice.toFixed(4)})`);
 
     return {
       amount,
@@ -128,10 +170,10 @@ export class PricingService {
   }
 
   getSpreadBps(): number {
-    return this.config.pricing_settings.spread_bps;
+    return RESOLVER_SPREAD_BPS;
   }
 
   getMinProfitBps(): number {
-    return this.config.pricing_settings.min_profit_bps;
+    return 10;
   }
 }

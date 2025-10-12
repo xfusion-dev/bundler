@@ -136,12 +136,18 @@ pub async fn simulate_proportional_withdrawal(
     let mut estimated_usd_value = 0u64;
     let mut asset_breakdown = Vec::new();
 
+    let asset_ids: Vec<String> = withdrawals.iter().map(|w| w.asset_id.clone()).collect();
+    let prices = crate::oracle::get_multiple_prices(&asset_ids).await?;
+    let price_map: std::collections::HashMap<String, crate::types::AssetPrice> = prices
+        .into_iter()
+        .map(|p| (p.asset_id.clone(), p))
+        .collect();
+
     for withdrawal in &withdrawals {
-        // Get current price for this asset
-        if let Ok(asset_price) = crate::oracle::get_latest_price(&withdrawal.asset_id).await {
+        if let Some(asset_price) = price_map.get(&withdrawal.asset_id) {
             let usd_value = withdrawal.amount
                 .checked_mul(asset_price.price_usd)
-                .and_then(|v| v.checked_div(100_000_000)) // Assuming 8 decimal places
+                .and_then(|v| v.checked_div(100_000_000))
                 .unwrap_or(0);
 
             estimated_usd_value += usd_value;
@@ -196,9 +202,15 @@ pub async fn calculate_bundle_drift_from_holdings(bundle_id: u64) -> Result<Vec<
     let mut total_holding_value = 0u64;
     let mut holding_values = Vec::new();
 
-    // Calculate current USD value of all holdings
+    let asset_ids: Vec<String> = holdings.iter().map(|h| h.asset_id.clone()).collect();
+    let prices = crate::oracle::get_multiple_prices(&asset_ids).await?;
+    let price_map: std::collections::HashMap<String, crate::types::AssetPrice> = prices
+        .into_iter()
+        .map(|p| (p.asset_id.clone(), p))
+        .collect();
+
     for holding in &holdings {
-        if let Ok(asset_price) = crate::oracle::get_latest_price(&holding.asset_id).await {
+        if let Some(asset_price) = price_map.get(&holding.asset_id) {
             let usd_value = holding.amount
                 .checked_mul(asset_price.price_usd)
                 .and_then(|v| v.checked_div(100_000_000))
