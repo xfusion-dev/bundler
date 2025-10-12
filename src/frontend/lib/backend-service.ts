@@ -166,6 +166,22 @@ class BackendService {
     }
   }
 
+  async getUserPortfolio() {
+    try {
+      const actor = await this.getActor();
+      const principal = await authService.getPrincipal();
+      if (!principal) {
+        throw new Error('Not authenticated');
+      }
+
+      const portfolio = await actor.get_user_portfolio(principal);
+      return portfolio;
+    } catch (e) {
+      console.error('getUserPortfolio failed:', e);
+      throw e;
+    }
+  }
+
   async createBundle(name: string, symbol: string, description: string | null, allocations: { asset_id: string; percentage: number }[]) {
     try {
       const actor = await this.getActor();

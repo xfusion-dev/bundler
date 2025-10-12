@@ -84,6 +84,7 @@ pub async fn get_bundles_list() -> Vec<BundleListItem> {
             holders: holders as u64,
             created_at: bundle.created_at,
             is_active: bundle.is_active,
+            token_location: bundle.token_location,
         });
     }
 

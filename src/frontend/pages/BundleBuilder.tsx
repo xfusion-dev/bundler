@@ -872,14 +872,14 @@ export default function BundleBuilder() {
                           <div>
                             <div className="text-gray-400 text-sm mb-1">For</div>
                             <div className="text-white text-xl font-bold">
-                              ${(currentQuote.ckusdc_amount / 1e8).toLocaleString()} USDC
+                              ${(currentQuote.ckusdc_amount / 1e6).toLocaleString()} USDC
                             </div>
                           </div>
 
                           <div className="border-t border-white/10 pt-4">
                             <div className="text-gray-400 text-sm mb-2">Initial Price per NAV Token</div>
                             <div className="text-white text-2xl font-bold">
-                              ${((currentQuote.ckusdc_amount / currentQuote.nav_tokens)).toFixed(4)}
+                              ${((currentQuote.ckusdc_amount / 1e6) / (currentQuote.nav_tokens / 1e8)).toFixed(4)}
                             </div>
                           </div>
                         </div>

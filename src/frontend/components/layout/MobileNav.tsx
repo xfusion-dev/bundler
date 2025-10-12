@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Package, Briefcase, DollarSign } from 'lucide-react';
+import { Home, Package, Briefcase, Trophy } from 'lucide-react';
 
 export default function MobileNav() {
   const location = useLocation();
@@ -7,7 +7,7 @@ export default function MobileNav() {
   const navItems = [
     { path: '/', icon: Home, label: 'Home' },
     { path: '/bundles', icon: Package, label: 'Bundles' },
-    { path: '/lending', icon: DollarSign, label: 'Lending' },
+    { path: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
     { path: '/portfolio', icon: Briefcase, label: 'Portfolio' },
   ];
 

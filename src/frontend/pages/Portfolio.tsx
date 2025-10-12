@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowDownLeft, ArrowUpRight, ArrowRight } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ArrowRight, Coins, DollarSign } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
 import { icrc2Service } from '../lib/icrc2-service';
+import { icrc151Service } from '../lib/icrc151-service';
+import { authService } from '../lib/auth';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PortfolioSkeleton, Skeleton } from '../components/ui/Skeleton';
 import toast from 'react-hot-toast';
 
 interface Holding {
@@ -14,46 +17,9 @@ interface Holding {
   navTokens: number;
   navPrice: number;
   totalValue: number;
-  allocations: { symbol: string; percentage: number }[];
+  allocations: { symbol: string; percentage: number; logo?: string }[];
 }
 
-const MOCK_HOLDINGS: Holding[] = [
-  {
-    bundleId: 1,
-    bundleName: 'DeFi Leaders',
-    navTokens: 150.5,
-    navPrice: 45.32,
-    totalValue: 6820.66,
-    allocations: [
-      { symbol: 'ckBTC', percentage: 40 },
-      { symbol: 'ckETH', percentage: 35 },
-      { symbol: 'ckUSDC', percentage: 25 }
-    ]
-  },
-  {
-    bundleId: 2,
-    bundleName: 'Stable Growth',
-    navTokens: 500.0,
-    navPrice: 12.15,
-    totalValue: 6075.00,
-    allocations: [
-      { symbol: 'ckUSDC', percentage: 50 },
-      { symbol: 'ckBTC', percentage: 30 },
-      { symbol: 'Gold', percentage: 20 }
-    ]
-  },
-  {
-    bundleId: 3,
-    bundleName: 'High Risk High Reward',
-    navTokens: 75.25,
-    navPrice: 67.89,
-    totalValue: 5108.73,
-    allocations: [
-      { symbol: 'ckETH', percentage: 60 },
-      { symbol: 'ckBTC', percentage: 40 }
-    ]
-  }
-];
 
 
 export default function Portfolio() {
@@ -64,6 +30,8 @@ export default function Portfolio() {
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [amount, setAmount] = useState('');
+  const [loadingPortfolio, setLoadingPortfolio] = useState(false);
+  const [hoveredToken, setHoveredToken] = useState<{ holdingId: number; tokenIdx: number } | null>(null);
   const { isAuthenticated, login, loading } = useAuth();
 
   const aggregateAllocation = useMemo(() => {
@@ -93,17 +61,96 @@ export default function Portfolio() {
 
   const loadPortfolioData = async () => {
     try {
+      setLoadingPortfolio(true);
       const balance = await icrc2Service.getBalance();
       const formattedBalance = (Number(balance) / 1000000).toFixed(2);
       setUsdcBalance(formattedBalance);
 
-      setHoldings(MOCK_HOLDINGS);
-      const total = MOCK_HOLDINGS.reduce((sum, h) => sum + h.totalValue, 0);
+      const principal = await authService.getPrincipal();
+      if (!principal) {
+        setHoldings([]);
+        setTotalPortfolioValue(0);
+        setLoadingPortfolio(false);
+        return;
+      }
+
+      const tokenBalances = await icrc151Service.getBalancesFor(principal);
+
+      if (!tokenBalances || tokenBalances.length === 0) {
+        setHoldings([]);
+        setTotalPortfolioValue(0);
+        setLoadingPortfolio(false);
+        return;
+      }
+
+      const [allBundles, allAssets] = await Promise.all([
+        backendService.getBundlesList(),
+        backendService.listAssets()
+      ]);
+
+      const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
+
+      const tokenIdToBundleMap = new Map();
+      allBundles.forEach((bundle: any) => {
+        if (bundle.token_location && 'ICRC151' in bundle.token_location) {
+          const tokenIdHex = Array.from(bundle.token_location.ICRC151.token_id)
+            .map((b: number) => b.toString(16).padStart(2, '0'))
+            .join('');
+          tokenIdToBundleMap.set(tokenIdHex, bundle);
+        }
+      });
+
+      const holdingsPromises = tokenBalances.map(async (tokenBalance: any) => {
+        try {
+          const tokenIdHex = Array.from(tokenBalance.token_id)
+            .map((b: number) => b.toString(16).padStart(2, '0'))
+            .join('');
+
+          const bundle = tokenIdToBundleMap.get(tokenIdHex);
+          if (!bundle) {
+            console.warn('Bundle not found for token_id:', tokenIdHex);
+            return null;
+          }
+
+          const bundleId = Number(bundle.id);
+          const navData = await backendService.calculateBundleNav(bundleId);
+
+          const navTokens = Number(tokenBalance.balance) / 1e8;
+          const navPrice = Number(navData.nav_per_token) / 1e8;
+          const totalValue = navTokens * navPrice;
+
+          return {
+            bundleId,
+            bundleName: bundle.name,
+            navTokens,
+            navPrice,
+            totalValue,
+            allocations: bundle.allocations.map((a: any) => {
+              const assetDetails = assetMap.get(a.asset_id);
+              return {
+                symbol: a.asset_id,
+                percentage: a.percentage,
+                logo: assetDetails?.metadata?.logo_url || ''
+              };
+            })
+          };
+        } catch (error) {
+          console.error(`Failed to load bundle data:`, error);
+          return null;
+        }
+      });
+
+      const loadedHoldings = (await Promise.all(holdingsPromises)).filter((h): h is Holding => h !== null);
+      setHoldings(loadedHoldings);
+
+      const total = loadedHoldings.reduce((sum, h) => sum + h.totalValue, 0);
       setTotalPortfolioValue(total);
     } catch (error) {
       console.error('Failed to fetch portfolio data:', error);
       setHoldings([]);
       setTotalPortfolioValue(0);
+    } finally {
+      setLoadingPortfolio(false);
     }
   };
 
@@ -221,19 +268,37 @@ export default function Portfolio() {
                   <div className="text-gray-400 text-sm font-mono uppercase tracking-wide">Bundle Portfolio</div>
                   <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                 </div>
-                <div className="text-white text-4xl md:text-5xl font-bold tracking-tight mb-6">
-                  ${totalPortfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/10">
-                  <div>
-                    <div className="text-gray-500 text-xs font-mono uppercase mb-1">Bundles</div>
-                    <div className="text-white text-xl font-bold">{holdings.length}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500 text-xs font-mono uppercase mb-1">24h Change</div>
-                    <div className="text-green-400 text-xl font-bold">+8.4%</div>
-                  </div>
-                </div>
+                {loadingPortfolio ? (
+                  <>
+                    <Skeleton className="h-12 w-48 mb-6" />
+                    <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/10">
+                      <div>
+                        <div className="text-gray-500 text-xs font-mono uppercase mb-1">Bundles</div>
+                        <Skeleton className="h-7 w-12" />
+                      </div>
+                      <div>
+                        <div className="text-gray-500 text-xs font-mono uppercase mb-1">24h Change</div>
+                        <Skeleton className="h-7 w-16" />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-white text-4xl md:text-5xl font-bold tracking-tight mb-6">
+                      ${totalPortfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/10">
+                      <div>
+                        <div className="text-gray-500 text-xs font-mono uppercase mb-1">Bundles</div>
+                        <div className="text-white text-xl font-bold">{holdings.length}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500 text-xs font-mono uppercase mb-1">24h Change</div>
+                        <div className="text-gray-400 text-xl font-bold">0.0%</div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.03] p-6 md:p-8">
@@ -356,7 +421,9 @@ export default function Portfolio() {
           <div>
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-6 md:mb-8">Holdings</h2>
 
-            {holdings.length === 0 ? (
+            {loadingPortfolio ? (
+              <PortfolioSkeleton />
+            ) : holdings.length === 0 ? (
               <div className="border border-white/10 bg-white/5 p-16 text-center">
                 <div className="text-6xl mb-6">📦</div>
                 <h3 className="text-white text-2xl font-bold mb-3">No Holdings Yet</h3>
@@ -384,14 +451,35 @@ export default function Portfolio() {
                             </h3>
                             <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors flex-shrink-0" />
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {holding.allocations.map((allocation) => (
-                              <span
+                          <div className="flex items-center -space-x-2 relative overflow-visible">
+                            {holding.allocations.map((allocation, idx) => (
+                              <div
                                 key={allocation.symbol}
-                                className="px-3 py-1 bg-white/10 border border-white/20 text-white text-xs font-mono"
+                                className="relative"
+                                style={{ zIndex: holding.allocations.length - idx }}
+                                onMouseEnter={() => setHoveredToken({ holdingId: holding.bundleId, tokenIdx: idx })}
+                                onMouseLeave={() => setHoveredToken(null)}
                               >
-                                {allocation.symbol} {allocation.percentage}%
-                              </span>
+                                <div className="w-8 h-8 rounded-full bg-white/10 border-2 border-black flex items-center justify-center group-hover:border-white/20 transition-colors overflow-hidden cursor-pointer">
+                                  {allocation.logo ? (
+                                    <img
+                                      src={allocation.logo}
+                                      alt={allocation.symbol}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-white font-bold">
+                                      {allocation.symbol.slice(0, 2)}
+                                    </span>
+                                  )}
+                                </div>
+                                {hoveredToken?.holdingId === holding.bundleId && hoveredToken?.tokenIdx === idx && (
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black border border-white/20 whitespace-nowrap z-50 pointer-events-none">
+                                    <div className="text-white text-xs font-bold">{allocation.symbol}</div>
+                                    <div className="text-gray-400 text-[10px]">{allocation.percentage.toFixed(1)}%</div>
+                                  </div>
+                                )}
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -412,8 +500,8 @@ export default function Portfolio() {
                             <div className="text-white text-lg md:text-xl font-bold">
                               ${holding.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
-                            <div className="text-green-400 text-xs md:text-sm mt-1">
-                              +{(Math.random() * 15 + 5).toFixed(2)}%
+                            <div className="text-gray-400 text-xs md:text-sm mt-1">
+                              0.0%
                             </div>
                           </div>
                         </div>

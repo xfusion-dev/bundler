@@ -297,6 +297,7 @@ pub struct BundleListItem {
     pub holders: u64,
     pub created_at: u64,
     pub is_active: bool,
+    pub token_location: TokenLocation,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]

@@ -50,6 +50,27 @@ export class PricingService {
     });
 
     this.logger.log('Pricing service initialized with oracle canister');
+    this.testOracleConnection();
+  }
+
+  private async testOracleConnection() {
+    try {
+      this.logger.log('Testing oracle connection...');
+      const btcPriceArray = await this.oracleActor.get_price('BTC');
+      const xautPriceArray = await this.oracleActor.get_price('XAUT');
+
+      if (btcPriceArray && btcPriceArray.length > 0) {
+        const btcPrice = Number(btcPriceArray[0].value) / 100_000_000;
+        this.logger.log(`Oracle test - BTC: $${btcPrice.toFixed(2)}`);
+      }
+
+      if (xautPriceArray && xautPriceArray.length > 0) {
+        const xautPrice = Number(xautPriceArray[0].value) / 100_000_000;
+        this.logger.log(`Oracle test - XAUT: $${xautPrice.toFixed(2)}`);
+      }
+    } catch (error) {
+      this.logger.error(`Oracle connection test failed: ${error.message}`);
+    }
   }
 
   async getPrice(assetId: string): Promise<number> {
@@ -103,13 +124,20 @@ export class PricingService {
 
   private async fetchPriceFromOracle(assetId: string): Promise<number> {
     try {
-      const priceOpt: OraclePrice | null = await this.oracleActor.get_price(assetId);
+      const priceOptArray: OraclePrice[] = await this.oracleActor.get_price(assetId);
 
-      if (!priceOpt) {
+      if (!priceOptArray || priceOptArray.length === 0) {
         throw new Error(`No price available for ${assetId} from oracle`);
       }
 
-      const priceUsd = Number(priceOpt.value) / 100_000_000;
+      const priceOpt = priceOptArray[0];
+
+      if (!priceOpt || priceOpt.value === undefined || priceOpt.value === null) {
+        throw new Error(`No price available for ${assetId} from oracle`);
+      }
+
+      const priceE8s = BigInt(priceOpt.value);
+      const priceUsd = Number(priceE8s) / 100_000_000;
 
       this.logger.log(`Fetched ${assetId} price from oracle: $${priceUsd.toFixed(2)}`);
 
@@ -122,17 +150,23 @@ export class PricingService {
 
   private async fetchPricesFromOracle(assetIds: string[]): Promise<Map<string, number>> {
     try {
-      const priceOpts: (OraclePrice | null)[] = await this.oracleActor.get_prices(assetIds);
+      const priceOptArrays: OraclePrice[][] = await this.oracleActor.get_prices(assetIds);
 
       const pricesMap = new Map<string, number>();
 
       for (let i = 0; i < assetIds.length; i++) {
         const assetId = assetIds[i];
-        const priceOpt = priceOpts[i];
+        const priceOptArray = priceOptArrays[i];
 
-        if (priceOpt) {
-          const priceUsd = Number(priceOpt.value) / 100_000_000;
-          pricesMap.set(assetId, priceUsd);
+        if (priceOptArray && priceOptArray.length > 0) {
+          const priceOpt = priceOptArray[0];
+          if (priceOpt && priceOpt.value !== undefined && priceOpt.value !== null) {
+            const priceE8s = BigInt(priceOpt.value);
+            const priceUsd = Number(priceE8s) / 100_000_000;
+            pricesMap.set(assetId, priceUsd);
+          } else {
+            this.logger.warn(`No price available for ${assetId} from oracle`);
+          }
         } else {
           this.logger.warn(`No price available for ${assetId} from oracle`);
         }

@@ -64,8 +64,7 @@ export default function Header({ showHero = false, onWalletClick }: HeaderProps)
             <div className="nav-menu hidden md:flex">
               <Link to="/bundles">Discover Bundles</Link>
               <Link to="/build">Create Bundle</Link>
-              <Link to="/lending/supply">Lend</Link>
-              <Link to="/lending/borrow">Borrow</Link>
+              <Link to="/leaderboard">Leaderboard</Link>
               {isAuthenticated && (
                 <Link to="/portfolio">Portfolio</Link>
               )}
