@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowDownLeft, ArrowUpRight, ArrowRight, Coins, DollarSign } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ArrowRight, Coins, DollarSign, X } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { backendService } from '../lib/backend-service';
 import { icrc2Service } from '../lib/icrc2-service';
@@ -9,11 +9,13 @@ import { icrc151Service } from '../lib/icrc151-service';
 import { authService } from '../lib/auth';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { PortfolioSkeleton, Skeleton } from '../components/ui/Skeleton';
+import DepositModal from '../components/ui/DepositModal';
 import toast from 'react-hot-toast';
 
 interface Holding {
   bundleId: number;
   bundleName: string;
+  tokenSymbol: string;
   navTokens: number;
   navPrice: number;
   totalValue: number;
@@ -30,6 +32,9 @@ export default function Portfolio() {
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [amount, setAmount] = useState('');
+  const [recipientPrincipal, setRecipientPrincipal] = useState('');
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [principalError, setPrincipalError] = useState('');
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
   const [hoveredToken, setHoveredToken] = useState<{ holdingId: number; tokenIdx: number } | null>(null);
   const { isAuthenticated, login, loading } = useAuth();
@@ -119,9 +124,10 @@ export default function Portfolio() {
           const navPrice = Number(navData.nav_per_token) / 1e8;
           const totalValue = navTokens * navPrice;
 
-          return {
+          const holding = {
             bundleId,
             bundleName: bundle.name,
+            tokenSymbol: bundle.symbol || 'NAV',
             navTokens,
             navPrice,
             totalValue,
@@ -134,6 +140,8 @@ export default function Portfolio() {
               };
             })
           };
+
+          return holding;
         } catch (error) {
           console.error(`Failed to load bundle data:`, error);
           return null;
@@ -154,23 +162,6 @@ export default function Portfolio() {
     }
   };
 
-  const handleDeposit = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
-      toast.error('Please enter a valid amount');
-      return;
-    }
-
-    try {
-      toast.success(`Depositing ${amount} USDC...`);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      toast.success('Deposit successful!');
-      setAmount('');
-      setShowDepositModal(false);
-      await loadPortfolioData();
-    } catch (error) {
-      toast.error('Deposit failed');
-    }
-  };
 
   const handleWithdraw = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -178,20 +169,49 @@ export default function Portfolio() {
       return;
     }
 
-    if (parseFloat(amount) > parseFloat(usdcBalance)) {
-      toast.error('Insufficient balance');
+    if (!recipientPrincipal.trim()) {
+      setPrincipalError('Please enter a recipient principal');
+      return;
+    }
+
+    if (!icrc2Service.validatePrincipal(recipientPrincipal)) {
+      setPrincipalError('Invalid principal format');
+      return;
+    }
+
+    const TRANSFER_FEE = 0.01;
+    const withdrawAmount = parseFloat(amount);
+    const totalNeeded = withdrawAmount + TRANSFER_FEE;
+
+    if (totalNeeded > parseFloat(usdcBalance)) {
+      toast.error(`Insufficient balance. You need ${totalNeeded.toFixed(2)} USDC (including ${TRANSFER_FEE} USDC fee)`);
       return;
     }
 
     try {
-      toast.success(`Withdrawing ${amount} USDC...`);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      setWithdrawing(true);
+      toast.loading('Processing withdrawal...');
+
+      const amountInE6s = BigInt(Math.floor(withdrawAmount * 1000000));
+
+      await icrc2Service.transfer(recipientPrincipal, amountInE6s);
+
+      toast.dismiss();
       toast.success('Withdrawal successful!');
+
       setAmount('');
+      setRecipientPrincipal('');
+      setPrincipalError('');
       setShowWithdrawModal(false);
+
       await loadPortfolioData();
     } catch (error) {
-      toast.error('Withdrawal failed');
+      toast.dismiss();
+      console.error('Withdrawal failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Withdrawal failed';
+      toast.error(errorMessage);
+    } finally {
+      setWithdrawing(false);
     }
   };
 
@@ -488,7 +508,7 @@ export default function Portfolio() {
                           <div>
                             <div className="text-gray-500 text-xs font-mono uppercase mb-2">Balance</div>
                             <div className="text-white text-lg md:text-xl font-bold">
-                              {holding.navTokens.toLocaleString()} NAV
+                              {holding.navTokens.toLocaleString()} {holding.tokenSymbol}
                             </div>
                             <div className="text-gray-500 text-xs md:text-sm mt-1">
                               @ ${holding.navPrice.toFixed(4)}
@@ -515,61 +535,10 @@ export default function Portfolio() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {showDepositModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowDepositModal(false)}
-            className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-black border border-white/10 w-full max-w-md p-6"
-            >
-              <h3 className="text-2xl font-bold text-white mb-4">Deposit USDC</h3>
-              <p className="text-gray-400 text-sm mb-6">
-                Transfer USDC from your wallet to your XFusion balance
-              </p>
-
-              <div className="mb-6">
-                <label className="text-gray-400 text-sm mb-2 block">Amount</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-white/5 border border-white/10 px-4 py-3 text-white text-xl focus:border-white/30 focus:outline-none"
-                  />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    USDC
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDepositModal(false)}
-                  className="flex-1 btn-outline-unique py-3"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeposit}
-                  className="flex-1 btn-unique py-3"
-                >
-                  Deposit
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <DepositModal
+        isOpen={showDepositModal}
+        onClose={() => setShowDepositModal(false)}
+      />
 
       <AnimatePresence>
         {showWithdrawModal && (
@@ -577,7 +546,7 @@ export default function Portfolio() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setShowWithdrawModal(false)}
+            onClick={() => !withdrawing && setShowWithdrawModal(false)}
             className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
           >
             <motion.div
@@ -585,52 +554,139 @@ export default function Portfolio() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-black border border-white/10 w-full max-w-md p-6"
+              className="bg-black border border-white/10 w-full max-w-lg"
             >
-              <h3 className="text-2xl font-bold text-white mb-4">Withdraw USDC</h3>
-              <p className="text-gray-400 text-sm mb-2">
-                Transfer USDC from your XFusion balance to your wallet
-              </p>
-              <p className="text-gray-500 text-xs mb-6">
-                Available: ${usdcBalance}
-              </p>
+              <div className="flex items-center justify-between p-6 border-b border-white/10">
+                <h2 className="text-2xl font-bold text-white">Withdraw USDC</h2>
+                <button
+                  onClick={() => {
+                    if (!withdrawing) {
+                      setShowWithdrawModal(false);
+                      setAmount('');
+                      setRecipientPrincipal('');
+                      setPrincipalError('');
+                    }
+                  }}
+                  disabled={withdrawing}
+                  className="w-8 h-8 border border-white/20 hover:bg-white/10 flex items-center justify-center transition-colors disabled:opacity-50"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+
+              <div className="p-6">
+                <p className="text-gray-400 text-sm mb-2">
+                  Transfer ckUSDC to another principal on the Internet Computer
+                </p>
+                <p className="text-gray-500 text-xs mb-6">
+                  Available: ${usdcBalance}
+                </p>
+
+              <div className="mb-4">
+                <label className="text-gray-400 text-sm mb-2 block">Recipient Principal</label>
+                <input
+                  type="text"
+                  value={recipientPrincipal}
+                  onChange={(e) => {
+                    setRecipientPrincipal(e.target.value);
+                    setPrincipalError('');
+                  }}
+                  placeholder="xxxxx-xxxxx-xxxxx-xxxxx-xxx"
+                  disabled={withdrawing}
+                  className="w-full bg-white/5 border border-white/10 px-4 py-3 text-white text-sm font-mono focus:border-white/30 focus:outline-none disabled:opacity-50"
+                />
+                {principalError && (
+                  <p className="text-red-400 text-xs mt-1">{principalError}</p>
+                )}
+              </div>
 
               <div className="mb-6">
-                <label className="text-gray-400 text-sm mb-2 block">Amount</label>
+                <label className="text-gray-400 text-sm mb-2 block">Amount (USDC)</label>
                 <div className="relative">
                   <input
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    max={usdcBalance}
-                    className="w-full bg-white/5 border border-white/10 px-4 py-3 text-white text-xl focus:border-white/30 focus:outline-none"
+                    disabled={withdrawing}
+                    className="w-full bg-white/5 border border-white/10 px-4 py-3 text-white text-xl focus:border-white/30 focus:outline-none disabled:opacity-50"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
                     USDC
                   </div>
                 </div>
                 <button
-                  onClick={() => setAmount(usdcBalance)}
-                  className="text-gray-400 hover:text-white text-xs mt-2 transition-colors"
+                  onClick={() => {
+                    const maxAmount = Math.max(0, parseFloat(usdcBalance) - 0.01);
+                    setAmount(maxAmount.toFixed(2));
+                  }}
+                  disabled={withdrawing}
+                  className="text-gray-400 hover:text-white text-xs mt-2 transition-colors disabled:opacity-50"
                 >
-                  Max: ${usdcBalance}
+                  Max: ${(parseFloat(usdcBalance) - 0.01).toFixed(2)} (after fee)
                 </button>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowWithdrawModal(false)}
-                  className="flex-1 btn-outline-unique py-3"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleWithdraw}
-                  className="flex-1 btn-unique py-3"
-                >
-                  Withdraw
-                </button>
+              {amount && parseFloat(amount) > 0 && (
+                <>
+                  <div className="bg-white/5 border border-white/10 p-4 mb-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Amount</span>
+                      <span className="text-white">${parseFloat(amount).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Transfer Fee</span>
+                      <span className="text-white">$0.01</span>
+                    </div>
+                    <div className="border-t border-white/10 pt-2 flex justify-between text-sm">
+                      <span className="text-gray-400 font-bold">Total</span>
+                      <span className="text-white font-bold">${(parseFloat(amount) + 0.01).toFixed(2)}</span>
+                    </div>
+                    <div className="border-t border-white/10 pt-2 flex justify-between text-sm">
+                      <span className="text-gray-400">You will receive</span>
+                      <span className="text-green-400 font-bold">${parseFloat(amount).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const totalNeeded = parseFloat(amount) + 0.01;
+                    const hasInsufficientBalance = totalNeeded > parseFloat(usdcBalance);
+
+                    if (hasInsufficientBalance) {
+                      return (
+                        <div className="bg-red-500/10 border border-red-400/20 p-4 mb-6">
+                          <p className="text-red-400 text-sm">
+                            Insufficient balance. You need ${totalNeeded.toFixed(2)} USDC but only have ${usdcBalance} USDC.
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </>
+              )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowWithdrawModal(false);
+                      setAmount('');
+                      setRecipientPrincipal('');
+                      setPrincipalError('');
+                    }}
+                    disabled={withdrawing}
+                    className="flex-1 btn-outline-unique py-3 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={withdrawing || (amount && parseFloat(amount) > 0 && (parseFloat(amount) + 0.01) > parseFloat(usdcBalance))}
+                    className="flex-1 btn-unique py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {withdrawing ? 'Processing...' : 'Withdraw'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

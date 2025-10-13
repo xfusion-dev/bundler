@@ -94,97 +94,111 @@ export default function BundleDetails() {
     return () => clearInterval(interval);
   }, [quoteExpiresAt, quoteExpired, currentQuote, fetchQuote]);
 
-  useEffect(() => {
-    const loadBundleDetails = async () => {
-      if (!id) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        const [foundBundle, allAssets, navData, holders, holdings] = await Promise.all([
-          backendService.getBundle(Number(id)),
-          backendService.listAssets(),
-          backendService.calculateBundleNav(Number(id)).catch(() => {
-            console.log('NAV calculation not available yet (no holdings)');
-            return null;
-          }),
-          backendService.getBundleHolderCount(Number(id)).catch(() => {
-            console.log('Could not fetch holder count');
-            return 0;
-          }),
-          backendService.getBundleHoldings(Number(id)).catch(() => {
-            console.error('Failed to fetch bundle holdings');
-            return [];
-          })
-        ]);
-
-        const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
-
-        setBundleNav(navData);
-        setHolderCount(holders);
-        setBundleHoldings(holdings);
-
-        const navPerToken = navData ? Number(navData.nav_per_token) / 100000000 : 1;
-
-        const assetPrices: Record<string, number> = {};
-        if (navData && navData.asset_values) {
-          navData.asset_values.forEach((assetValue: any) => {
-            if (assetValue.amount > 0) {
-              const price = Number(assetValue.value_usd) / Number(assetValue.amount);
-              assetPrices[assetValue.asset_id] = price;
-              console.log(`Oracle price for ${assetValue.asset_id}: $${price.toFixed(2)}`);
-            }
-          });
-        }
-
-        const transformedAssets = navData && navData.asset_values && navData.asset_values.length > 0
-          ? navData.asset_values.map((assetValue: any) => {
-              const assetDetails = assetMap.get(assetValue.asset_id);
-              return {
-                symbol: assetDetails?.symbol || assetValue.asset_id,
-                name: assetDetails?.name || assetValue.asset_id,
-                percentage: assetValue.percentage,
-                value: Number(assetValue.value_usd) / 100000000,
-                amount: Number(assetValue.amount) / 100000000,
-                price: assetPrices[assetValue.asset_id] || 0,
-                color: getAssetColor(assetDetails?.symbol || assetValue.asset_id),
-                logo: assetDetails?.metadata?.logo_url || '',
-                decimals: assetDetails?.decimals || 8
-              };
-            })
-          : foundBundle.allocations.map((allocation: any) => {
-              const assetDetails = assetMap.get(allocation.asset_id);
-              return {
-                symbol: assetDetails?.symbol || allocation.asset_id,
-                name: assetDetails?.name || allocation.asset_id,
-                percentage: allocation.percentage,
-                value: 0,
-                amount: 0,
-                price: 0,
-                color: getAssetColor(assetDetails?.symbol || allocation.asset_id),
-                logo: assetDetails?.metadata?.logo_url || '',
-                decimals: assetDetails?.decimals || 8
-              };
-            });
-
-        setBundle({
-          ...foundBundle,
-          calculated_price: navPerToken,
-          total_nav_usd: navData ? Number(navData.total_nav_usd) / 100000000 : 0,
-          total_tokens: navData ? Number(navData.total_tokens) / 100000000 : 0
-        });
-        setBundleAssets(transformedAssets);
-      } catch (err) {
-        console.error('Failed to load bundle details:', err);
-        setError('Failed to load bundle details');
-      } finally {
-        setLoading(false);
-      }
+  const getAssetColor = useCallback((symbol: string) => {
+    const tokenColors: Record<string, string> = {
+      'BTC': '#f7931a',
+      'ckBTC': '#f7931a',
+      'ETH': '#627eea',
+      'ckETH': '#627eea',
+      'USDC': '#2775ca',
+      'ckUSDC': '#2775ca',
+      'ICP': '#29abe2',
+      'GOLD': '#ffd700',
     };
+    return tokenColors[symbol] || '#6366f1';
+  }, []);
 
+  const loadBundleDetails = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [foundBundle, allAssets, navData, holders, holdings] = await Promise.all([
+        backendService.getBundle(Number(id)),
+        backendService.listAssets(),
+        backendService.calculateBundleNav(Number(id)).catch(() => {
+          console.log('NAV calculation not available yet (no holdings)');
+          return null;
+        }),
+        backendService.getBundleHolderCount(Number(id)).catch(() => {
+          console.log('Could not fetch holder count');
+          return 0;
+        }),
+        backendService.getBundleHoldings(Number(id)).catch(() => {
+          console.error('Failed to fetch bundle holdings');
+          return [];
+        })
+      ]);
+
+      const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
+
+      setBundleNav(navData);
+      setHolderCount(holders);
+      setBundleHoldings(holdings);
+
+      const navPerToken = navData ? Number(navData.nav_per_token) / 100000000 : 1;
+
+      const assetPrices: Record<string, number> = {};
+      if (navData && navData.asset_values) {
+        navData.asset_values.forEach((assetValue: any) => {
+          if (assetValue.amount > 0) {
+            const price = Number(assetValue.value_usd) / Number(assetValue.amount);
+            assetPrices[assetValue.asset_id] = price;
+            console.log(`Oracle price for ${assetValue.asset_id}: $${price.toFixed(2)}`);
+          }
+        });
+      }
+
+      const transformedAssets = navData && navData.asset_values && navData.asset_values.length > 0
+        ? navData.asset_values.map((assetValue: any) => {
+            const assetDetails = assetMap.get(assetValue.asset_id);
+            return {
+              symbol: assetDetails?.symbol || assetValue.asset_id,
+              name: assetDetails?.name || assetValue.asset_id,
+              percentage: assetValue.percentage,
+              value: Number(assetValue.value_usd) / 100000000,
+              amount: Number(assetValue.amount) / 100000000,
+              price: assetPrices[assetValue.asset_id] || 0,
+              color: getAssetColor(assetDetails?.symbol || assetValue.asset_id),
+              logo: assetDetails?.metadata?.logo_url || '',
+              decimals: assetDetails?.decimals || 8
+            };
+          })
+        : foundBundle.allocations.map((allocation: any) => {
+            const assetDetails = assetMap.get(allocation.asset_id);
+            return {
+              symbol: assetDetails?.symbol || allocation.asset_id,
+              name: assetDetails?.name || allocation.asset_id,
+              percentage: allocation.percentage,
+              value: 0,
+              amount: 0,
+              price: 0,
+              color: getAssetColor(assetDetails?.symbol || allocation.asset_id),
+              logo: assetDetails?.metadata?.logo_url || '',
+              decimals: assetDetails?.decimals || 8
+            };
+          });
+
+      setBundle({
+        ...foundBundle,
+        calculated_price: navPerToken,
+        total_nav_usd: navData ? Number(navData.total_nav_usd) / 100000000 : 0,
+        total_tokens: navData ? Number(navData.total_tokens) / 100000000 : 0
+      });
+      setBundleAssets(transformedAssets);
+    } catch (err) {
+      console.error('Failed to load bundle details:', err);
+      setError('Failed to load bundle details');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, getAssetColor]);
+
+  useEffect(() => {
     void loadBundleDetails();
-  }, [id]);
+  }, [loadBundleDetails]);
 
   // Load user's ckUSDC balance when authenticated
   useEffect(() => {
@@ -273,20 +287,6 @@ export default function BundleDetails() {
     return () => clearTimeout(timeoutId);
   }, [tradeAmount, tradeTab, isAuthenticated, id, fetchQuote]);
 
-  const getAssetColor = useCallback((symbol: string) => {
-    const tokenColors: Record<string, string> = {
-      'BTC': '#f7931a',
-      'ckBTC': '#f7931a',
-      'ETH': '#627eea',
-      'ckETH': '#627eea',
-      'USDC': '#2775ca',
-      'ckUSDC': '#2775ca',
-      'ICP': '#29abe2',
-      'GOLD': '#ffd700',
-    };
-    return tokenColors[symbol] || '#6366f1';
-  }, []);
-
   const priceHistory = useMemo(() => {
     if (!bundle) return [];
     const basePrice = bundle.calculated_price || 1.00;
@@ -359,6 +359,16 @@ export default function BundleDetails() {
       return;
     }
 
+    // Save the current quote before clearing the form
+    const quoteToExecute = currentQuote;
+
+    // Clear the form immediately to prevent quote refreshing in background
+    setTradeAmount('');
+    setCurrentQuote(null);
+    setQuoteExpiresAt(0);
+    setQuoteExpired(false);
+    setTimeRemaining(0);
+
     setIsTrading(true);
     setIsTradeModalOpen(true);
     setTradeStep(1);
@@ -367,7 +377,7 @@ export default function BundleDetails() {
       if (tradeTab === 'buy') {
         setTradeStatus('Approving USDC spending...');
 
-        const usdcAmount = BigInt(currentQuote.ckusdc_amount);
+        const usdcAmount = BigInt(quoteToExecute.ckusdc_amount);
         console.log('Required USDC amount:', usdcAmount.toString());
 
         const currentAllowance = await icrc2Service.checkBackendAllowance();
@@ -402,7 +412,7 @@ export default function BundleDetails() {
       setTradeStep(2);
       setTradeStatus('Executing trade...');
 
-      const assignmentId = await backendService.executeQuote(currentQuote);
+      const assignmentId = await backendService.executeQuote(quoteToExecute);
 
       setTradeStep(3);
       console.log(`Sending assignment ${assignmentId} to coordinator for execution...`);
@@ -439,8 +449,11 @@ export default function BundleDetails() {
       setTradeStatus('Trade completed successfully!');
       toast.success(`Trade executed successfully!`);
 
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Reload all bundle data (asset allocation, NAV, holders, etc.)
+      console.log('Reloading bundle details after trade completion...');
+      await loadBundleDetails();
 
+      // Refresh user balances
       if (tradeTab === 'buy') {
         const newBalance = await icrc2Service.getBalance();
         setUserUsdcBalanceRaw(newBalance);
@@ -487,14 +500,11 @@ export default function BundleDetails() {
         }
       }
 
-      setTimeout(() => {
-        setTradeStatus('');
-        setTradeStep(0);
-        setCurrentQuote(null);
-        setQuoteExpiresAt(0);
-        setTradeAmount('');
-        setIsTradeModalOpen(false);
-      }, 2000);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      setTradeStatus('');
+      setTradeStep(0);
+      setIsTradeModalOpen(false);
     } catch (err) {
       console.error('Trade failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Trade failed. Please try again.';

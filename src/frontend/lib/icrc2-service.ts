@@ -48,10 +48,37 @@ const icrc2IdlFactory = ({ IDL }: any) => {
     'expires_at': IDL.Opt(IDL.Nat64),
   });
 
+  const TransferArgs = IDL.Record({
+    'from_subaccount': IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'to': Account,
+    'amount': IDL.Nat,
+    'fee': IDL.Opt(IDL.Nat),
+    'memo': IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'created_at_time': IDL.Opt(IDL.Nat64),
+  });
+
+  const TransferResult = IDL.Variant({
+    'Ok': IDL.Nat,
+    'Err': IDL.Variant({
+      'BadFee': IDL.Record({ 'expected_fee': IDL.Nat }),
+      'BadBurn': IDL.Record({ 'min_burn_amount': IDL.Nat }),
+      'InsufficientFunds': IDL.Record({ 'balance': IDL.Nat }),
+      'TooOld': IDL.Null,
+      'CreatedInFuture': IDL.Record({ 'ledger_time': IDL.Nat64 }),
+      'Duplicate': IDL.Record({ 'duplicate_of': IDL.Nat }),
+      'TemporarilyUnavailable': IDL.Null,
+      'GenericError': IDL.Record({
+        'error_code': IDL.Nat,
+        'message': IDL.Text
+      }),
+    }),
+  });
+
   return IDL.Service({
     'icrc2_approve': IDL.Func([ApproveArgs], [ApproveResult], []),
     'icrc2_allowance': IDL.Func([AllowanceArgs], [Allowance], ['query']),
     'icrc1_balance_of': IDL.Func([Account], [IDL.Nat], ['query']),
+    'icrc1_transfer': IDL.Func([TransferArgs], [TransferResult], []),
   });
 };
 
@@ -185,6 +212,61 @@ class ICRC2Service {
   // Check if backend canister has sufficient allowance
   async checkBackendAllowance(): Promise<bigint> {
     return this.checkAllowance(BACKEND_CANISTER_ID);
+  }
+
+  // Transfer ckUSDC to another principal
+  async transfer(recipientPrincipal: string, amount: bigint): Promise<bigint> {
+    try {
+      const actor = await this.getActor();
+      const userPrincipal = await authService.getPrincipal();
+
+      if (!userPrincipal) {
+        throw new Error('User not authenticated');
+      }
+
+      const recipient = Principal.fromText(recipientPrincipal);
+
+      const transferArgs = {
+        from_subaccount: [],
+        to: {
+          owner: recipient,
+          subaccount: [],
+        },
+        amount: amount,
+        fee: [BigInt(10000)],
+        memo: [],
+        created_at_time: [],
+      };
+
+      const result = await actor.icrc1_transfer(transferArgs);
+
+      if ('Ok' in result) {
+        return result.Ok;
+      } else {
+
+        if ('InsufficientFunds' in result.Err) {
+          throw new Error(`Insufficient funds. Balance: ${result.Err.InsufficientFunds.balance.toString()}`);
+        } else if ('BadFee' in result.Err) {
+          throw new Error(`Bad fee. Expected: ${result.Err.BadFee.expected_fee.toString()}`);
+        } else if ('GenericError' in result.Err) {
+          throw new Error(`Transfer failed: ${result.Err.GenericError.message}`);
+        } else {
+          throw new Error(`Transfer failed: ${JSON.stringify(result.Err)}`);
+        }
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Validate principal format
+  validatePrincipal(principalText: string): boolean {
+    try {
+      Principal.fromText(principalText);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
