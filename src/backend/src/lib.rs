@@ -291,4 +291,26 @@ fn get_recovery_statistics() -> error_recovery::RecoveryStatistics {
     error_recovery::get_recovery_statistics()
 }
 
+#[query]
+fn get_user_points(user: Option<Principal>) -> u64 {
+    let user_principal = user.unwrap_or_else(|| msg_caller());
+    memory::get_user_points(user_principal)
+}
+
+#[query]
+fn get_user_weekly_points(user: Option<Principal>, week: u64) -> u64 {
+    let user_principal = user.unwrap_or_else(|| msg_caller());
+    memory::get_user_weekly_points(user_principal, week)
+}
+
+#[query]
+fn get_leaderboard(week: Option<u64>, limit: u64) -> Vec<(Principal, u64)> {
+    memory::get_leaderboard(week, limit)
+}
+
+#[query]
+fn get_current_week() -> u64 {
+    memory::get_current_week()
+}
+
 ic_cdk::export_candid!();

@@ -17,6 +17,8 @@ pub const QUOTE_ASSIGNMENT_MEMORY_ID: MemoryId = MemoryId::new(8);
 pub const LOCKED_FUNDS_MEMORY_ID: MemoryId = MemoryId::new(9);
 pub const RESOLVER_REGISTRY_MEMORY_ID: MemoryId = MemoryId::new(10);
 pub const GLOBAL_STATE_MEMORY_ID: MemoryId = MemoryId::new(11);
+pub const POINTS_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(12);
+pub const WEEKLY_POINTS_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(13);
 pub const USED_NONCES_MEMORY_ID: MemoryId = MemoryId::new(14);
 
 thread_local! {
@@ -75,6 +77,18 @@ thread_local! {
     pub static USED_NONCES: RefCell<StableBTreeMap<u64, u64, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(USED_NONCES_MEMORY_ID))
+        )
+    );
+
+    pub static POINTS_STORAGE: RefCell<StableBTreeMap<Principal, u64, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(POINTS_STORAGE_MEMORY_ID))
+        )
+    );
+
+    pub static WEEKLY_POINTS_STORAGE: RefCell<StableBTreeMap<String, u64, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(WEEKLY_POINTS_STORAGE_MEMORY_ID))
         )
     );
 
@@ -174,4 +188,99 @@ pub fn set_quote_service_principal(principal: Principal) {
         s.quote_service_principal = Some(principal);
         state.borrow_mut().set(s).expect("Failed to set quote service principal");
     })
+}
+
+pub fn get_current_week() -> u64 {
+    let now = ic_cdk::api::time();
+    let seconds = now / 1_000_000_000;
+    const WEEK_IN_SECONDS: u64 = 7 * 24 * 60 * 60;
+    seconds / WEEK_IN_SECONDS
+}
+
+pub fn add_points(principal: Principal, points: u64) {
+    POINTS_STORAGE.with(|storage| {
+        let mut map = storage.borrow_mut();
+        let current = map.get(&principal).unwrap_or(0);
+        map.insert(principal, current + points);
+    });
+
+    let week = get_current_week();
+    let weekly_key = format!("{}_{}", week, principal.to_text());
+    WEEKLY_POINTS_STORAGE.with(|storage| {
+        let mut map = storage.borrow_mut();
+        let current = map.get(&weekly_key).unwrap_or(0);
+        map.insert(weekly_key, current + points);
+    });
+}
+
+pub fn subtract_points(principal: Principal, points: u64) {
+    POINTS_STORAGE.with(|storage| {
+        let mut map = storage.borrow_mut();
+        let current = map.get(&principal).unwrap_or(0);
+        if current >= points {
+            map.insert(principal, current - points);
+        } else {
+            map.insert(principal, 0);
+        }
+    });
+
+    let week = get_current_week();
+    let weekly_key = format!("{}_{}", week, principal.to_text());
+    WEEKLY_POINTS_STORAGE.with(|storage| {
+        let mut map = storage.borrow_mut();
+        let current = map.get(&weekly_key).unwrap_or(0);
+        if current >= points {
+            map.insert(weekly_key, current - points);
+        } else {
+            map.insert(weekly_key, 0);
+        }
+    });
+}
+
+pub fn get_user_points(principal: Principal) -> u64 {
+    POINTS_STORAGE.with(|storage| {
+        storage.borrow().get(&principal).unwrap_or(0)
+    })
+}
+
+pub fn get_user_weekly_points(principal: Principal, week: u64) -> u64 {
+    let weekly_key = format!("{}_{}", week, principal.to_text());
+    WEEKLY_POINTS_STORAGE.with(|storage| {
+        storage.borrow().get(&weekly_key).unwrap_or(0)
+    })
+}
+
+pub fn get_leaderboard(week: Option<u64>, limit: u64) -> Vec<(Principal, u64)> {
+    match week {
+        Some(w) => {
+            WEEKLY_POINTS_STORAGE.with(|storage| {
+                let map = storage.borrow();
+                let prefix = format!("{}_", w);
+                let mut entries: Vec<(Principal, u64)> = Vec::new();
+
+                for (key, points) in map.iter() {
+                    if key.starts_with(&prefix) {
+                        if let Some(principal_str) = key.strip_prefix(&prefix) {
+                            if let Ok(principal) = Principal::from_text(principal_str) {
+                                entries.push((principal, points));
+                            }
+                        }
+                    }
+                }
+
+                entries.sort_by(|a, b| b.1.cmp(&a.1));
+                entries.truncate(limit as usize);
+                entries
+            })
+        },
+        None => {
+            POINTS_STORAGE.with(|storage| {
+                let map = storage.borrow();
+                let mut entries: Vec<(Principal, u64)> = map.iter().collect();
+                entries.sort_by(|a, b| b.1.cmp(&a.1));
+                entries.truncate(limit as usize);
+                entries
+            })
+        }
+    }
 }

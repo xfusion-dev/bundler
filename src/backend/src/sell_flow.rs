@@ -122,6 +122,10 @@ pub async fn confirm_resolver_payment_and_complete_sell(request_id: u64) -> Resu
         TransactionStatus::Completed,
     )?;
 
+    let usdc_amount_e6 = assignment.ckusdc_amount;
+    let points = usdc_amount_e6 / 1_000_000;
+    crate::memory::subtract_points(transaction.user, points);
+
     Ok(())
 }
 
