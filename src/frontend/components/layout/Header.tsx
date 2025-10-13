@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, Menu, X, Wallet } from 'lucide-react';
+import { ExternalLink, Menu, X, Wallet, Trophy } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { icrc2Service } from '../../lib/icrc2-service';
+import { backend } from '../../../backend/declarations';
 import AuthModal from '../ui/AuthModal';
 import UserDropdown from '../ui/UserDropdown';
 
@@ -16,6 +17,7 @@ export default function Header({ showHero = false, onWalletClick }: HeaderProps)
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [usdcBalance, setUsdcBalance] = useState<string>('0.00');
+  const [userPoints, setUserPoints] = useState<number>(0);
   const { isAuthenticated, principal, login, logout, loading } = useAuth();
 
   useEffect(() => {
@@ -51,6 +53,27 @@ export default function Header({ showHero = false, onWalletClick }: HeaderProps)
 
     const interval = setInterval(() => {
       void loadBalance();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const loadPoints = async () => {
+      if (isAuthenticated) {
+        try {
+          const points = await backend.get_user_points([]);
+          setUserPoints(Number(points));
+        } catch (error) {
+          console.error('Failed to load user points:', error);
+        }
+      }
+    };
+
+    void loadPoints();
+
+    const interval = setInterval(() => {
+      void loadPoints();
     }, 10000);
 
     return () => clearInterval(interval);
@@ -98,6 +121,14 @@ export default function Header({ showHero = false, onWalletClick }: HeaderProps)
           <div className="nav-actions">
             {isAuthenticated && principal ? (
               <div className="flex items-center gap-3">
+                <div
+                  className="hidden md:flex items-center gap-2 px-3 py-2 border border-white/20 hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Your Points - Earn 1 point per $1 spent buying, lose 1 point per $1 selling"
+                >
+                  <Trophy className="w-4 h-4 text-yellow-400" />
+                  <span className="text-white font-mono text-sm">{userPoints.toLocaleString()}</span>
+                  <span className="text-gray-400 text-xs">pts</span>
+                </div>
                 <button
                   onClick={onWalletClick}
                   className="hidden md:flex items-center gap-2 px-3 py-2 border border-white/20 hover:bg-white/10 transition-colors"

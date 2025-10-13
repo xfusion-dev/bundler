@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Wallet, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { X, Wallet, ArrowUpRight, ArrowDownLeft, Trophy } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
@@ -7,6 +7,7 @@ import { icrc2Service } from '../../lib/icrc2-service';
 import { icrc151Service } from '../../lib/icrc151-service';
 import { backendService } from '../../lib/backend-service';
 import { authService } from '../../lib/auth';
+import { backend } from '../../../backend/declarations';
 import DepositModal from './DepositModal';
 import toast from 'react-hot-toast';
 
@@ -24,6 +25,7 @@ interface Holding {
 
 export default function WalletSidebar({ isOpen, onClose }: WalletSidebarProps) {
   const [usdcBalance, setUsdcBalance] = useState<string>('0.00');
+  const [userPoints, setUserPoints] = useState<number>(0);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
@@ -43,9 +45,8 @@ export default function WalletSidebar({ isOpen, onClose }: WalletSidebarProps) {
   }, [isOpen, isAuthenticated]);
 
   const loadWalletData = async () => {
-    // Load USDC balance first
     loadUSDCBalance();
-    // Load holdings in parallel
+    loadPoints();
     loadHoldings();
   };
 
@@ -59,6 +60,15 @@ export default function WalletSidebar({ isOpen, onClose }: WalletSidebarProps) {
       console.error('Failed to load USDC balance:', error);
     } finally {
       setLoadingBalance(false);
+    }
+  };
+
+  const loadPoints = async () => {
+    try {
+      const points = await backend.get_user_points([]);
+      setUserPoints(Number(points));
+    } catch (error) {
+      console.error('Failed to load user points:', error);
     }
   };
 
@@ -258,6 +268,26 @@ export default function WalletSidebar({ isOpen, onClose }: WalletSidebarProps) {
                       Withdraw
                     </button>
                   </div>
+                </div>
+
+                <div className="border border-white/10 bg-gradient-to-br from-yellow-500/10 to-orange-500/5 p-6 mb-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    <div className="text-gray-400 text-sm">Your Points</div>
+                  </div>
+                  <div className="text-4xl font-bold text-white mb-2">
+                    {userPoints.toLocaleString()}
+                  </div>
+                  <div className="text-gray-400 text-xs">
+                    Earn 1 point per $1 buying • Lose 1 point per $1 selling
+                  </div>
+                  <Link
+                    to="/leaderboard"
+                    onClick={onClose}
+                    className="mt-4 block text-center py-2 border border-yellow-400/30 hover:bg-yellow-400/10 text-yellow-400 text-sm transition-colors"
+                  >
+                    View Leaderboard →
+                  </Link>
                 </div>
 
                 <div className="mb-4">
