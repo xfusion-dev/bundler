@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink, Menu, X, Wallet, Trophy } from 'lucide-react';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { Principal } from '@dfinity/principal';
 import { useAuth } from '../../lib/AuthContext';
 import { icrc2Service } from '../../lib/icrc2-service';
-import { backend } from '../../../backend/declarations';
+import { idlFactory } from '../../../backend/declarations/backend.did.js';
+import type { _SERVICE } from '../../../backend/declarations/backend.did';
 import AuthModal from '../ui/AuthModal';
 import UserDropdown from '../ui/UserDropdown';
+
+const BACKEND_CANISTER_ID = 'dk3fi-vyaaa-aaaae-qfycq-cai';
 
 interface HeaderProps {
   showHero?: boolean;
@@ -60,12 +65,17 @@ export default function Header({ showHero = false, onWalletClick }: HeaderProps)
 
   useEffect(() => {
     const loadPoints = async () => {
-      if (isAuthenticated) {
+      if (isAuthenticated && principal) {
         try {
-          const points = await backend.get_user_points([]);
+          const agent = new HttpAgent({ host: 'https://ic0.app' });
+          const backend = Actor.createActor<_SERVICE>(idlFactory, {
+            agent,
+            canisterId: BACKEND_CANISTER_ID,
+          });
+          const points = await backend.get_user_points([principal]);
           setUserPoints(Number(points));
         } catch (error) {
-          console.error('Failed to load user points:', error);
+          console.error('[Header] Failed to load user points:', error);
         }
       }
     };
@@ -77,7 +87,7 @@ export default function Header({ showHero = false, onWalletClick }: HeaderProps)
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, principal]);
 
   const handleAuth = async () => {
     if (isAuthenticated) {
@@ -121,14 +131,15 @@ export default function Header({ showHero = false, onWalletClick }: HeaderProps)
           <div className="nav-actions">
             {isAuthenticated && principal ? (
               <div className="flex items-center gap-3">
-                <div
+                <button
+                  onClick={onWalletClick}
                   className="hidden md:flex items-center gap-2 px-3 py-2 border border-white/20 hover:bg-white/10 transition-colors cursor-pointer"
-                  title="Your Points - Earn 1 point per $1 spent buying, lose 1 point per $1 selling"
+                  title="Your Points - Earn 1 point per cent spent buying, lose 1 point per cent selling"
                 >
                   <Trophy className="w-4 h-4 text-yellow-400" />
                   <span className="text-white font-mono text-sm">{userPoints.toLocaleString()}</span>
                   <span className="text-gray-400 text-xs">pts</span>
-                </div>
+                </button>
                 <button
                   onClick={onWalletClick}
                   className="hidden md:flex items-center gap-2 px-3 py-2 border border-white/20 hover:bg-white/10 transition-colors"

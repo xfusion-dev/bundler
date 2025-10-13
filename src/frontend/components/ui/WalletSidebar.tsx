@@ -2,14 +2,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Wallet, ArrowUpRight, ArrowDownLeft, Trophy } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { Principal } from '@dfinity/principal';
 import { useAuth } from '../../lib/AuthContext';
 import { icrc2Service } from '../../lib/icrc2-service';
 import { icrc151Service } from '../../lib/icrc151-service';
 import { backendService } from '../../lib/backend-service';
 import { authService } from '../../lib/auth';
-import { backend } from '../../../backend/declarations';
+import { idlFactory } from '../../../backend/declarations/backend.did.js';
+import type { _SERVICE } from '../../../backend/declarations/backend.did';
 import DepositModal from './DepositModal';
 import toast from 'react-hot-toast';
+
+const BACKEND_CANISTER_ID = 'dk3fi-vyaaa-aaaae-qfycq-cai';
 
 interface WalletSidebarProps {
   isOpen: boolean;
@@ -65,7 +70,15 @@ export default function WalletSidebar({ isOpen, onClose }: WalletSidebarProps) {
 
   const loadPoints = async () => {
     try {
-      const points = await backend.get_user_points([]);
+      const principal = await authService.getPrincipal();
+      if (!principal) return;
+
+      const agent = new HttpAgent({ host: 'https://ic0.app' });
+      const backend = Actor.createActor<_SERVICE>(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+      const points = await backend.get_user_points([principal]);
       setUserPoints(Number(points));
     } catch (error) {
       console.error('Failed to load user points:', error);
@@ -279,7 +292,7 @@ export default function WalletSidebar({ isOpen, onClose }: WalletSidebarProps) {
                     {userPoints.toLocaleString()}
                   </div>
                   <div className="text-gray-400 text-xs">
-                    Earn 1 point per $1 buying • Lose 1 point per $1 selling
+                    Earn 1 point per cent buying • Lose 1 point per cent selling
                   </div>
                   <Link
                     to="/leaderboard"

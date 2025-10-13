@@ -10,10 +10,10 @@ type AssetCategory = variant {
   Stablecoin;
   Stocks;
   LiquidStaking;
+  Yield;
   Cryptocurrency;
   CommodityBacked;
   Other : text;
-  Yield;
 };
 type AssetFilter = record {
   payment_tokens_only : opt bool;
@@ -77,18 +77,6 @@ type BundleConfig = record {
   is_active : bool;
   symbol : text;
 };
-type BundleListItem = record {
-  id : nat64;
-  name : text;
-  description : opt text;
-  created_at : nat64;
-  allocations : vec AssetAllocation;
-  nav_per_token : nat64;
-  total_nav_usd : nat64;
-  holders : nat64;
-  is_active : bool;
-  symbol : text;
-};
 type BundleCreationRequest = record {
   name : text;
   description : opt text;
@@ -98,9 +86,22 @@ type BundleCreationRequest = record {
 };
 type BundleHolding = record {
   bundle_id : nat64;
+  last_updated : nat64;
   asset_id : text;
   amount : nat64;
-  last_updated : nat64;
+};
+type BundleListItem = record {
+  id : nat64;
+  nav_per_token : nat64;
+  name : text;
+  description : opt text;
+  created_at : nat64;
+  total_nav_usd : nat64;
+  token_location : TokenLocation;
+  allocations : vec AssetAllocation;
+  holders : nat64;
+  is_active : bool;
+  symbol : text;
 };
 type BundleNAV = record {
   asset_values : vec AssetValue;
@@ -351,9 +352,9 @@ service : () -> {
   confirm_ckusdc_payment : (nat64) -> (Result);
   confirm_resolver_payment_and_complete_sell : (nat64) -> (Result);
   create_bundle : (BundleCreationRequest) -> (Result_2);
-  dissolve_nav_tokens : (nat64) -> (Result);
   deactivate_asset : (text) -> (Result);
   detect_and_recover_timeouts : () -> (Result_3);
+  dissolve_nav_tokens : (nat64) -> (Result);
   emergency_pause_canister : () -> (Result);
   emergency_recovery : (opt principal) -> (Result_4);
   emergency_unpause_canister : () -> (Result);
@@ -369,16 +370,22 @@ service : () -> {
   get_assignment : (nat64) -> (Result_7) query;
   get_bundle : (nat64) -> (Result_8) query;
   get_bundle_holdings : (nat64) -> (vec BundleHolding) query;
-  get_bundles_list : () -> (vec BundleListItem);
   get_bundle_summary : (nat64) -> (Result_9);
   get_bundle_transaction_history : (nat64) -> (BundleTransactionHistory) query;
+  get_bundles_list : () -> (vec BundleListItem);
   get_cache_statistics : () -> (CacheStatistics) query;
   get_cached_price : (text) -> (opt AssetPrice) query;
   get_canister_info : () -> (CanisterInfo) query;
   get_canister_status : () -> (CanisterStatus) query;
+  get_current_week : () -> (nat64) query;
+  get_default_platform_fee_bps : () -> (nat64) query;
+  get_leaderboard : (opt nat64, nat64) -> (
+      vec record { principal; nat64 },
+    ) query;
   get_lock_expiration_time : (nat64, LockedFundType) -> (Result_2) query;
   get_nav_precision_report : (nat64) -> (Result_10);
   get_oracle_config : () -> (opt OracleConfig) query;
+  get_platform_treasury : () -> (opt principal) query;
   get_portfolio_value : (opt principal) -> (Result_2);
   get_recent_transactions : (nat64) -> (vec TransactionSummary) query;
   get_recovery_statistics : () -> (RecoveryStatistics) query;
@@ -390,10 +397,12 @@ service : () -> {
   get_transactions_by_status : (TransactionStatus) -> (vec Transaction) query;
   get_user_bundles : (principal) -> (vec BundleConfig) query;
   get_user_locked_funds : (principal) -> (vec LockedFunds) query;
+  get_user_points : (opt principal) -> (nat64) query;
   get_user_portfolio : (principal) -> (UserPortfolio) query;
   get_user_total_locked_amount : (principal, LockedFundType) -> (nat64) query;
   get_user_transaction_summary : (principal) -> (UserTransactionSummary) query;
   get_user_transactions : (principal) -> (vec Transaction) query;
+  get_user_weekly_points : (opt principal, nat64) -> (nat64) query;
   is_fund_already_locked : (nat64, LockedFundType) -> (bool) query;
   list_active_bundles : () -> (vec BundleConfig) query;
   list_assets : (opt AssetFilter) -> (vec AssetInfo) query;
@@ -405,9 +414,11 @@ service : () -> {
   search_bundles : (text) -> (vec BundleConfig) query;
   set_admin : (principal) -> (Result);
   set_bundle_platform_fee : (nat64, nat64) -> (Result);
-  set_quote_api_principal : (principal) -> (Result);
   set_coordinator_public_key : (text) -> (Result);
+  set_default_platform_fee_bps : (nat64) -> (Result);
   set_oracle_config : (OracleConfig) -> (Result);
+  set_platform_treasury : (principal) -> (Result);
+  set_quote_api_principal : (principal) -> (Result);
   unlock_all_transaction_funds : (nat64) -> (Result_14);
   update_asset : (text, AssetInfoUpdate) -> (Result);
   update_asset_token_location : (text, TokenLocation) -> (Result);

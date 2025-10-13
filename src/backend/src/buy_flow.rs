@@ -165,7 +165,7 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
     )?;
 
     let usdc_amount_e6 = assignment.ckusdc_amount;
-    let points = usdc_amount_e6 / 1_000_000;
+    let points = usdc_amount_e6 / 10_000;
     crate::memory::add_points(transaction.user, points);
 
     Ok(())
