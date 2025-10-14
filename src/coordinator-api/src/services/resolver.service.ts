@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import * as fs from 'fs';
@@ -23,18 +24,33 @@ export interface ResolverQuote {
 export class ResolverService implements OnModuleInit {
   private resolvers: ResolverConfig[] = [];
 
-  constructor(private httpService: HttpService) {}
+  constructor(
+    private httpService: HttpService,
+    private configService: ConfigService,
+  ) {}
 
   onModuleInit() {
-    const configPath = path.resolve(__dirname, '../../resolvers.config.json');
+    const resolverUrl = this.configService.get<string>('RESOLVER_API_1');
+    const resolverPrincipal = this.configService.get<string>('RESOLVER_PRINCIPAL_1');
 
-    if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, 'utf-8');
-      const config = JSON.parse(configData);
-      this.resolvers = config.resolvers || [];
-      console.log(`[Resolver] Loaded ${this.resolvers.length} resolver(s) from config`);
+    if (resolverUrl && resolverPrincipal) {
+      this.resolvers.push({
+        name: 'Resolver 1',
+        url: resolverUrl,
+        principal: resolverPrincipal,
+      });
+      console.log(`[Resolver] Loaded resolver from environment: ${resolverUrl}`);
     } else {
-      console.warn('[Resolver] No resolvers.config.json found, using empty resolver list');
+      const configPath = path.resolve(__dirname, '../../resolvers.config.json');
+
+      if (fs.existsSync(configPath)) {
+        const configData = fs.readFileSync(configPath, 'utf-8');
+        const config = JSON.parse(configData);
+        this.resolvers = config.resolvers || [];
+        console.log(`[Resolver] Loaded ${this.resolvers.length} resolver(s) from config file`);
+      } else {
+        console.warn('[Resolver] No resolver configuration found');
+      }
     }
   }
 
