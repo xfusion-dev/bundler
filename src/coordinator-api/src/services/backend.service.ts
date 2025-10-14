@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
-import { idlFactory } from '../backend-declarations/backend.did';
+import { idlFactory } from '../backend-declarations';
 
 @Injectable()
 export class BackendService {
