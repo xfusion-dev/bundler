@@ -98,6 +98,18 @@ export class BackendService {
         Err: IDL.Text,
       });
 
+      const AssetInfo = IDL.Record({
+        id: IDL.Text,
+        name: IDL.Text,
+        symbol: IDL.Text,
+        decimals: IDL.Nat8,
+        is_active: IDL.Bool,
+        token_location: TokenLocation,
+      });
+      const AssetFilter = IDL.Record({
+        is_active: IDL.Opt(IDL.Bool),
+      });
+
       return IDL.Service({
         get_bundle: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: BundleConfig, Err: IDL.Text })], ['query']),
         get_assignment: IDL.Func([IDL.Nat64], [IDL.Variant({ Ok: QuoteAssignment, Err: IDL.Text })], ['query']),
@@ -106,6 +118,7 @@ export class BackendService {
         confirm_asset_deposit: IDL.Func([IDL.Nat64], [ConfirmResult], []),
         confirm_resolver_payment_and_complete_sell: IDL.Func([IDL.Nat64], [ConfirmResult], []),
         dissolve_nav_tokens: IDL.Func([IDL.Nat64], [ConfirmResult], []),
+        list_assets: IDL.Func([IDL.Opt(AssetFilter)], [IDL.Vec(AssetInfo)], ['query']),
       });
     };
   }
@@ -128,6 +141,16 @@ export class BackendService {
         return result.Ok;
       }
       throw new Error(result.Err || 'Failed to get bundle');
+    } catch (error: any) {
+      throw new Error(`Backend call failed: ${error.message}`);
+    }
+  }
+
+  async listAssets() {
+    try {
+      const actor = this.createActor();
+      const result: any = await actor.list_assets([]);
+      return result;
     } catch (error: any) {
       throw new Error(`Backend call failed: ${error.message}`);
     }
