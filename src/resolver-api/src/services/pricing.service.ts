@@ -1,10 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { ConfigService } from '@nestjs/config';
 
 const ORACLE_CANISTER_ID = 'zutfo-jqaaa-aaaao-a4puq-cai';
 const RESOLVER_SPREAD_BPS = 50;
+const CACHE_TTL_MS = 10_000;
+const CACHE_REFRESH_INTERVAL_MS = 10_000;
+
+const COMMON_ASSETS = ['BTC', 'ETH', 'XAUT', 'ICP', 'SOL', 'XRP', 'BNB', 'NVDA', 'TSLA', 'GOOGL'];
 
 interface OraclePrice {
   value: bigint;
@@ -33,11 +37,12 @@ const oracleIdlFactory = ({ IDL }: any) => {
 };
 
 @Injectable()
-export class PricingService {
+export class PricingService implements OnModuleInit {
   private readonly logger = new Logger(PricingService.name);
   private priceCache: Map<string, PriceCache> = new Map();
   private agent: HttpAgent;
   private oracleActor: any;
+  private refreshInterval: NodeJS.Timeout;
 
   constructor(private readonly configService: ConfigService) {
     this.agent = new HttpAgent({
@@ -50,7 +55,39 @@ export class PricingService {
     });
 
     this.logger.log('Pricing service initialized with oracle canister');
+  }
+
+  onModuleInit() {
     this.testOracleConnection();
+    this.startBackgroundRefresh();
+  }
+
+  private startBackgroundRefresh() {
+    this.logger.log(`Starting background price refresh every ${CACHE_REFRESH_INTERVAL_MS / 1000}s for ${COMMON_ASSETS.length} assets`);
+
+    this.refreshPrices();
+
+    this.refreshInterval = setInterval(() => {
+      this.refreshPrices();
+    }, CACHE_REFRESH_INTERVAL_MS);
+  }
+
+  private async refreshPrices() {
+    try {
+      const pricesMap = await this.fetchPricesFromOracle(COMMON_ASSETS);
+      const now = Date.now();
+
+      for (const [assetId, price] of pricesMap) {
+        this.priceCache.set(assetId, {
+          price,
+          timestamp: now,
+        });
+      }
+
+      this.logger.log(`Background refresh: cached ${pricesMap.size} prices`);
+    } catch (error) {
+      this.logger.error(`Background price refresh failed: ${error.message}`);
+    }
   }
 
   private async testOracleConnection() {
@@ -76,9 +113,8 @@ export class PricingService {
   async getPrice(assetId: string): Promise<number> {
     const cached = this.priceCache.get(assetId);
     const now = Date.now();
-    const cacheValidityMs = 60_000;
 
-    if (cached && (now - cached.timestamp) < cacheValidityMs) {
+    if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
       return cached.price;
     }
 
@@ -94,13 +130,12 @@ export class PricingService {
 
   async getPrices(assetIds: string[]): Promise<Map<string, number>> {
     const now = Date.now();
-    const cacheValidityMs = 60_000;
     const pricesMap = new Map<string, number>();
     const assetsToFetch: string[] = [];
 
     for (const assetId of assetIds) {
       const cached = this.priceCache.get(assetId);
-      if (cached && (now - cached.timestamp) < cacheValidityMs) {
+      if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
         pricesMap.set(assetId, cached.price);
       } else {
         assetsToFetch.push(assetId);
