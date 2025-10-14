@@ -69,7 +69,7 @@ export class ExecutionService {
     const backendPrincipal = Principal.fromText(backendCanisterId!);
 
     // Step 1: Check existing balances and mint only what's needed
-    for (const assetAmount of assignment.asset_amounts) {
+    await Promise.all(assignment.asset_amounts.map(async (assetAmount) => {
       const allocation = bundle.allocations.find(a => a.asset_id === assetAmount.asset_id);
       if (!allocation) {
         throw new Error(`Asset ${assetAmount.asset_id} not found in bundle allocations`);
@@ -113,21 +113,19 @@ export class ExecutionService {
       } else {
         this.logger.log(`✓ Using existing inventory (no minting needed for ${assetAmount.asset_id})`);
       }
-    }
+    }));
 
     // Step 2: Approve backend to spend tokens (requested amount + fee)
-    for (const assetAmount of assignment.asset_amounts) {
+    await Promise.all(assignment.asset_amounts.map(async (assetAmount) => {
       const allocation = bundle.allocations.find(a => a.asset_id === assetAmount.asset_id);
       const { ledger, token_id } = allocation.token_location.ICRC151;
       const ledgerCanisterId = ledger.toText();
       const tokenIdBytes = new Uint8Array(token_id);
       const requestedAmount = BigInt(assetAmount.amount.toString());
 
-      // Get token metadata to check transfer fee
       const metadata = await this.icrc151Service.getTokenMetadata(ledgerCanisterId, tokenIdBytes);
       const transferFee = metadata.fee;
 
-      // Approve the full amount including fee
       const totalToApprove = requestedAmount + transferFee;
 
       this.logger.log(`Approving backend to spend ${totalToApprove} ${assetAmount.asset_id} (${requestedAmount} + ${transferFee} fee)...`);
@@ -141,7 +139,7 @@ export class ExecutionService {
       );
 
       this.logger.log(`✓ Approved ${totalToApprove} ${assetAmount.asset_id}`);
-    }
+    }));
 
     // Step 3: Call backend's confirm_asset_deposit
     this.logger.log(`Calling backend confirm_asset_deposit for request ${requestId}...`);
