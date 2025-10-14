@@ -1,14 +1,13 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { ConfigService } from '@nestjs/config';
+import { BackendService } from './backend.service';
 
 const ORACLE_CANISTER_ID = 'zutfo-jqaaa-aaaao-a4puq-cai';
 const RESOLVER_SPREAD_BPS = 50;
 const CACHE_TTL_MS = 10_000;
 const CACHE_REFRESH_INTERVAL_MS = 10_000;
-
-const COMMON_ASSETS = ['BTC', 'ETH', 'XAUT', 'ICP', 'SOL', 'XRP', 'BNB', 'NVDA', 'TSLA', 'GOOGL'];
 
 interface OraclePrice {
   value: bigint;
@@ -44,7 +43,11 @@ export class PricingService implements OnModuleInit {
   private oracleActor: any;
   private refreshInterval: NodeJS.Timeout;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @Inject(forwardRef(() => BackendService))
+    private readonly backendService: BackendService,
+  ) {
     this.agent = new HttpAgent({
       host: 'https://ic0.app',
     });
@@ -63,7 +66,7 @@ export class PricingService implements OnModuleInit {
   }
 
   private startBackgroundRefresh() {
-    this.logger.log(`Starting background price refresh every ${CACHE_REFRESH_INTERVAL_MS / 1000}s for ${COMMON_ASSETS.length} assets`);
+    this.logger.log(`Starting background price refresh every ${CACHE_REFRESH_INTERVAL_MS / 1000}s`);
 
     this.refreshPrices();
 
@@ -74,7 +77,12 @@ export class PricingService implements OnModuleInit {
 
   private async refreshPrices() {
     try {
-      const pricesMap = await this.fetchPricesFromOracle(COMMON_ASSETS);
+      const allAssets = await this.backendService.listAssets();
+      const assetIds = allAssets.map((asset: any) => asset.id);
+
+      this.logger.log(`Fetching prices for ${assetIds.length} assets from oracle...`);
+
+      const pricesMap = await this.fetchPricesFromOracle(assetIds);
       const now = Date.now();
 
       for (const [assetId, price] of pricesMap) {
@@ -84,7 +92,7 @@ export class PricingService implements OnModuleInit {
         });
       }
 
-      this.logger.log(`Background refresh: cached ${pricesMap.size} prices`);
+      this.logger.log(`Background refresh: cached ${pricesMap.size}/${assetIds.length} prices`);
     } catch (error) {
       this.logger.error(`Background price refresh failed: ${error.message}`);
     }
