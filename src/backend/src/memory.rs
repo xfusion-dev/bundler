@@ -93,10 +93,8 @@ thread_local! {
         )
     );
 
-    pub static NAV_CACHE: RefCell<StableBTreeMap<u64, (u64, u64, u64), Memory>> = RefCell::new(
-        StableBTreeMap::init(
-            MEMORY_MANAGER.with(|m| m.borrow().get(NAV_CACHE_MEMORY_ID))
-        )
+    pub static NAV_CACHE: RefCell<std::collections::HashMap<u64, (u64, u64, u64, u64)>> = RefCell::new(
+        std::collections::HashMap::new()
     );
 
     pub static GLOBAL_STATE: RefCell<StableCell<GlobalState, Memory>> = RefCell::new(
@@ -292,11 +290,11 @@ pub fn get_leaderboard(week: Option<u64>, limit: u64) -> Vec<(Principal, u64)> {
     }
 }
 
-const NAV_CACHE_TTL_SECONDS: u64 = 120;
+const NAV_CACHE_TTL_SECONDS: u64 = 180;
 
 pub fn get_cached_nav(bundle_id: u64) -> Option<(u64, u64)> {
     NAV_CACHE.with(|cache| {
-        if let Some((nav_per_token, total_nav_usd, cached_at)) = cache.borrow().get(&bundle_id) {
+        if let Some(&(nav_per_token, total_nav_usd, _, cached_at)) = cache.borrow().get(&bundle_id) {
             let now = ic_cdk::api::time() / 1_000_000_000;
             if now - cached_at < NAV_CACHE_TTL_SECONDS {
                 return Some((nav_per_token, total_nav_usd));
@@ -309,6 +307,32 @@ pub fn get_cached_nav(bundle_id: u64) -> Option<(u64, u64)> {
 pub fn cache_nav(bundle_id: u64, nav_per_token: u64, total_nav_usd: u64) {
     let now = ic_cdk::api::time() / 1_000_000_000;
     NAV_CACHE.with(|cache| {
-        cache.borrow_mut().insert(bundle_id, (nav_per_token, total_nav_usd, now));
+        let mut cache_map = cache.borrow_mut();
+        let holder_count = cache_map.get(&bundle_id).map(|&(_, _, h, _)| h).unwrap_or(0);
+        cache_map.insert(bundle_id, (nav_per_token, total_nav_usd, holder_count, now));
+    });
+}
+
+pub fn get_cached_holder_count(bundle_id: u64) -> Option<u64> {
+    NAV_CACHE.with(|cache| {
+        if let Some(&(_, _, holder_count, cached_at)) = cache.borrow().get(&bundle_id) {
+            let now = ic_cdk::api::time() / 1_000_000_000;
+            if now - cached_at < NAV_CACHE_TTL_SECONDS {
+                return Some(holder_count);
+            }
+        }
+        None
+    })
+}
+
+pub fn cache_holder_count(bundle_id: u64, holder_count: u64) {
+    let now = ic_cdk::api::time() / 1_000_000_000;
+    NAV_CACHE.with(|cache| {
+        let mut cache_map = cache.borrow_mut();
+        if let Some(&(nav_per_token, total_nav_usd, _, _)) = cache_map.get(&bundle_id) {
+            cache_map.insert(bundle_id, (nav_per_token, total_nav_usd, holder_count, now));
+        } else {
+            cache_map.insert(bundle_id, (0, 0, holder_count, now));
+        }
     });
 }

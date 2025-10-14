@@ -55,6 +55,36 @@ fn post_upgrade() {
     ic_cdk::println!("Upgrade completed successfully");
 }
 
+use std::cell::RefCell;
+
+thread_local! {
+    static LAST_NAV_UPDATE: RefCell<u64> = RefCell::new(0);
+}
+
+#[heartbeat]
+async fn heartbeat() {
+    let now = ic_cdk::api::time() / 1_000_000_000;
+    let should_update = LAST_NAV_UPDATE.with(|last| {
+        let last_update = *last.borrow();
+        if now - last_update >= 60 {
+            *last.borrow_mut() = now;
+            true
+        } else {
+            false
+        }
+    });
+
+    if should_update {
+        let bundles = bundle_manager::list_active_bundles();
+        for bundle in bundles {
+            let _ = nav_calculator::calculate_bundle_nav(bundle.id).await;
+            if let Ok(count) = nav_token::get_bundle_holder_count(bundle.id).await {
+                memory::cache_holder_count(bundle.id, count as u64);
+            }
+        }
+    }
+}
+
 #[query]
 fn get_bundle(bundle_id: u64) -> Result<BundleConfig, String> {
     bundle_manager::get_bundle(bundle_id)

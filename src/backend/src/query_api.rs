@@ -57,21 +57,20 @@ pub async fn get_bundles_list() -> Vec<BundleListItem> {
     let mut result = Vec::new();
 
     for bundle in bundles {
-        let nav_per_token;
-        let total_nav_usd;
-
-        match crate::nav_calculator::calculate_bundle_nav(bundle.id).await {
-            Ok(nav_data) => {
-                nav_per_token = nav_data.nav_per_token;
-                total_nav_usd = nav_data.total_nav_usd;
+        let (nav_per_token, total_nav_usd) = match crate::memory::get_cached_nav(bundle.id) {
+            Some((nav, total)) => (nav, total),
+            None => {
+                match crate::nav_calculator::calculate_bundle_nav(bundle.id).await {
+                    Ok(nav_data) => (nav_data.nav_per_token, nav_data.total_nav_usd),
+                    Err(_) => (0, 0)
+                }
             }
-            Err(_) => {
-                nav_per_token = 0;
-                total_nav_usd = 0;
-            }
-        }
+        };
 
-        let holders = nav_token::get_bundle_holder_count(bundle.id).await.unwrap_or(0);
+        let holders = match crate::memory::get_cached_holder_count(bundle.id) {
+            Some(count) => count,
+            None => nav_token::get_bundle_holder_count(bundle.id).await.unwrap_or(0) as u64
+        };
 
         result.push(BundleListItem {
             id: bundle.id,
@@ -81,7 +80,7 @@ pub async fn get_bundles_list() -> Vec<BundleListItem> {
             allocations: bundle.allocations,
             nav_per_token,
             total_nav_usd,
-            holders: holders as u64,
+            holders,
             created_at: bundle.created_at,
             is_active: bundle.is_active,
             token_location: bundle.token_location,
