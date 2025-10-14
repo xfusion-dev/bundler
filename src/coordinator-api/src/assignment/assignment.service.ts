@@ -60,20 +60,13 @@ export class AssignmentService {
   }
 
   private async getResolverUrl(principalText: string): Promise<string | null> {
-    const resolversConfigPath = require('path').resolve(__dirname, '../../resolvers.config.json');
+    const resolverUrl = this.configService.get<string>('RESOLVER_API_1');
 
-    try {
-      const fs = require('fs');
-      if (fs.existsSync(resolversConfigPath)) {
-        const configData = fs.readFileSync(resolversConfigPath, 'utf-8');
-        const config = JSON.parse(configData);
-        const resolver = config.resolvers?.find((r: any) => r.principal === principalText);
-        return resolver?.url || null;
-      }
-    } catch (error) {
-      this.logger.error(`Failed to read resolver config: ${error.message}`);
+    if (!resolverUrl) {
+      this.logger.error('RESOLVER_API_1 environment variable not configured');
+      return null;
     }
 
-    return null;
+    return resolverUrl;
   }
 }
