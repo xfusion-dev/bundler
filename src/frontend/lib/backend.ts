@@ -2,6 +2,9 @@ import { authService } from './auth';
 import { backend } from '../../backend/declarations';
 import { idlFactory, canisterId } from '../../backend/declarations';
 import type { _SERVICE } from '../../backend/declarations/backend.did';
+import { Actor, HttpAgent } from '@dfinity/agent';
+
+const BACKEND_CANISTER_ID = 'dk3fi-vyaaa-aaaae-qfycq-cai';
 
 export interface Asset {
   id: string;
@@ -82,8 +85,45 @@ class BackendService {
 
   async getActiveAssets(): Promise<Asset[]> {
     try {
-      const result = await backend.get_active_assets();
-      return result;
+      console.log('[BackendService] Fetching active assets...');
+
+      // Create mainnet agent
+      const agent = new HttpAgent({ host: 'https://ic0.app' });
+      const backendActor = Actor.createActor<_SERVICE>(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      // Get all assets with active filter
+      const assetInfos = await backendActor.list_assets([{
+        payment_tokens_only: [],
+        category: [],
+        active_only: true,
+      }]);
+      console.log('[BackendService] Got asset infos:', assetInfos.length);
+
+      // Get cached prices
+      const prices = await backendActor.list_valid_cached_prices();
+      console.log('[BackendService] Got prices:', prices.length);
+      const priceMap = new Map(prices.map(p => [p.asset_id, Number(p.price) / 1e8]));
+
+      // Transform to Asset format
+      const assets = assetInfos.map(info => ({
+        id: info.id,
+        symbol: info.symbol,
+        name: info.name,
+        category_id: info.metadata.category.toString(),
+        logo_url: info.metadata.logo_url[0] || undefined,
+        description: info.metadata.description[0] || undefined,
+        decimals: info.decimals,
+        is_active: info.is_active,
+        current_price: priceMap.get(info.id) || 0,
+        price_change_24h: 0, // Not available from backend
+        created_at: info.added_at,
+        updated_at: info.added_at,
+      }));
+      console.log('[BackendService] Transformed assets:', assets);
+      return assets;
     } catch (error) {
       console.error('Failed to get active assets:', error);
       throw error;
@@ -200,8 +240,42 @@ class BackendService {
 
   async getFeaturedBundles(): Promise<Bundle[]> {
     try {
-      const result = await backend.get_featured_bundles();
-      return result;
+      console.log('[BackendService] Fetching featured bundles from mainnet...');
+
+      // Create mainnet agent
+      const agent = new HttpAgent({ host: 'https://ic0.app' });
+      const backendActor = Actor.createActor<_SERVICE>(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      const result = await backendActor.list_active_bundles();
+      console.log('[BackendService] Got bundles:', result.length);
+
+      // Transform BundleConfig to Bundle format
+      return result.map((bundleConfig: any) => ({
+        id: bundleConfig.id.toString(),
+        name: bundleConfig.name,
+        description: bundleConfig.description,
+        creator: bundleConfig.creator.toText(),
+        category: 'balanced',
+        status: 'published',
+        assets: bundleConfig.assets.map((a: any) => ({
+          asset_id: a.asset_id,
+          allocation_percentage: Number(a.allocation_percentage),
+        })),
+        total_value_usd: 0,
+        performance_24h: 0,
+        subscribers: 0,
+        likes: 0,
+        views: 0,
+        tags: [],
+        logo_url: undefined,
+        color: bundleConfig.color || '#6366f1',
+        is_featured: false,
+        created_at: bundleConfig.created_at,
+        updated_at: bundleConfig.created_at,
+      }));
     } catch (error) {
       console.error('Failed to get featured bundles:', error);
       throw error;

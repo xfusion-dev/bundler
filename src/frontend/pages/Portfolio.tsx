@@ -412,25 +412,27 @@ export default function Portfolio() {
                       </ResponsiveContainer>
                     </div>
 
-                    <div className="space-y-3">
+                    <div>
                       <div className="text-gray-400 text-xs font-mono uppercase tracking-wide mb-4">Asset Breakdown</div>
-                      {aggregateAllocation.map((asset, index) => (
-                        <div key={asset.symbol} className="flex items-center justify-between py-2 border-b border-white/10 last:border-0">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-4 h-4 border border-white/20"
-                              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                            />
-                            <span className="text-white font-mono text-sm md:text-base">{asset.symbol}</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-white font-bold text-sm md:text-base">{asset.percentage.toFixed(1)}%</div>
-                            <div className="text-gray-500 text-xs">
-                              ${asset.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                        {aggregateAllocation.map((asset, index) => (
+                          <div key={asset.symbol} className="flex items-center justify-between py-2 border-b border-white/10 last:border-0">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-4 h-4 border border-white/20"
+                                style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                              />
+                              <span className="text-white font-mono text-sm md:text-base">{asset.symbol}</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-white font-bold text-sm md:text-base">{asset.percentage.toFixed(1)}%</div>
+                              <div className="text-gray-500 text-xs">
+                                ${asset.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
