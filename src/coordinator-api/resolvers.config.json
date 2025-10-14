@@ -2,7 +2,7 @@
   "resolvers": [
     {
       "name": "Resolver 1",
-      "url": "http://localhost:3001",
+      "url": "http://xfusion_resolver-api:3001/",
       "principal": "mx5zu-i4s3v-imuew-5ujug-25zh7-7y5l4-wwitt-6yusz-iq3mo-i4wpx-rae"
     }
   ]
