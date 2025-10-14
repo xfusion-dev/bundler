@@ -5,6 +5,18 @@ use crate::bundle_manager::get_bundle;
 use crate::nav_token::get_total_tokens_for_bundle;
 
 pub async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
+    if let Some((cached_nav_per_token, cached_total_nav_usd)) = crate::memory::get_cached_nav(bundle_id) {
+        let total_nav_tokens = get_total_tokens_for_bundle(bundle_id).await?;
+        return Ok(BundleNAV {
+            bundle_id,
+            nav_per_token: cached_nav_per_token,
+            total_nav_usd: cached_total_nav_usd,
+            total_tokens: total_nav_tokens,
+            asset_values: Vec::new(),
+            calculated_at: time(),
+        });
+    }
+
     let bundle = get_bundle(bundle_id)?;
 
     if !bundle.is_active {
@@ -68,6 +80,8 @@ pub async fn calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String> {
     }
 
     let nav_per_token = calculate_precise_nav_per_token(total_value_usd, total_nav_tokens, 8);
+
+    crate::memory::cache_nav(bundle_id, nav_per_token, total_value_usd);
 
     Ok(BundleNAV {
         bundle_id,

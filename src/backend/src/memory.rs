@@ -20,6 +20,7 @@ pub const GLOBAL_STATE_MEMORY_ID: MemoryId = MemoryId::new(11);
 pub const POINTS_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(12);
 pub const WEEKLY_POINTS_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(13);
 pub const USED_NONCES_MEMORY_ID: MemoryId = MemoryId::new(14);
+pub const NAV_CACHE_MEMORY_ID: MemoryId = MemoryId::new(15);
 
 thread_local! {
     pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
@@ -89,6 +90,12 @@ thread_local! {
     pub static WEEKLY_POINTS_STORAGE: RefCell<StableBTreeMap<String, u64, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(WEEKLY_POINTS_STORAGE_MEMORY_ID))
+        )
+    );
+
+    pub static NAV_CACHE: RefCell<StableBTreeMap<u64, (u64, u64, u64), Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(NAV_CACHE_MEMORY_ID))
         )
     );
 
@@ -283,4 +290,25 @@ pub fn get_leaderboard(week: Option<u64>, limit: u64) -> Vec<(Principal, u64)> {
             })
         }
     }
+}
+
+const NAV_CACHE_TTL_SECONDS: u64 = 120;
+
+pub fn get_cached_nav(bundle_id: u64) -> Option<(u64, u64)> {
+    NAV_CACHE.with(|cache| {
+        if let Some((nav_per_token, total_nav_usd, cached_at)) = cache.borrow().get(&bundle_id) {
+            let now = ic_cdk::api::time() / 1_000_000_000;
+            if now - cached_at < NAV_CACHE_TTL_SECONDS {
+                return Some((nav_per_token, total_nav_usd));
+            }
+        }
+        None
+    })
+}
+
+pub fn cache_nav(bundle_id: u64, nav_per_token: u64, total_nav_usd: u64) {
+    let now = ic_cdk::api::time() / 1_000_000_000;
+    NAV_CACHE.with(|cache| {
+        cache.borrow_mut().insert(bundle_id, (nav_per_token, total_nav_usd, now));
+    });
 }
