@@ -290,8 +290,24 @@ class BackendService {
     }
   }
 
-  // Note: We get asset prices from NAV calculation data instead
-  // as it includes the oracle prices already
+  async getUserTransactions(userPrincipal: Principal) {
+    try {
+      const agent = new HttpAgent({
+        host: 'https://ic0.app',
+      });
+
+      const actor = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+
+      const transactions = await actor.get_user_transactions(userPrincipal);
+      return transactions;
+    } catch (e) {
+      console.error('getUserTransactions failed:', e);
+      throw e;
+    }
+  }
 }
 
 export const backendService = new BackendService();

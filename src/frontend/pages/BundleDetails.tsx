@@ -845,6 +845,8 @@ export default function BundleDetails() {
                       <div className="relative">
                         <input
                           type="number"
+                          min="0"
+                          step="any"
                           value={tradeAmount}
                           onChange={(e) => setTradeAmount(e.target.value)}
                           placeholder="0.00"

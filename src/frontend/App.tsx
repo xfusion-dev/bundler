@@ -11,6 +11,7 @@ import BundleBuilder from './pages/BundleBuilder';
 import Assets from './pages/Assets';
 import Bundles from './pages/Bundles';
 import Portfolio from './pages/Portfolio';
+import Transactions from './pages/Transactions';
 import Leaderboard from './pages/Leaderboard';
 import Lending from './pages/Lending';
 import Lend from './pages/Lend';
@@ -78,6 +79,11 @@ function App() {
           <Route path="/portfolio" element={
             <Layout showHero={false}>
               <Portfolio />
+            </Layout>
+          } />
+          <Route path="/transactions" element={
+            <Layout showHero={false}>
+              <Transactions />
             </Layout>
           } />
           <Route path="/leaderboard" element={

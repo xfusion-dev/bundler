@@ -448,6 +448,8 @@ export default function WalletSidebar({ isOpen, onClose }: WalletSidebarProps) {
                 <div className="relative">
                   <input
                     type="number"
+                    min="0"
+                    step="any"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"

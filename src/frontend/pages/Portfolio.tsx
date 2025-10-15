@@ -165,9 +165,14 @@ export default function Portfolio() {
             <div className="md:hidden mb-4 md:mb-6">
               <h1 className="text-4xl font-bold text-white mb-2">Portfolio</h1>
               <p className="text-gray-400 text-base mb-4">Track and manage your bundle positions</p>
-              <Link to="/bundles" className="btn-outline-unique w-full text-center block py-3">
-                Explore Bundles
-              </Link>
+              <div className="flex gap-3">
+                <Link to="/transactions" className="btn-outline-unique flex-1 text-center py-3">
+                  My Transactions
+                </Link>
+                <Link to="/bundles" className="btn-outline-unique flex-1 text-center py-3">
+                  Explore Bundles
+                </Link>
+              </div>
             </div>
 
             <div className="hidden md:flex items-center justify-between mb-8 md:mb-12">
@@ -175,9 +180,14 @@ export default function Portfolio() {
                 <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 md:mb-4">Portfolio</h1>
                 <p className="text-gray-400 text-lg">Track and manage your bundle positions</p>
               </div>
-              <Link to="/bundles" className="btn-outline-unique">
-                Explore Bundles
-              </Link>
+              <div className="flex gap-4">
+                <Link to="/transactions" className="btn-outline-unique">
+                  My Transactions
+                </Link>
+                <Link to="/bundles" className="btn-outline-unique">
+                  Explore Bundles
+                </Link>
+              </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
@@ -505,6 +515,8 @@ export default function Portfolio() {
                 <div className="relative">
                   <input
                     type="number"
+                    min="0"
+                    step="any"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"

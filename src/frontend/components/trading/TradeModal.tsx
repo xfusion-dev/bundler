@@ -135,6 +135,8 @@ export default function TradeModal({ isOpen, onClose, bundleId, bundleName, mode
                     </label>
                     <input
                       type="number"
+                      min="0"
+                      step="any"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder="0.00"
