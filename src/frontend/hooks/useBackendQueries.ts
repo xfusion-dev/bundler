@@ -9,9 +9,23 @@ export function useBundlesList() {
     queryKey: ['bundles-list'],
     queryFn: async () => {
       const data = await backendService.getBundlesList();
-      return JSON.parse(JSON.stringify(data, (_, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      ));
+      return data.map((bundle: any) => {
+        const cleaned: any = { ...bundle };
+        if (cleaned.token_location && 'ICRC151' in cleaned.token_location) {
+          cleaned.token_location = {
+            ICRC151: {
+              ledger: cleaned.token_location.ICRC151.ledger,
+              token_id: Array.from(cleaned.token_location.ICRC151.token_id)
+            }
+          };
+        }
+        for (const key in cleaned) {
+          if (typeof cleaned[key] === 'bigint') {
+            cleaned[key] = cleaned[key].toString();
+          }
+        }
+        return cleaned;
+      });
     },
     staleTime: 30_000,
     gcTime: 5 * 60_000,
@@ -67,9 +81,10 @@ export function useUserTokenBalances() {
       const principal = await authService.getPrincipal();
       if (!principal) return [];
       const balances = await icrc151Service.getBalancesFor(principal);
-      return JSON.parse(JSON.stringify(balances, (_, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      ));
+      return balances.map((b: any) => ({
+        balance: typeof b.balance === 'bigint' ? Number(b.balance) : Number(b.balance),
+        token_id: Array.from(b.token_id)
+      }));
     },
     staleTime: 30_000,
     gcTime: 5 * 60_000,
@@ -133,10 +148,11 @@ export function useUserHoldings() {
           }
 
           const bundleId = Number(bundle.id);
+          console.log(`Processing holding - Bundle ID: ${bundleId}, Name: ${bundle.name}, Token ID: ${tokenIdHex}`);
+
           const navData = await backendService.calculateBundleNav(bundleId);
 
-          const balanceNum = typeof tokenBalance.balance === 'string' ? parseFloat(tokenBalance.balance) : Number(tokenBalance.balance);
-          const navTokens = balanceNum / 1e8;
+          const navTokens = tokenBalance.balance / 1e8;
           const navPrice = Number(navData.nav_per_token) / 1e8;
           const totalValue = navTokens * navPrice;
 
