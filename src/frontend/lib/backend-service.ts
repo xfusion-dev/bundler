@@ -40,7 +40,6 @@ class BackendService {
 
   async listAssets() {
     try {
-      // Create a fresh agent for query calls to avoid signature issues
       const agent = new HttpAgent({
         host: 'https://ic0.app',
       });
@@ -50,7 +49,6 @@ class BackendService {
         canisterId: BACKEND_CANISTER_ID,
       });
 
-      // Pass empty array for no filter (opt parameter in Candid)
       const result = await actor.list_assets([]);
       console.log('Assets from backend:', result);
       return result;

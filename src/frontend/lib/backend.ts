@@ -93,21 +93,13 @@ class BackendService {
         agent,
         canisterId: BACKEND_CANISTER_ID,
       });
-
-      // Get all assets with active filter
-      const assetInfos = await backendActor.list_assets([{
-        payment_tokens_only: [],
-        category: [],
-        active_only: true,
-      }]);
+      const assetInfos = await backendActor.list_assets([]);
       console.log('[BackendService] Got asset infos:', assetInfos.length);
 
-      // Get cached prices
       const prices = await backendActor.list_valid_cached_prices();
       console.log('[BackendService] Got prices:', prices.length);
       const priceMap = new Map(prices.map(p => [p.asset_id, Number(p.price) / 1e8]));
 
-      // Transform to Asset format
       const assets = assetInfos.map(info => ({
         id: info.id,
         symbol: info.symbol,

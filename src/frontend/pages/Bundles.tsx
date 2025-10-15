@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { backendService } from '../lib/backend-service';
 import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import BundleRow from '../components/bundle/BundleRow';
 import BundleMobileCard from '../components/bundle/BundleMobileCard';
 import { BundleCardSkeleton } from '../components/ui/Skeleton';
 import SEO from '../components/SEO';
+import { useBundlesWithAssets } from '../hooks/useBackendQueries';
 
 interface Bundle {
   id: number;
@@ -32,61 +32,10 @@ type SortOption = 'name' | 'price' | 'change' | 'holders' | 'marketCap';
 type SortDirection = 'asc' | 'desc';
 
 export default function Bundles() {
-  const [bundles, setBundles] = useState<Bundle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { bundles, isLoading: loading, error } = useBundlesWithAssets();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-
-  useEffect(() => {
-    const loadBundles = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const [bundlesList, allAssets] = await Promise.all([
-          backendService.getBundlesList(),
-          backendService.listAssets()
-        ]);
-
-        const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
-
-        const transformedBundles = bundlesList.map((bundle: any) => ({
-          id: Number(bundle.id),
-          name: bundle.name,
-          symbol: bundle.symbol,
-          description: bundle.description || '',
-          tokens: bundle.allocations.map((a: any) => {
-            const assetDetails = assetMap.get(a.asset_id);
-            return {
-              symbol: assetDetails?.symbol || a.asset_id,
-              name: assetDetails?.name || a.asset_id,
-              allocation: a.percentage,
-              logo: assetDetails?.metadata?.logo_url || ''
-            };
-          }),
-          totalValue: Number(bundle.nav_per_token) / 100000000,
-          change24h: 0,
-          subscribers: Number(bundle.holders),
-          creator: '',
-          allocations: bundle.allocations,
-          created_at: bundle.created_at,
-          is_active: bundle.is_active,
-          marketCapValue: Number(bundle.total_nav_usd) / 100000000
-        }));
-
-        setBundles(transformedBundles);
-      } catch (err) {
-        console.error('Failed to load bundles:', err);
-        setError('Failed to load bundles. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadBundles();
-  }, []);
 
   const handleSort = (column: SortOption) => {
     if (sortBy === column) {
@@ -185,7 +134,7 @@ export default function Bundles() {
                 <span className="text-4xl">❌</span>
               </div>
               <h3 className="text-2xl font-bold text-white mb-4">Error Loading Bundles</h3>
-              <p className="text-gray-400 mb-8">{error}</p>
+              <p className="text-gray-400 mb-8">{error?.message || 'Failed to load bundles. Please try again.'}</p>
               <button
                 onClick={() => {
                   window.location.reload();
