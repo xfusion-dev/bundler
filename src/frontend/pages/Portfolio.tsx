@@ -1,16 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowDownLeft, ArrowUpRight, ArrowRight, Coins, DollarSign, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ArrowRight, X } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { backendService } from '../lib/backend-service';
 import { icrc2Service } from '../lib/icrc2-service';
-import { icrc151Service } from '../lib/icrc151-service';
-import { authService } from '../lib/auth';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { PortfolioSkeleton, Skeleton } from '../components/ui/Skeleton';
 import DepositModal from '../components/ui/DepositModal';
 import toast from 'react-hot-toast';
+import { useUsdcBalance, useUserHoldings } from '../hooks/useBackendQueries';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Holding {
   bundleId: number;
@@ -25,19 +24,23 @@ interface Holding {
 
 
 export default function Portfolio() {
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
   const [showChart, setShowChart] = useState(false);
-  const [usdcBalance, setUsdcBalance] = useState<string>('0.00');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [amount, setAmount] = useState('');
   const [recipientPrincipal, setRecipientPrincipal] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
   const [principalError, setPrincipalError] = useState('');
-  const [loadingPortfolio, setLoadingPortfolio] = useState(false);
   const [hoveredToken, setHoveredToken] = useState<{ holdingId: number; tokenIdx: number } | null>(null);
   const { isAuthenticated, login, loading } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: usdcBalance = '0.00', isLoading: loadingBalance } = useUsdcBalance();
+  const { data: holdingsData, isLoading: loadingHoldings } = useUserHoldings();
+
+  const holdings = holdingsData?.holdings || [];
+  const totalPortfolioValue = holdingsData?.totalValue || 0;
+  const loadingPortfolio = loadingBalance || loadingHoldings;
 
   const aggregateAllocation = useMemo(() => {
     const allocation: { [symbol: string]: number } = {};
@@ -57,111 +60,6 @@ export default function Portfolio() {
   }, [holdings, totalPortfolioValue]);
 
   const COLORS = ['#ffffff', '#a3a3a3', '#737373', '#525252', '#404040', '#262626'];
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadPortfolioData();
-    }
-  }, [isAuthenticated]);
-
-  const loadPortfolioData = async () => {
-    try {
-      setLoadingPortfolio(true);
-      const balance = await icrc2Service.getBalance();
-      const formattedBalance = (Number(balance) / 1000000).toFixed(2);
-      setUsdcBalance(formattedBalance);
-
-      const principal = await authService.getPrincipal();
-      if (!principal) {
-        setHoldings([]);
-        setTotalPortfolioValue(0);
-        setLoadingPortfolio(false);
-        return;
-      }
-
-      const tokenBalances = await icrc151Service.getBalancesFor(principal);
-
-      if (!tokenBalances || tokenBalances.length === 0) {
-        setHoldings([]);
-        setTotalPortfolioValue(0);
-        setLoadingPortfolio(false);
-        return;
-      }
-
-      const [allBundles, allAssets] = await Promise.all([
-        backendService.getBundlesList(),
-        backendService.listAssets()
-      ]);
-
-      const assetMap = new Map(allAssets.map((asset: any) => [asset.id, asset]));
-
-      const tokenIdToBundleMap = new Map();
-      allBundles.forEach((bundle: any) => {
-        if (bundle.token_location && 'ICRC151' in bundle.token_location) {
-          const tokenIdHex = Array.from(bundle.token_location.ICRC151.token_id)
-            .map((b: number) => b.toString(16).padStart(2, '0'))
-            .join('');
-          tokenIdToBundleMap.set(tokenIdHex, bundle);
-        }
-      });
-
-      const holdingsPromises = tokenBalances.map(async (tokenBalance: any) => {
-        try {
-          const tokenIdHex = Array.from(tokenBalance.token_id)
-            .map((b: number) => b.toString(16).padStart(2, '0'))
-            .join('');
-
-          const bundle = tokenIdToBundleMap.get(tokenIdHex);
-          if (!bundle) {
-            console.warn('Bundle not found for token_id:', tokenIdHex);
-            return null;
-          }
-
-          const bundleId = Number(bundle.id);
-          const navData = await backendService.calculateBundleNav(bundleId);
-
-          const navTokens = Number(tokenBalance.balance) / 1e8;
-          const navPrice = Number(navData.nav_per_token) / 1e8;
-          const totalValue = navTokens * navPrice;
-
-          const holding = {
-            bundleId,
-            bundleName: bundle.name,
-            tokenSymbol: bundle.symbol || 'NAV',
-            navTokens,
-            navPrice,
-            totalValue,
-            allocations: bundle.allocations.map((a: any) => {
-              const assetDetails = assetMap.get(a.asset_id);
-              return {
-                symbol: a.asset_id,
-                percentage: a.percentage,
-                logo: assetDetails?.metadata?.logo_url || ''
-              };
-            })
-          };
-
-          return holding;
-        } catch (error) {
-          console.error(`Failed to load bundle data:`, error);
-          return null;
-        }
-      });
-
-      const loadedHoldings = (await Promise.all(holdingsPromises)).filter((h): h is Holding => h !== null);
-      setHoldings(loadedHoldings);
-
-      const total = loadedHoldings.reduce((sum, h) => sum + h.totalValue, 0);
-      setTotalPortfolioValue(total);
-    } catch (error) {
-      console.error('Failed to fetch portfolio data:', error);
-      setHoldings([]);
-      setTotalPortfolioValue(0);
-    } finally {
-      setLoadingPortfolio(false);
-    }
-  };
-
 
   const handleWithdraw = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -204,7 +102,7 @@ export default function Portfolio() {
       setPrincipalError('');
       setShowWithdrawModal(false);
 
-      await loadPortfolioData();
+      queryClient.invalidateQueries({ queryKey: ['usdc-balance'] });
     } catch (error) {
       toast.dismiss();
       console.error('Withdrawal failed:', error);

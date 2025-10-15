@@ -449,11 +449,15 @@ export default function BundleDetails() {
       setTradeStatus('Trade completed successfully!');
       toast.success(`Trade executed successfully!`);
 
-      // Reload all bundle data (asset allocation, NAV, holders, etc.)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      setTradeStatus('');
+      setTradeStep(0);
+      setIsTradeModalOpen(false);
+
       console.log('Reloading bundle details after trade completion...');
       await loadBundleDetails();
 
-      // Refresh user balances
       if (tradeTab === 'buy') {
         const newBalance = await icrc2Service.getBalance();
         setUserUsdcBalanceRaw(newBalance);
@@ -461,7 +465,6 @@ export default function BundleDetails() {
         setUserUsdcBalance(formattedBalance);
       }
 
-      // Refresh NAV token balance
       const userPrincipal = await authService.getPrincipal();
       if (userPrincipal && bundle && 'ICRC151' in bundle.token_location) {
         try {
@@ -499,12 +502,6 @@ export default function BundleDetails() {
           console.error('Failed to refresh NAV balance:', err);
         }
       }
-
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      setTradeStatus('');
-      setTradeStep(0);
-      setIsTradeModalOpen(false);
     } catch (err) {
       console.error('Trade failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Trade failed. Please try again.';
