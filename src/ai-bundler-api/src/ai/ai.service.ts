@@ -39,7 +39,7 @@ export class AiService {
         )
         .join('\n\n');
 
-      const fullSystemPrompt = systemPrompt.replace('{{ASSETS_LIST}}', assetsList);
+      const fullSystemPrompt = systemPrompt.replace('__ASSETS_LIST__', assetsList);
 
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4',
