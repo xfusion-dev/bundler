@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { Actor, HttpAgent } from '@dfinity/agent';
-import { idlFactory } from '../declarations/backend.did.js';
+import { idlFactory } from '../declarations';
 
 interface Asset {
   id: string;
