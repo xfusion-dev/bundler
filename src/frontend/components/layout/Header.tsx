@@ -9,7 +9,6 @@ import { idlFactory } from '../../../backend/declarations/backend.did.js';
 import type { _SERVICE } from '../../../backend/declarations/backend.did';
 import AuthModal from '../ui/AuthModal';
 import UserDropdown from '../ui/UserDropdown';
-
 const BACKEND_CANISTER_ID = 'dk3fi-vyaaa-aaaae-qfycq-cai';
 
 interface HeaderProps {
