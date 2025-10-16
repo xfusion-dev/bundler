@@ -8,6 +8,7 @@ import { backendService } from '../lib/backend-service';
 import { coordinatorService } from '../src/services/coordinator-service';
 import { authService } from '../lib/auth';
 import { icrc2Service } from '../lib/icrc2-service';
+import { aiService } from '../lib/ai-service';
 import SEO from '../components/SEO';
 
 interface AssetMetadata {
@@ -71,6 +72,7 @@ export default function BundleBuilder() {
   const [createdBundleId, setCreatedBundleId] = useState<number | null>(null);
   const [isAiModeOpen, setIsAiModeOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   const navigate = useNavigate();
 
@@ -304,6 +306,56 @@ export default function BundleBuilder() {
     setCurrentQuote(null);
     setQuoteExpiresAt(0);
     setTimeRemaining(0);
+  };
+
+  const handleAiGeneration = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error('Please enter a bundle strategy');
+      return;
+    }
+
+    try {
+      setAiGenerating(true);
+      setError(null);
+
+      const response = await aiService.generateBundle(aiPrompt);
+
+      if (!response.valid) {
+        toast.error(response.reason || 'Invalid request. Please try a different prompt.');
+        return;
+      }
+
+      if (!response.name || !response.symbol || !response.allocations) {
+        toast.error('Invalid response from AI. Please try again.');
+        return;
+      }
+
+      setBundleName(response.name);
+      setBundleSymbol(response.symbol);
+      setBundleDescription(response.description || '');
+
+      const mappedAllocations: BundleAllocation[] = [];
+      for (const allocation of response.allocations) {
+        const asset = availableAssets.find(a => a.id === allocation.asset_id);
+        if (asset) {
+          mappedAllocations.push({
+            asset,
+            percentage: allocation.percentage
+          });
+        }
+      }
+
+      setSelectedAssets(mappedAllocations);
+
+      setIsAiModeOpen(false);
+      toast.success('Bundle generated successfully! Review and adjust as needed.');
+    } catch (error) {
+      console.error('AI generation failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate bundle. Please try again.';
+      toast.error(errorMessage);
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   const handleAcceptQuote = async () => {
@@ -1251,14 +1303,12 @@ export default function BundleBuilder() {
                         Switch to Manual
                       </button>
                       <button
-                        onClick={() => {
-                          toast.success('AI generation coming soon!');
-                        }}
-                        disabled={!aiPrompt.trim()}
+                        onClick={() => void handleAiGeneration()}
+                        disabled={!aiPrompt.trim() || aiGenerating}
                         className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:from-gray-700 disabled:to-gray-700 text-white font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:text-gray-500 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 disabled:shadow-none flex items-center justify-center gap-2"
                       >
-                        <Sparkles className="w-5 h-5" />
-                        Generate Bundle
+                        <Sparkles className={`w-5 h-5 ${aiGenerating ? 'animate-spin' : ''}`} />
+                        {aiGenerating ? 'Generating...' : 'Generate Bundle'}
                       </button>
                     </div>
                     </div>
