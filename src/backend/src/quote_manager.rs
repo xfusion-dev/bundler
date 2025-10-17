@@ -166,6 +166,10 @@ pub async fn execute_quote(quote: QuoteObject) -> Result<u64, String> {
 
     let bundle = crate::bundle_manager::get_bundle(quote.bundle_id)?;
 
+    if !bundle.is_active && !matches!(quote.operation, OperationType::InitialBuy { .. }) {
+        return Err("Bundle is not active. Only initial funding is allowed.".to_string());
+    }
+
     let platform_fee = (quote.ckusdc_amount as u128 * bundle.platform_fee_bps.unwrap_or(50) as u128 / 10000) as u64;
 
     let transaction_id = crate::transaction_manager::create_transaction_from_quote(&quote, user)?;

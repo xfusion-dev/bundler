@@ -65,7 +65,7 @@ pub async fn create_bundle(request: BundleCreationRequest) -> Result<u64, String
         creator: msg_caller(),
         allocations: allocations_with_location,
         created_at: time(),
-        is_active: true,
+        is_active: false,
         platform_fee_bps: Some(default_fee_bps),
     };
 
@@ -81,6 +81,21 @@ pub fn get_bundle(bundle_id: u64) -> Result<BundleConfig, String> {
         storage.borrow()
             .get(&bundle_id)
             .ok_or_else(|| format!("Bundle {} not found", bundle_id))
+    })
+}
+
+pub fn activate_bundle(bundle_id: u64) -> Result<(), String> {
+    BUNDLE_STORAGE.with(|storage| {
+        let mut storage = storage.borrow_mut();
+        match storage.get(&bundle_id) {
+            Some(mut bundle) => {
+                bundle.is_active = true;
+                storage.insert(bundle_id, bundle);
+                ic_cdk::println!("Bundle {} activated after successful initial funding", bundle_id);
+                Ok(())
+            }
+            None => Err(format!("Bundle {} not found", bundle_id))
+        }
     })
 }
 

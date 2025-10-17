@@ -164,6 +164,10 @@ pub async fn confirm_asset_deposit(request_id: u64) -> Result<(), String> {
         TransactionStatus::Completed,
     )?;
 
+    if matches!(transaction.operation, OperationType::InitialBuy { .. }) {
+        crate::bundle_manager::activate_bundle(transaction.bundle_id)?;
+    }
+
     let usdc_amount_e6 = assignment.ckusdc_amount;
     let points = usdc_amount_e6 / 10_000;
     crate::memory::add_points(transaction.user, points);
