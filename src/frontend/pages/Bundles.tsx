@@ -34,8 +34,8 @@ type SortDirection = 'asc' | 'desc';
 export default function Bundles() {
   const { bundles, isLoading: loading, error } = useBundlesWithAssets();
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<SortOption>('name');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sortBy, setSortBy] = useState<SortOption>('marketCap');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const handleSort = (column: SortOption) => {
     if (sortBy === column) {
