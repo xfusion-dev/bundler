@@ -1,356 +1,429 @@
-# xFusion Backend Canister
+# XFusion Backend Canister
 
-## Architecture Overview
+Canister for decentralized token portfolio bundling on the Internet Computer.
 
-The xFusion platform consists of three main components working together to enable decentralized asset bundling and trading:
+## Overview
 
-### 1. Backend Canister (This Component)
-The core smart contract on the Internet Computer that manages:
-- Bundle creation and registry
-- NAV token minting/burning
-- Quote request processing
-- Transaction orchestration
-- Asset custody and holdings tracking
-- Integration with ICRC-2 token standards
+XFusion allows users to create and trade custom token bundles (portfolios) as single tradeable assets. Each bundle is represented by an ICRC-151 NAV (Net Asset Value) token that tracks the underlying portfolio value.
 
-### 2. Resolver Network
-Off-chain services that provide liquidity and execute trades:
-- Market makers providing continuous liquidity
-- Arbitrageurs ensuring efficient pricing
-- DEX aggregators for best execution
-- Independent services competing for order flow
+**Key Features:**
+- Create custom token bundles with multiple assets
+- Trade bundles via initial funding, buying, and selling flows
+- Automatic NAV token minting/burning
+- Platform and creator fee distribution
+- Points reward system for volume
+- Admin controls for platform management
 
-### 3. XFusion Oracle
-Push-based price oracle service providing:
-- Real-time asset prices from multiple sources
-- 5-second update frequency
-- Price validation and aggregation
-- Direct push updates to the backend canister
-
-## System Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         Frontend                             │
+│                    Frontend (React)                          │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Backend Canister                          │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │   Bundle    │  │    Quote     │  │ Transaction  │       │
-│  │  Manager    │  │   Manager    │  │   Manager    │       │
-│  └─────────────┘  └──────────────┘  └──────────────┘       │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │   Holdings  │  │     NAV      │  │    ICRC-2    │       │
-│  │   Tracker   │  │  Calculator  │  │    Client    │       │
-│  └─────────────┘  └──────────────┘  └──────────────┘       │
+│                  Backend Canister (Rust)                     │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │   Bundle     │  │    Quote     │  │ Transaction  │      │
+│  │  Manager     │  │   Manager    │  │   Manager    │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │    Asset     │  │   Buy/Sell   │  │     NAV      │      │
+│  │   Registry   │  │     Flows    │  │  Calculator  │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │   Holdings   │  │   ICRC-151   │  │   ICRC-2     │      │
+│  │   Tracker    │  │    Client    │  │    Client    │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐                        │
+│  │    Admin     │  │    Oracle    │                        │
+│  │   Controls   │  │  Integration │                        │
+│  └──────────────┘  └──────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
          │                    │                    │
          ▼                    ▼                    ▼
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Resolver   │    │   XFusion    │    │  ICRC-2      │
-│   Network    │    │    Oracle    │    │  Ledgers     │
+│ Coordinator  │    │   XFusion    │    │  ICRC-2 &    │
+│   Service    │    │    Oracle    │    │  ICRC-151    │
+│  (Off-chain) │    │ (zutfo-...)  │    │   Ledgers    │
 └──────────────┘    └──────────────┘    └──────────────┘
+```
+
+## Project Structure
+
+```
+src/backend/src/
+├── lib.rs                    # Main entry point, canister lifecycle
+├── types.rs                  # All type definitions
+├── memory.rs                 # Stable storage management
+│
+├── bundle_manager.rs         # Bundle creation & lifecycle
+├── asset_registry.rs         # Asset registration & management
+├── nav_token.rs              # NAV token operations (ICRC-151)
+│
+├── quote_manager.rs          # Quote request/execution
+├── buy_flow.rs               # Buy flow orchestration
+├── sell_flow.rs              # Sell flow orchestration
+├── transaction_manager.rs    # Transaction state management
+│
+├── nav_calculator.rs         # NAV calculation logic
+├── holdings_tracker.rs       # Asset holdings tracking
+├── oracle.rs                 # Price oracle integration
+│
+├── icrc2_client.rs           # ICRC-2 token operations
+├── icrc151_client.rs         # ICRC-151 multi-token operations
+│
+├── admin.rs                  # Admin functions
+├── query_api.rs              # Public query methods
+├── error_recovery.rs         # Error handling & recovery
+├── resolver_manager.rs       # (Legacy) Resolver registry
+└── tests.rs                  # Unit tests
 ```
 
 ## Core Modules
 
 ### Bundle Manager (`bundle_manager.rs`)
-Handles bundle lifecycle and configuration:
 
-```rust
-// Create a new bundle with asset allocations
-create_bundle(config: BundleConfig) -> Result<u64, String>
+Manages bundle lifecycle and configuration.
 
-// Get bundle details
-get_bundle(bundle_id: u64) -> Result<BundleConfig, String>
+**Key Functions:**
+- `create_bundle()` - Create a new bundle (starts inactive)
+- `get_bundle()` - Retrieve bundle configuration
+- `list_active_bundles()` - Get all funded bundles
+- `activate_bundle()` - Activate bundle after initial funding
 
-// List all active bundles
-list_active_bundles() -> Vec<BundleConfig>
-```
+**Bundle States:**
+- `is_active = false` - Created but not funded (hidden from public)
+- `is_active = true` - Funded and tradeable (visible publicly)
 
-**Bundle Creation Process:**
+**Bundle Creation:**
 1. Validates allocations sum to 100%
-2. Ensures all assets are registered and active
-3. Assigns unique bundle ID
-4. Stores in stable memory
-5. Indexes for efficient queries
+2. Ensures all assets exist and are active
+3. Creates ICRC-151 token for the bundle
+4. Stores bundle with `is_active = false`
+5. Bundle activates only after successful InitialBuy
+
+### Asset Registry (`asset_registry.rs`)
+
+Manages supported assets and their configurations.
+
+**Functions:**
+- `register_asset()` - Add new asset (admin only)
+- `list_assets()` - Get all active assets
+- `update_asset_metadata()` - Update asset info
+- `deactivate_asset()` - Mark asset as inactive
+
+**Asset Types:**
+- `Cryptocurrency` - Standard crypto tokens (BTC, ETH, SOL, etc.)
+- `RWA` - Real-world assets (stocks, commodities)
+- `LiquidStaking` - Liquid staking derivatives (STETH, JITOSOL)
+- `Yield` - Yield-bearing assets
 
 ### Quote Manager (`quote_manager.rs`)
-Manages the quote request/response lifecycle:
 
-```rust
-// User requests a quote for buy/sell
-request_quote(request: QuoteRequest) -> Result<u64, String>
+Handles quote lifecycle and execution.
 
-// Resolver coordinator submits best quote
-submit_quote_assignment(assignment: QuoteAssignment) -> Result<(), String>
+**Flow:**
+1. User calls `execute_quote()` with signed quote from coordinator
+2. Quote signature verified
+3. Quote expiration checked
+4. Nonce consumed (prevents replay)
+5. For inactive bundles: only InitialBuy allowed
+6. For active bundles: Buy/Sell allowed
+7. Funds locked and transaction created
+8. Assignment stored for resolver
 
-// Execute the assigned quote
-execute_quote(request_id: u64) -> Result<u64, String>
-```
+**Quote Types:**
+- `InitialBuy` - Fund a new bundle (activates it)
+- `Buy` - Purchase NAV tokens of active bundle
+- `Sell` - Redeem NAV tokens for underlying assets
 
-**Quote Flow:**
-1. User submits quote request (buy/sell)
-2. Request stored with expiration timestamp
-3. Off-chain coordinator monitors requests
-4. Resolvers submit bids
-5. Best quote assigned to request
-6. User executes quote to complete trade
+### Buy Flow (`buy_flow.rs`)
+
+Orchestrates asset deposit and NAV token minting.
+
+**Process:**
+1. Resolver calls `confirm_asset_deposit()`
+2. Assets pulled from resolver via ICRC-151
+3. Bundle holdings updated
+4. NAV tokens minted to user
+5. Platform fees transferred to treasury
+6. Resolver paid in ckUSDC
+7. Transaction marked complete
+8. **If InitialBuy**: Bundle activated
+
+### Sell Flow (`sell_flow.rs`)
+
+Handles NAV token redemption for assets.
+
+**Process:**
+1. User's NAV tokens locked
+2. Resolver calls `confirm_resolver_payment_and_complete_sell()`
+3. ckUSDC pulled from resolver
+4. Bundle holdings calculated proportionally
+5. Assets transferred to resolver
+6. User paid in ckUSDC
+7. NAV tokens dissolved (burned)
+8. Transaction complete
 
 ### Transaction Manager (`transaction_manager.rs`)
-Orchestrates the execution of trades:
 
-```rust
-// Create transaction from quote
-create_transaction(request_id: u64) -> Result<u64, String>
-
-// Update transaction status
-update_transaction_status(tx_id: u64, status: TransactionStatus) -> Result<(), String>
-
-// Lock user funds during trade
-lock_user_funds(user: Principal, fund_type: LockedFundType, amount: u64) -> Result<(), String>
-```
+Manages transaction states and fund locking.
 
 **Transaction States:**
-- `Pending` - Transaction created
-- `FundsLocked` - User funds secured
-- `InProgress` - Resolver executing
+- `Pending` - Created, awaiting execution
+- `InProgress` - Being processed
 - `Completed` - Successfully finished
 - `Failed` - Error occurred
-- `Cancelled` - User/timeout cancellation
+- `TimedOut` - Exceeded timeout
+
+**Fund Locking:**
+- Locks user funds before execution
+- Auto-refund on timeout/failure
+- Prevents double-spending
 
 ### NAV Calculator (`nav_calculator.rs`)
-Calculates Net Asset Value for bundles:
 
-```rust
-// Calculate current NAV for bundle
-calculate_bundle_nav(bundle_id: u64) -> Result<BundleNAV, String>
+Calculates bundle net asset value.
 
-// Get user's total portfolio value
-get_portfolio_value(user: Principal) -> Result<u64, String>
+**Calculation:**
+```
+NAV per token = (Σ holding_amount × asset_price) / total_nav_tokens
 ```
 
-**NAV Calculation:**
-1. Fetch current holdings for bundle
-2. Get latest prices from oracle
-3. Calculate: NAV = Σ(Asset Quantity × Price) / Total NAV Tokens
-4. Return with 8 decimal precision
+**Features:**
+- Real-time price fetching from oracle
+- 8 decimal precision
+- Per-token and total bundle NAV
 
 ### Holdings Tracker (`holdings_tracker.rs`)
-Manages bundle asset holdings:
 
+Tracks asset quantities held by bundles.
+
+**Storage:**
 ```rust
-// Update bundle holdings after trade
-update_bundle_holdings(bundle_id: u64, asset_id: AssetId, delta: i64) -> Result<(), String>
-
-// Calculate proportional withdrawal for redemption
-calculate_proportional_withdrawal(bundle_id: u64, nav_tokens: u64) -> Result<Vec<AssetWithdrawal>, String>
+BUNDLE_HOLDINGS: Map<(bundle_id, asset_id), amount>
 ```
 
-### ICRC-2 Client (`icrc2_client.rs`)
-Interfaces with token ledgers:
+**Operations:**
+- `increment_bundle_holding()` - Add assets
+- `get_all_bundle_holdings()` - Get bundle composition
+- Proportional withdrawal calculation for sells
 
-```rust
-// Transfer tokens from user (with approval)
-pull_asset_from_user(asset_id: AssetId, user: Principal, amount: u64) -> Result<u64, String>
+### Oracle Integration (`oracle.rs`)
 
-// Send tokens to user
-send_asset_to_user(asset_id: AssetId, user: Principal, amount: u64) -> Result<u64, String>
+Interfaces with XFusion Oracle for price data.
+
+**Functions:**
+- `get_multiple_prices()` - Batch price fetch
+- `get_latest_price()` - Single asset price
+
+**Oracle Canister:** `zutfo-jqaaa-aaaao-a4puq-cai`
+
+### Admin Controls (`admin.rs`)
+
+Platform administration functions.
+
+**Functions:**
+- `set_admin()` - Transfer admin rights
+- `set_quote_api_principal()` - Set coordinator canister
+- `force_deactivate_bundle()` - Hide bundle (admin cleanup)
+- `cleanup_inactive_bundles()` - Remove unfunded bundles
+- `set_platform_treasury()` - Set fee recipient
+- `set_default_platform_fee_bps()` - Set platform fee (basis points)
+
+**Default Settings:**
+- Platform fee: 50 bps (0.5%)
+- Creator commission: Inherited by bundles
+
+## Flows
+
+### 1. Create Bundle Flow
+
+```
+User → create_bundle()
+  ├─ Validate allocations = 100%
+  ├─ Verify assets exist & active
+  ├─ Create ICRC-151 token
+  ├─ Store bundle (is_active = false)
+  └─ Return bundle_id
+
+Bundle is created but HIDDEN from public lists
 ```
 
-## Buy Flow - How It Works
+### 2. Initial Funding Flow (InitialBuy)
 
-When a user wants to buy NAV tokens:
+```
+User → Gets quote from coordinator
+  ↓
+User → execute_quote()
+  ├─ Verify signature
+  ├─ Check only InitialBuy allowed for inactive bundle
+  ├─ Lock user's ckUSDC
+  └─ Create transaction
 
-### 1. Quote Request Phase
-```rust
-// User requests to buy $1000 worth of bundle
-request_quote(QuoteRequest {
-    bundle_id: 1,
-    operation: Buy,
-    amount: 1_000_000_000, // $1000 in 6 decimals
-    user: caller,
-    max_slippage: 5, // 0.5%
-})
+Resolver → confirm_asset_deposit()
+  ├─ Pull assets from resolver (ICRC-151)
+  ├─ Update bundle holdings
+  ├─ Mint NAV tokens to user
+  ├─ Pay platform fee
+  ├─ Pay resolver
+  ├─ Mark transaction complete
+  └─ ACTIVATE BUNDLE ✓
+
+Bundle now active and visible in public lists
 ```
 
-### 2. Quote Assignment Phase
-```rust
-// Resolver coordinator assigns best quote
-submit_quote_assignment(QuoteAssignment {
-    request_id: 12345,
-    resolver: resolver_principal,
-    nav_tokens: 10_000_000_000, // 10 NAV tokens
-    ckusdc_amount: 1_000_000_000,
-    fees: { resolver_fee: 3_000_000, protocol_fee: 2_000_000 },
-})
+### 3. Buy Flow
+
+```
+User → Gets quote from coordinator
+  ↓
+User → execute_quote()
+  ├─ Verify bundle is active
+  ├─ Lock user's ckUSDC
+  └─ Create transaction
+
+Resolver → confirm_asset_deposit()
+  ├─ Pull assets from resolver
+  ├─ Update holdings
+  ├─ Mint NAV tokens
+  ├─ Pay fees
+  └─ Complete
 ```
 
-### 3. Execution Phase
-```rust
-// User executes the quote
-execute_quote(request_id) -> transaction_id
+### 4. Sell Flow
+
+```
+User → Gets quote from coordinator
+  ↓
+User → execute_quote()
+  ├─ Verify bundle is active
+  ├─ Lock user's NAV tokens
+  └─ Create transaction
+
+Resolver → confirm_resolver_payment_and_complete_sell()
+  ├─ Pull ckUSDC from resolver
+  ├─ Calculate proportional assets
+  ├─ Transfer assets to resolver
+  ├─ Pay user ckUSDC
+  ├─ Burn NAV tokens
+  └─ Complete
 ```
 
-### 4. Asset Deposit Phase
-The resolver deposits required assets:
+## Storage
+
+**Stable Memory Layout:**
+
 ```rust
-// Resolver confirms asset deposits
-confirm_asset_deposit_icrc2(request_id)
-// This function:
-// - Pulls assets from resolver using ICRC-2
-// - Updates bundle holdings
-// - Mints NAV tokens to user
-// - Pays resolver from locked ckUSDC
+// Memory IDs (memory.rs)
+BUNDLE_STORAGE         = MemoryId::new(0)   // Bundles
+ASSET_REGISTRY         = MemoryId::new(1)   // Assets
+BUNDLE_HOLDINGS        = MemoryId::new(2)   // Holdings
+TRANSACTIONS           = MemoryId::new(3)   // Transactions
+QUOTE_ASSIGNMENTS      = MemoryId::new(4)   // Assignments
+LOCKED_FUNDS           = MemoryId::new(5)   // Fund locks
+CONSUMED_NONCES        = MemoryId::new(8)   // Replay protection
+ORACLE_PRICES          = MemoryId::new(9)   // Price cache
+GLOBAL_STATE           = MemoryId::new(10)  // Global config
+USER_POINTS            = MemoryId::new(11)  // Loyalty points
 ```
 
-## Sell Flow - How It Works
-
-When a user wants to redeem NAV tokens:
-
-### 1. Quote Request Phase
-```rust
-// User requests to sell 10 NAV tokens
-request_quote(QuoteRequest {
-    bundle_id: 1,
-    operation: Sell,
-    amount: 10_000_000_000, // 10 NAV tokens
-    user: caller,
-    max_slippage: 5,
-})
-```
-
-### 2. Execution Phase
-```rust
-// Lock user's NAV tokens
-lock_user_funds(user, NAVTokens { bundle_id: 1 }, amount)
-```
-
-### 3. Payment & Settlement Phase
-```rust
-// Resolver confirms payment
-confirm_resolver_payment_and_complete_sell(request_id)
-// This function:
-// - Pulls ckUSDC from resolver
-// - Calculates proportional asset withdrawal
-// - Transfers assets to resolver
-// - Pays user ckUSDC
-// - Burns NAV tokens
-```
-
-## Oracle Integration
-
-The backend integrates with XFusion Oracle for real-time pricing:
+**Data Structures:**
 
 ```rust
-// Fetch latest price for asset
-get_asset_price(asset_id: AssetId) -> Result<AssetPrice, String>
-```
+BundleConfig {
+    id: u64,
+    name: String,
+    symbol: String,
+    description: Option<String>,
+    creator: Principal,
+    allocations: Vec<AssetAllocation>,
+    token_location: TokenLocation::ICRC151,
+    is_active: bool,                    // ← Bundle activation state
+    platform_fee_bps: Option<u64>,
+    created_at: u64,
+}
 
-**Price Caching:**
-- Prices cached for 60 seconds
-- Automatic refresh on cache miss
-- Fallback to last known price if oracle unavailable
+AssetAllocation {
+    asset_id: String,
+    token_location: TokenLocation,
+    percentage: u8,                     // 0-100
+}
 
-## Safety Mechanisms
-
-### 1. Atomic Operations
-All trades are atomic - they either complete fully or revert entirely:
-- Funds locked before execution
-- Automatic refund on failure
-- No partial executions
-
-### 2. Timeout Recovery
-```rust
-// Automatic timeout handling
-handle_transaction_timeout(tx_id: u64)
-// - Checks transaction age
-// - Refunds locked funds if expired
-// - Updates status to Failed
-```
-
-### 3. Resolver Validation
-- Only assigned resolvers can confirm trades
-- Resolver must be registered and active
-- Performance tracking for reputation
-
-### 4. Price Validation
-- Oracle prices validated for staleness
-- Multiple source aggregation
-- Deviation checks for anomalies
-
-## Storage Architecture
-
-The canister uses stable memory with BTreeMaps:
-
-```rust
-// Core storage structures
-type BundleStorage = StableBTreeMap<u64, BundleConfig>;
-type NAVTokenStorage = StableBTreeMap<(Principal, u64), NAVToken>;
-type TransactionStorage = StableBTreeMap<u64, Transaction>;
-type QuoteStorage = StableBTreeMap<u64, (QuoteRequest, Option<QuoteAssignment>)>;
-type HoldingsStorage = StableBTreeMap<(u64, AssetId), u64>;
-type PriceCache = StableBTreeMap<AssetId, AssetPrice>;
-```
-
-## Error Handling
-
-The canister implements comprehensive error handling:
-
-```rust
-pub enum ErrorType {
-    InvalidInput(String),
-    InsufficientFunds(String),
-    QuoteExpired(String),
-    TransactionFailed(String),
-    OracleError(String),
-    ICRCTransferError(String),
+Transaction {
+    id: u64,
+    user: Principal,
+    bundle_id: u64,
+    operation: OperationType,
+    status: TransactionStatus,
+    created_at: u64,
 }
 ```
 
-## Admin Functions
+## Fees
 
-Protected administrative functions:
+**Platform Fee:**
+- Default: 50 bps (0.5%)
+- Configurable per bundle
+- Paid in ckUSDC to treasury
 
-```rust
-// Set oracle configuration
-set_oracle_config(config: OracleConfig) -> Result<(), String>
+**Creator Commission:**
+- Bundles inherit platform fee
+- Can be customized at creation
+- Paid to bundle creator
 
-// Emergency pause
-emergency_pause_canister() -> Result<(), String>
+**Points System:**
+- Earn 1 point per $0.001 volume
+- Tracked per user
+- Future loyalty benefits
 
-// Update resolver status
-update_resolver_status(resolver: Principal, active: bool) -> Result<(), String>
+## Security
 
-// Cleanup expired quotes
-cleanup_expired_quotes() -> Result<u32, String>
-```
+**Quote Validation:**
+- Coordinator signature verification
+- Nonce-based replay protection
+- Expiration checking (180s default)
 
-## Testing
+**Fund Safety:**
+- Atomic transactions (all-or-nothing)
+- Automatic timeout refunds
+- Locked funds during execution
 
-Run tests with:
-```bash
-cargo test
-```
+**Access Control:**
+- Admin-only functions
+- Coordinator-only quote execution
+- Resolver-only confirmations
 
-Key test coverage:
-- Bundle creation validation
-- NAV calculation accuracy
-- Quote expiration handling
-- Transaction state transitions
-- ICRC-2 transfer simulation
+**Bundle Safety:**
+- Only InitialBuy can activate bundles
+- Buy/Sell blocked on inactive bundles
+- Allocation validation (must sum to 100%)
 
 ## Deployment
 
-### Local Development
+**Local:**
 ```bash
 dfx start --clean
 dfx deploy backend
 ```
 
-### IC Mainnet
+**Mainnet:**
 ```bash
 dfx deploy --network ic backend
 ```
+
+**Canister ID (mainnet):** `dk3fi-vyaaa-aaaae-qfycq-cai`
+
+
+## Dependencies
+
+- `ic-cdk` - Internet Computer SDK
+- `candid` - Candid serialization
+- `serde` - Serialization framework
+- `ic-stable-structures` - Stable memory primitives
+
+## License
+
+Proprietary - XFusion Platform
