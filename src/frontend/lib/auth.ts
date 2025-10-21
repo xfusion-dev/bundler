@@ -14,6 +14,15 @@ export interface AuthState {
 class AuthService {
   private authClient: AuthClient | null = null;
   private agent: HttpAgent | null = null;
+  private authChangeCallbacks: Array<() => void> = [];
+
+  onAuthChange(callback: () => void) {
+    this.authChangeCallbacks.push(callback);
+  }
+
+  private notifyAuthChange() {
+    this.authChangeCallbacks.forEach(cb => cb());
+  }
 
   async init(): Promise<AuthClient> {
     if (!this.authClient) {
@@ -25,7 +34,7 @@ class AuthService {
   async login(): Promise<boolean> {
     try {
       const authClient = await this.init();
-      
+
       return new Promise((resolve) => {
         authClient.login({
           identityProvider: IDENTITY_PROVIDER,
@@ -33,6 +42,7 @@ class AuthService {
           windowOpenerFeatures: 'toolbar=0,location=0,menubar=0,width=500,height=500,left=100,top=100',
           onSuccess: () => {
             void this.setupAgent();
+            this.notifyAuthChange();
             resolve(true);
           },
           onError: (error) => {
@@ -52,6 +62,7 @@ class AuthService {
       const authClient = await this.init();
       await authClient.logout();
       this.agent = null;
+      this.notifyAuthChange();
     } catch (error) {
       console.error('Logout error:', error);
     }

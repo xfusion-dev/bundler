@@ -88,6 +88,13 @@ const BACKEND_CANISTER_ID = 'dk3fi-vyaaa-aaaae-qfycq-cai';
 class ICRC2Service {
   private actor: any = null;
 
+  constructor() {
+    authService.onAuthChange(() => {
+      console.log('[ICRC2Service] Invalidating cached actor');
+      this.actor = null;
+    });
+  }
+
   private async getActor() {
     if (this.actor) return this.actor;
 

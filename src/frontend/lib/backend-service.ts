@@ -9,6 +9,16 @@ class BackendService {
   private actor: any = null;
   private agent: HttpAgent | null = null;
 
+  constructor() {
+    authService.onAuthChange(() => this.invalidateCache());
+  }
+
+  invalidateCache() {
+    console.log('[BackendService] Invalidating cached actor');
+    this.actor = null;
+    this.agent = null;
+  }
+
   async getActor() {
     if (this.actor) return this.actor;
 
