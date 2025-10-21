@@ -50,4 +50,5 @@ Cargo.lock
 *.rs.bk
 
 deps
-*.key
+*.keysrc/resolver-api/get_resolver_principal.js
+src/coordinator-api/.ed25519.key
