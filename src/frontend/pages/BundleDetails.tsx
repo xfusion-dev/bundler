@@ -831,7 +831,9 @@ export default function BundleDetails() {
                           <button
                             onClick={() => {
                               if (tradeTab === 'buy') {
-                                setTradeAmount((Number(userUsdcBalanceRaw) / 1000000).toString());
+                                // Subtract 0.01 USDC transfer fee from max
+                                const maxUsable = Math.max(0, (Number(userUsdcBalanceRaw) / 1000000) - 0.01);
+                                setTradeAmount(maxUsable.toString());
                               } else {
                                 setTradeAmount((Number(userNavBalanceRaw) / 100000000).toString());
                               }
