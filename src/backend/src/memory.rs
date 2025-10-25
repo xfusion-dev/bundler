@@ -199,7 +199,8 @@ pub fn get_current_week() -> u64 {
     let now = ic_cdk::api::time();
     let seconds = now / 1_000_000_000;
     const WEEK_IN_SECONDS: u64 = 7 * 24 * 60 * 60;
-    seconds / WEEK_IN_SECONDS
+    const OFFSET_TO_SUNDAY: u64 = 4 * 24 * 60 * 60;
+    (seconds + OFFSET_TO_SUNDAY) / WEEK_IN_SECONDS
 }
 
 pub fn add_points(principal: Principal, points: u64) {
